@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
 
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
 import 'item_form_screen.dart';
+import 'quick_stock_screen.dart';
 import 'scanner_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -43,24 +43,47 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _items = widget.repo.search(_searchCtrl.text));
   }
 
+  void _showSavedSnackBar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
+            SizedBox(width: 8),
+            Text('Cambios guardados'),
+          ],
+        ),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Future<void> _openExisting(ClothingItem item) async {
-    await Navigator.of(context).push(
+    final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => ItemFormScreen(repo: widget.repo, item: item)),
     );
     _reload();
+    if (saved == true && mounted) _showSavedSnackBar();
+  }
+
+  Future<void> _quickEditStock(ClothingItem item) async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => QuickStockScreen(repo: widget.repo, item: item)),
+    );
+    _reload();
+    if (saved == true && mounted) _showSavedSnackBar();
   }
 
   Future<void> _addManually() async {
-    final newItem = ClothingItem(
-      id: const Uuid().v4(),
-      nombre: '',
-      precio: 0,
-      variantes: const [],
-    );
-    await Navigator.of(context).push(
+    final id = await widget.repo.generateId();
+    if (!mounted) return;
+    final newItem = ClothingItem(id: id, nombre: '', precio: 0, variantes: const []);
+    final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => ItemFormScreen(repo: widget.repo, item: newItem, isNew: true)),
     );
     _reload();
+    if (saved == true && mounted) _showSavedSnackBar();
   }
 
   Future<void> _scan() async {
@@ -70,15 +93,33 @@ class _HomeScreenState extends State<HomeScreen> {
     if (code == null || !mounted) return;
 
     final existing = widget.repo.getById(code);
-    final item = existing ??
-        ClothingItem(id: code, nombre: '', precio: 0, variantes: const []);
+    if (existing == null) {
+      await _showUnrecognizedQrDialog();
+      return;
+    }
 
-    await Navigator.of(context).push(
+    final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => ItemFormScreen(repo: widget.repo, item: item, isNew: existing == null),
+        builder: (_) => ItemFormScreen(repo: widget.repo, item: existing),
       ),
     );
     _reload();
+    if (saved == true && mounted) _showSavedSnackBar();
+  }
+
+  Future<void> _showUnrecognizedQrDialog() {
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('QR no reconocido'),
+        content: const Text(
+          'Este código no corresponde a una prenda registrada.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar')),
+        ],
+      ),
+    );
   }
 
   @override
@@ -137,6 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemBuilder: (context, index) => _ClothingCard(
                       item: _items[index],
                       onTap: () => _openExisting(_items[index]),
+                      onQuickEdit: () => _quickEditStock(_items[index]),
                     ),
                   ),
           ),
@@ -167,13 +209,15 @@ class _HomeScreenState extends State<HomeScreen> {
 class _ClothingCard extends StatelessWidget {
   final ClothingItem item;
   final VoidCallback onTap;
+  final VoidCallback onQuickEdit;
 
-  const _ClothingCard({required this.item, required this.onTap});
+  const _ClothingCard({required this.item, required this.onTap, required this.onQuickEdit});
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final sinStock = item.existenciaTotal == 0;
+    final colores = item.coloresDisponibles;
 
     return Card(
       child: InkWell(
@@ -199,32 +243,44 @@ class _ClothingCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '\$${item.precio.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    if (colores.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        colores.join(' • '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                      ),
+                    ],
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        Chip(
-                          avatar: const Icon(Icons.sell_outlined, size: 16),
-                          label: Text('\$${item.precio.toStringAsFixed(2)}'),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        Chip(
-                          avatar: Icon(
-                            sinStock ? Icons.error_outline : Icons.inventory_2_outlined,
-                            size: 16,
-                            color: sinStock ? colorScheme.error : null,
-                          ),
-                          label: Text('${item.existenciaTotal} en existencia'),
-                          backgroundColor: sinStock
-                              ? colorScheme.errorContainer.withValues(alpha: 0.6)
-                              : null,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ],
+                    Chip(
+                      avatar: Icon(
+                        sinStock ? Icons.error_outline : Icons.inventory_2_outlined,
+                        size: 16,
+                        color: sinStock ? colorScheme.error : null,
+                      ),
+                      label: Text(sinStock ? 'AGOTADO' : '${item.existenciaTotal} piezas'),
+                      backgroundColor: sinStock
+                          ? colorScheme.errorContainer.withValues(alpha: 0.6)
+                          : null,
+                      visualDensity: VisualDensity.compact,
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.tune_rounded),
+                tooltip: 'Editar existencia rápido',
+                onPressed: onQuickEdit,
               ),
               Icon(Icons.chevron_right_rounded, color: colorScheme.outline),
             ],

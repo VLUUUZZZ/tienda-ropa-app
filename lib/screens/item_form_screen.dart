@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
 import 'qr_screen.dart';
+import 'quick_stock_screen.dart';
 
 class _VariantRow {
   final TextEditingController talla;
@@ -87,17 +88,52 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     });
   }
 
+  bool _rowIsUsed(_VariantRow row) =>
+      row.talla.text.trim().isNotEmpty || row.color.text.trim().isNotEmpty;
+
+  String? _validateTalla(_VariantRow row) {
+    if (!_rowIsUsed(row)) return null; // untouched placeholder row, ignored on save
+    return row.talla.text.trim().isEmpty ? 'Requerido' : null;
+  }
+
+  String? _validateColor(_VariantRow row) {
+    if (!_rowIsUsed(row)) return null;
+    return row.color.text.trim().isEmpty ? 'Requerido' : null;
+  }
+
+  String? _validateExistencia(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return null; // treated as 0
+    final parsed = int.tryParse(text);
+    if (parsed == null) return 'Inválido';
+    if (parsed < 0) return 'No negativo';
+    return null;
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
     final variantes = _variantes
-        .where((row) => row.talla.text.trim().isNotEmpty)
+        .where(_rowIsUsed)
         .map((row) => ClothingVariant(
               talla: row.talla.text.trim(),
               color: row.color.text.trim(),
               existencia: int.tryParse(row.existencia.text.trim()) ?? 0,
             ))
         .toList();
+
+    final duplicate = ClothingItem.firstDuplicateVariant(variantes);
+    if (duplicate != null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'La combinación ${duplicate.color} / ${duplicate.talla} ya está registrada.',
+          ),
+        ),
+      );
+      return;
+    }
 
     final updated = ClothingItem(
       id: widget.item.id,
@@ -110,6 +146,27 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
     if (!mounted) return;
     Navigator.of(context).pop(true);
+  }
+
+  Future<void> _quickEditStock() async {
+    final current = widget.repo.getById(widget.item.id);
+    if (current == null) return;
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => QuickStockScreen(repo: widget.repo, item: current)),
+    );
+    if (saved == true && mounted) {
+      // Reflect the updated counts in this screen's fields too.
+      setState(() {
+        final refreshed = widget.repo.getById(widget.item.id)!;
+        for (var i = 0; i < _variantes.length; i++) {
+          _variantes[i].dispose();
+        }
+        _variantes.clear();
+        for (final v in refreshed.variantes) {
+          _variantes.add(_VariantRow(talla: v.talla, color: v.color, existencia: v.existencia));
+        }
+      });
+    }
   }
 
   Future<void> _delete() async {
@@ -151,6 +208,12 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       appBar: AppBar(
         title: Text(widget.isNew ? 'Nueva prenda' : 'Editar prenda'),
         actions: [
+          if (isExisting && widget.item.variantes.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.tune_rounded),
+              tooltip: 'Editar existencia rápido',
+              onPressed: _quickEditStock,
+            ),
           IconButton(
             icon: const Icon(Icons.qr_code),
             tooltip: 'Ver código QR',
@@ -229,35 +292,63 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                 margin: const EdgeInsets.only(bottom: 10),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Expanded(
-                        flex: 3,
-                        child: TextFormField(
-                          controller: row.talla,
-                          decoration: const InputDecoration(labelText: 'Talla', isDense: true),
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: TextFormField(
+                              controller: row.talla,
+                              decoration: const InputDecoration(labelText: 'Talla', isDense: true),
+                              validator: (_) => _validateTalla(row),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 3,
+                            child: TextFormField(
+                              controller: row.color,
+                              decoration: const InputDecoration(labelText: 'Color', isDense: true),
+                              validator: (_) => _validateColor(row),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 2,
+                            child: TextFormField(
+                              controller: row.existencia,
+                              decoration: const InputDecoration(labelText: 'Existencia', isDense: true),
+                              keyboardType: TextInputType.number,
+                              validator: _validateExistencia,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline),
+                            onPressed: _variantes.length > 1 ? () => _removeVariantRow(index) : null,
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: 3,
-                        child: TextFormField(
-                          controller: row.color,
-                          decoration: const InputDecoration(labelText: 'Color', isDense: true),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: 2,
-                        child: TextFormField(
-                          controller: row.existencia,
-                          decoration: const InputDecoration(labelText: 'Existencia', isDense: true),
-                          keyboardType: TextInputType.number,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.remove_circle_outline),
-                        onPressed: _variantes.length > 1 ? () => _removeVariantRow(index) : null,
+                      AnimatedBuilder(
+                        animation: row.existencia,
+                        builder: (context, _) {
+                          final agotado = (int.tryParse(row.existencia.text.trim()) ?? 0) <= 0;
+                          if (!agotado || !_rowIsUsed(row)) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'AGOTADO',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
