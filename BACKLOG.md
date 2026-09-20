@@ -9,19 +9,31 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Pendiente
 
-(Lista de pulido acordada con el usuario el 2026-09-20. Ya cumplido, sin cambios: búsqueda por
-substring insensible a mayúsculas, orden alfabético por defecto, y el escáner ya cierra solo al
-detectar un código. Se está trabajando en el resto en la sesión interactiva de hoy; lo que quede
-sin terminar ahí, la sesión automática lo sigue de arriba hacia abajo.)
-
-1. Tarjetas de producto: mostrar colores disponibles además de precio y existencia total.
-2. Edición rápida de existencia por color/talla con botones +/-, sin pasar por el formulario completo.
-3. Marcar "AGOTADO" cuando una talla llega a 0, sin eliminar el registro.
-4. Evitar variantes duplicadas (misma combinación color + talla) dentro de una prenda.
-5. Validaciones: precio y existencia no negativos, nombre/color/talla no vacíos.
-6. QR con código legible tipo PRENDA-000024 (en vez de UUID) y opción de compartir/guardar como imagen.
-7. Al escanear un QR que no corresponde a ninguna prenda registrada, mostrar "QR no reconocido" en
-   vez de crear una prenda automáticamente.
-8. Confirmación visual ("✓ Cambios guardados") al guardar cambios.
+(vacío por ahora — agrega tareas aquí, una por línea)
 
 ## Completado
+
+### 2026-09-20 — commit `022ea4c`
+
+Lista de pulido acordada con el usuario (búsqueda tolerante, tarjetas, edición rápida de
+existencia, QR listo para imprimir, validaciones). Ya cumplido antes de esta sesión, sin cambios:
+búsqueda por substring insensible a mayúsculas, orden alfabético por defecto, y el escáner ya
+cerraba solo al detectar un código.
+
+Implementado y verificado (flutter analyze, flutter test, flutter build apk --debug, todo real:
+Hive local, cámara real vía mobile_scanner, share sheet nativo vía share_plus — nada simulado):
+
+1. Tarjetas de producto muestran colores disponibles además de precio y existencia total.
+2. Edición rápida de existencia por color/talla con botones +/-, sin pasar por el formulario completo.
+3. Tallas en 0 se marcan como "AGOTADO" sin eliminar el registro.
+4. Se evitan variantes duplicadas (misma combinación color + talla) dentro de una prenda.
+5. Validaciones: precio y existencia no negativos, nombre/color/talla no vacíos.
+6. QR con código legible tipo PRENDA-000001 (en vez de UUID) y opción de compartir/guardar como imagen.
+7. Al escanear un QR que no corresponde a ninguna prenda registrada, se muestra "QR no reconocido"
+   en vez de crear una prenda automáticamente.
+8. Confirmación visual ("Cambios guardados") al guardar cambios desde la pantalla principal.
+9. Búsqueda ahora también ignora acentos.
+
+También se instaló el skill de diseño `ui-ux-pro-max` en `.claude/skills/` (repo
+github.com/nextlevelbuilder/ui-ux-pro-max-skill) para consultarlo en trabajo de UI/UX futuro del
+proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de Flutter).
