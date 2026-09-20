@@ -1,0 +1,278 @@
+import 'package:flutter/material.dart';
+
+import '../data/clothing_repository.dart';
+import '../models/clothing_item.dart';
+import 'qr_screen.dart';
+
+class _VariantRow {
+  final TextEditingController talla;
+  final TextEditingController color;
+  final TextEditingController existencia;
+
+  _VariantRow({String talla = '', String color = '', int existencia = 0})
+      : talla = TextEditingController(text: talla),
+        color = TextEditingController(text: color),
+        existencia = TextEditingController(text: existencia.toString());
+
+  void dispose() {
+    talla.dispose();
+    color.dispose();
+    existencia.dispose();
+  }
+}
+
+/// Create/edit screen for a single garment. Works both for a brand-new item
+/// (blank fields, id already assigned) and an existing one loaded from a scan
+/// or from the catalog list.
+class ItemFormScreen extends StatefulWidget {
+  final ClothingRepository repo;
+  final ClothingItem item;
+  final bool isNew;
+
+  const ItemFormScreen({
+    super.key,
+    required this.repo,
+    required this.item,
+    this.isNew = false,
+  });
+
+  @override
+  State<ItemFormScreen> createState() => _ItemFormScreenState();
+}
+
+class _ItemFormScreenState extends State<ItemFormScreen> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nombreCtrl;
+  late final TextEditingController _precioCtrl;
+  final List<_VariantRow> _variantes = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _nombreCtrl = TextEditingController(text: widget.item.nombre);
+    _precioCtrl = TextEditingController(
+      text: widget.item.precio == 0 ? '' : widget.item.precio.toString(),
+    );
+    if (widget.item.variantes.isEmpty) {
+      _variantes.add(_VariantRow());
+    } else {
+      for (final v in widget.item.variantes) {
+        _variantes.add(_VariantRow(
+          talla: v.talla,
+          color: v.color,
+          existencia: v.existencia,
+        ));
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _nombreCtrl.dispose();
+    _precioCtrl.dispose();
+    for (final row in _variantes) {
+      row.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addVariantRow() {
+    setState(() => _variantes.add(_VariantRow()));
+  }
+
+  void _removeVariantRow(int index) {
+    setState(() {
+      _variantes[index].dispose();
+      _variantes.removeAt(index);
+    });
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final variantes = _variantes
+        .where((row) => row.talla.text.trim().isNotEmpty)
+        .map((row) => ClothingVariant(
+              talla: row.talla.text.trim(),
+              color: row.color.text.trim(),
+              existencia: int.tryParse(row.existencia.text.trim()) ?? 0,
+            ))
+        .toList();
+
+    final updated = ClothingItem(
+      id: widget.item.id,
+      nombre: _nombreCtrl.text.trim(),
+      precio: double.tryParse(_precioCtrl.text.trim().replaceAll(',', '.')) ?? 0,
+      variantes: variantes,
+    );
+
+    await widget.repo.save(updated);
+
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
+  }
+
+  Future<void> _delete() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar prenda'),
+        content: const Text('¿Eliminar esta prenda del catálogo? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar')),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await widget.repo.delete(widget.item.id);
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
+  }
+
+  void _showQr() {
+    // Build a live snapshot so the QR screen reflects unsaved edits too.
+    final snapshot = ClothingItem(
+      id: widget.item.id,
+      nombre: _nombreCtrl.text.trim(),
+      precio: double.tryParse(_precioCtrl.text.trim().replaceAll(',', '.')) ?? 0,
+      variantes: const [],
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => QrScreen(item: snapshot)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isExisting = widget.repo.getById(widget.item.id) != null;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.isNew ? 'Nueva prenda' : 'Editar prenda'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code),
+            tooltip: 'Ver código QR',
+            onPressed: _showQr,
+          ),
+          if (isExisting)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Eliminar',
+              onPressed: _delete,
+            ),
+        ],
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _nombreCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Nombre de la prenda',
+                        prefixIcon: Icon(Icons.checkroom_rounded),
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+                    ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: _precioCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Precio',
+                        prefixIcon: Icon(Icons.sell_outlined),
+                        prefixText: '\$ ',
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Requerido';
+                        final parsed = double.tryParse(v.trim().replaceAll(',', '.'));
+                        if (parsed == null || parsed < 0) return 'Precio inválido';
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Tallas, colores y existencia', style: Theme.of(context).textTheme.titleMedium),
+                  FilledButton.tonalIcon(
+                    onPressed: _addVariantRow,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Agregar'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            ..._variantes.asMap().entries.map((entry) {
+              final index = entry.key;
+              final row = entry.value;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: TextFormField(
+                          controller: row.talla,
+                          decoration: const InputDecoration(labelText: 'Talla', isDense: true),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 3,
+                        child: TextFormField(
+                          controller: row.color,
+                          decoration: const InputDecoration(labelText: 'Color', isDense: true),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: TextFormField(
+                          controller: row.existencia,
+                          decoration: const InputDecoration(labelText: 'Existencia', isDense: true),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline),
+                        onPressed: _variantes.length > 1 ? () => _removeVariantRow(index) : null,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: _save,
+              icon: const Icon(Icons.save_rounded),
+              label: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
