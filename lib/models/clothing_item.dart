@@ -41,6 +41,34 @@ class ClothingItem {
   int get existenciaTotal =>
       variantes.fold(0, (sum, v) => sum + v.existencia);
 
+  /// Unique colors across all variants, in first-seen order — what the
+  /// catalog card and the quick stock editor show.
+  List<String> get coloresDisponibles {
+    final seen = <String>{};
+    final result = <String>[];
+    for (final v in variantes) {
+      if (v.color.isNotEmpty && seen.add(v.color)) {
+        result.add(v.color);
+      }
+    }
+    return result;
+  }
+
+  /// The color+talla combination is what makes a variant unique within a
+  /// garment; finds the first pair that repeats, if any.
+  static ({String color, String talla})? firstDuplicateVariant(
+    List<ClothingVariant> variantes,
+  ) {
+    final seen = <String>{};
+    for (final v in variantes) {
+      final key = '${v.color.trim().toLowerCase()}|${v.talla.trim().toLowerCase()}';
+      if (!seen.add(key)) {
+        return (color: v.color.trim(), talla: v.talla.trim());
+      }
+    }
+    return null;
+  }
+
   Map<String, dynamic> toMap() => {
         'id': id,
         'nombre': nombre,

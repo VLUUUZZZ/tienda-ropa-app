@@ -51,4 +51,27 @@ void main() {
   test('unknown id returns null, matching the "add new item" scan flow', () {
     expect(repo.getById('does-not-exist'), isNull);
   });
+
+  test('search ignores accents and case', () async {
+    await repo.save(ClothingItem(id: '1', nombre: 'Pantalón Cargo', precio: 520, variantes: []));
+
+    expect(repo.search('pantalon').map((i) => i.id), ['1']);
+    expect(repo.search('CARGO').map((i) => i.id), ['1']);
+  });
+
+  test('generateId mints sequential, human-readable ids', () async {
+    final first = await repo.generateId();
+    final second = await repo.generateId();
+
+    expect(first, 'PRENDA-000001');
+    expect(second, 'PRENDA-000002');
+  });
+
+  test('the sequence counter never shows up as a catalog item', () async {
+    await repo.generateId();
+    await repo.save(ClothingItem(id: 'qr-1', nombre: 'Playera', precio: 100, variantes: []));
+
+    expect(repo.getAll(), hasLength(1));
+    expect(repo.getById('__sequence__'), isNull);
+  });
 }
