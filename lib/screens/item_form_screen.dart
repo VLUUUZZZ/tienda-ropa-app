@@ -135,8 +135,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       row.talla.text.trim().isNotEmpty || row.color.text.trim().isNotEmpty;
 
   String? _validateTalla(_VariantRow row) {
-    if (!_rowIsUsed(row))
-      return null; // untouched placeholder row, ignored on save
+    if (!_rowIsUsed(row)) {
+      return null;
+    }
     return row.talla.text.trim().isEmpty ? 'Requerido' : null;
   }
 
@@ -275,10 +276,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
         final descartar = await _confirmDiscard();
-        if (descartar && mounted) {
-          setState(() => _dirty = false);
-          Navigator.of(context).pop();
-        }
+        if (!descartar) return;
+        if (!mounted) return;
+        setState(() => _dirty = false);
+        // ignore: use_build_context_synchronously
+        Navigator.of(context).pop();
       },
       child: Scaffold(
         appBar: AppBar(
@@ -339,8 +341,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                           final parsed = double.tryParse(
                             v.trim().replaceAll(',', '.'),
                           );
-                          if (parsed == null || parsed < 0)
+                          if (parsed == null || parsed < 0) {
                             return 'Precio inválido';
+                          }
                           return null;
                         },
                       ),
@@ -436,8 +439,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                                 (int.tryParse(row.existencia.text.trim()) ??
                                     0) <=
                                 0;
-                            if (!agotado || !_rowIsUsed(row))
+                            if (!agotado || !_rowIsUsed(row)) {
                               return const SizedBox.shrink();
+                            }
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 6),
                               child: Align(

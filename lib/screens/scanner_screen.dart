@@ -11,6 +11,7 @@ class ScannerScreen extends StatefulWidget {
 }
 
 class _ScannerScreenState extends State<ScannerScreen> {
+  final _controller = MobileScannerController();
   bool _handled = false;
 
   void _onDetect(BarcodeCapture capture) {
@@ -24,10 +25,35 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Escanear prenda')),
-      body: MobileScanner(onDetect: _onDetect),
+      appBar: AppBar(
+        title: const Text('Escanear prenda'),
+        actions: [
+          ValueListenableBuilder(
+            valueListenable: _controller,
+            builder: (context, state, child) {
+              final encendida = state.torchState == TorchState.on;
+              return IconButton(
+                icon: Icon(
+                  encendida ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+                ),
+                tooltip: encendida ? 'Apagar linterna' : 'Encender linterna',
+                onPressed: state.torchState == TorchState.unavailable
+                    ? null
+                    : _controller.toggleTorch,
+              );
+            },
+          ),
+        ],
+      ),
+      body: MobileScanner(controller: _controller, onDetect: _onDetect),
     );
   }
 }

@@ -108,10 +108,11 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
         final descartar = await _confirmDiscard();
-        if (descartar && mounted) {
-          setState(() => _dirty = false);
-          Navigator.of(context).pop();
-        }
+        if (!descartar) return;
+        if (!mounted) return;
+        setState(() => _dirty = false);
+        // ignore: use_build_context_synchronously
+        Navigator.of(context).pop();
       },
       child: Scaffold(
         appBar: AppBar(
