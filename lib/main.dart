@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'data/clothing_repository.dart';
+import 'data/settings_repository.dart';
 import 'screens/home_screen.dart';
 
 Future<void> main() async {
@@ -11,27 +12,37 @@ Future<void> main() async {
   final repo = ClothingRepository();
   await repo.init();
 
-  runApp(TiendaRopaApp(repo: repo));
+  final settings = SettingsRepository();
+  await settings.init();
+
+  runApp(TiendaRopaApp(repo: repo, settings: settings));
 }
 
 class TiendaRopaApp extends StatefulWidget {
   final ClothingRepository repo;
+  final SettingsRepository settings;
 
-  const TiendaRopaApp({super.key, required this.repo});
+  const TiendaRopaApp({super.key, required this.repo, required this.settings});
 
   @override
   State<TiendaRopaApp> createState() => _TiendaRopaAppState();
 }
 
 class _TiendaRopaAppState extends State<TiendaRopaApp> {
-  ThemeMode _themeMode = ThemeMode.light;
+  late ThemeMode _themeMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _themeMode = widget.settings.isDarkMode ? ThemeMode.dark : ThemeMode.light;
+  }
 
   void _toggleTheme() {
-    setState(() {
-      _themeMode = _themeMode == ThemeMode.light
-          ? ThemeMode.dark
-          : ThemeMode.light;
-    });
+    final next = _themeMode == ThemeMode.light
+        ? ThemeMode.dark
+        : ThemeMode.light;
+    setState(() => _themeMode = next);
+    widget.settings.setDarkMode(next == ThemeMode.dark);
   }
 
   @override
