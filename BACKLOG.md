@@ -14,6 +14,19 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-22 (6) — pendiente
+
+Sexta ronda de pulido de la misma sesión: primeras pruebas de widget del proyecto.
+
+1. Nuevo `test/home_screen_test.dart` (3 pruebas): catálogo vacío, listado de una prenda ya
+   guardada, y filtrado por texto de búsqueda.
+2. Al escribirlas se detectó un cuelgue real: `repo.save(...)` (E/S real de Hive) llamado
+   directamente dentro del cuerpo de un `testWidgets` se queda colgado para siempre, porque
+   `testWidgets` corre en una zona "fake async" que no deja avanzar la E/S real. Se corrigió
+   envolviendo esas llamadas en `tester.runAsync(...)`, como indica la documentación de Flutter.
+
+16/16 pruebas (9s). Verificado con flutter analyze (0 avisos) y flutter build apk --debug.
+
 ### 2026-09-22 (5) — pendiente
 
 Quinta ronda de pulido de la misma sesión:
