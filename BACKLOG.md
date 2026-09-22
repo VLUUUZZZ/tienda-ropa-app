@@ -14,6 +14,18 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-22 (9) — pendiente
+
+Novena ronda de pulido de la misma sesión:
+
+1. La pantalla de carga (splash) en Android usaba blanco puro (`@android:color/white`)
+   en vez del crema cálido del tema de la app, así que había un destello blanco antes de
+   que se dibujara la UI. Corregido a `#FBF4EF` (mismo color que `scaffoldBackgroundColor`
+   en modo claro). El fallback para Android 5+ (`drawable-v21`) ya usaba el color del
+   sistema dinámicamente y no necesitó cambios.
+
+Verificado con flutter build apk --debug.
+
 ### 2026-09-22 (8) — pendiente
 
 Octava ronda de pulido de la misma sesión:
