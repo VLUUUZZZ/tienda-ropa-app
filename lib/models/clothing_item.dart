@@ -10,10 +10,10 @@ class ClothingVariant {
   });
 
   Map<String, dynamic> toMap() => {
-        'talla': talla,
-        'color': color,
-        'existencia': existencia,
-      };
+    'talla': talla,
+    'color': color,
+    'existencia': existencia,
+  };
 
   factory ClothingVariant.fromMap(Map<String, dynamic> map) {
     return ClothingVariant(
@@ -38,8 +38,7 @@ class ClothingItem {
     required this.variantes,
   });
 
-  int get existenciaTotal =>
-      variantes.fold(0, (sum, v) => sum + v.existencia);
+  int get existenciaTotal => variantes.fold(0, (sum, v) => sum + v.existencia);
 
   /// Unique colors across all variants, in first-seen order — what the
   /// catalog card and the quick stock editor show.
@@ -61,7 +60,8 @@ class ClothingItem {
   ) {
     final seen = <String>{};
     for (final v in variantes) {
-      final key = '${v.color.trim().toLowerCase()}|${v.talla.trim().toLowerCase()}';
+      final key =
+          '${v.color.trim().toLowerCase()}|${v.talla.trim().toLowerCase()}';
       if (!seen.add(key)) {
         return (color: v.color.trim(), talla: v.talla.trim());
       }
@@ -70,11 +70,11 @@ class ClothingItem {
   }
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'nombre': nombre,
-        'precio': precio,
-        'variantes': variantes.map((v) => v.toMap()).toList(),
-      };
+    'id': id,
+    'nombre': nombre,
+    'precio': precio,
+    'variantes': variantes.map((v) => v.toMap()).toList(),
+  };
 
   factory ClothingItem.fromMap(Map<String, dynamic> map) {
     final rawVariantes = (map['variantes'] as List?) ?? [];
@@ -83,7 +83,9 @@ class ClothingItem {
       nombre: map['nombre'] as String? ?? '',
       precio: (map['precio'] as num?)?.toDouble() ?? 0,
       variantes: rawVariantes
-          .map((v) => ClothingVariant.fromMap(Map<String, dynamic>.from(v as Map)))
+          .map(
+            (v) => ClothingVariant.fromMap(Map<String, dynamic>.from(v as Map)),
+          )
           .toList(),
     );
   }

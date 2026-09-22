@@ -61,7 +61,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openExisting(ClothingItem item) async {
     final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => ItemFormScreen(repo: widget.repo, item: item)),
+      MaterialPageRoute(
+        builder: (_) => ItemFormScreen(repo: widget.repo, item: item),
+      ),
     );
     _reload();
     if (saved == true && mounted) _showSavedSnackBar();
@@ -69,7 +71,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _quickEditStock(ClothingItem item) async {
     final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => QuickStockScreen(repo: widget.repo, item: item)),
+      MaterialPageRoute(
+        builder: (_) => QuickStockScreen(repo: widget.repo, item: item),
+      ),
     );
     _reload();
     if (saved == true && mounted) _showSavedSnackBar();
@@ -78,18 +82,26 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _addManually() async {
     final id = await widget.repo.generateId();
     if (!mounted) return;
-    final newItem = ClothingItem(id: id, nombre: '', precio: 0, variantes: const []);
+    final newItem = ClothingItem(
+      id: id,
+      nombre: '',
+      precio: 0,
+      variantes: const [],
+    );
     final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => ItemFormScreen(repo: widget.repo, item: newItem, isNew: true)),
+      MaterialPageRoute(
+        builder: (_) =>
+            ItemFormScreen(repo: widget.repo, item: newItem, isNew: true),
+      ),
     );
     _reload();
     if (saved == true && mounted) _showSavedSnackBar();
   }
 
   Future<void> _scan() async {
-    final code = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const ScannerScreen()),
-    );
+    final code = await Navigator.of(
+      context,
+    ).push<String>(MaterialPageRoute(builder: (_) => const ScannerScreen()));
     if (code == null || !mounted) return;
 
     final existing = widget.repo.getById(code);
@@ -116,7 +128,10 @@ class _HomeScreenState extends State<HomeScreen> {
           'Este código no corresponde a una prenda registrada.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
+          ),
         ],
       ),
     );
@@ -131,7 +146,11 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Tienda de Ropa'),
         actions: [
           IconButton(
-            icon: Icon(widget.isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+            icon: Icon(
+              widget.isDarkMode
+                  ? Icons.light_mode_outlined
+                  : Icons.dark_mode_outlined,
+            ),
             tooltip: widget.isDarkMode ? 'Tema claro' : 'Tema oscuro',
             onPressed: widget.onToggleTheme,
           ),
@@ -162,10 +181,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.checkroom_rounded, size: 56, color: colorScheme.outline),
+                        Icon(
+                          Icons.checkroom_rounded,
+                          size: 56,
+                          color: colorScheme.outline,
+                        ),
                         const SizedBox(height: 12),
                         Text(
-                          'No hay prendas que coincidan.',
+                          _searchCtrl.text.trim().isEmpty
+                              ? 'Aún no hay prendas registradas.\nEscanéala o agrégala con el botón +.'
+                              : 'No hay prendas que coincidan.',
+                          textAlign: TextAlign.center,
                           style: TextStyle(color: colorScheme.outline),
                         ),
                       ],
@@ -211,7 +237,11 @@ class _ClothingCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onQuickEdit;
 
-  const _ClothingCard({required this.item, required this.onTap, required this.onQuickEdit});
+  const _ClothingCard({
+    required this.item,
+    required this.onTap,
+    required this.onQuickEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -230,7 +260,10 @@ class _ClothingCard extends StatelessWidget {
               CircleAvatar(
                 radius: 26,
                 backgroundColor: colorScheme.primaryContainer,
-                child: Icon(Icons.checkroom_rounded, color: colorScheme.onPrimaryContainer),
+                child: Icon(
+                  Icons.checkroom_rounded,
+                  color: colorScheme.onPrimaryContainer,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -239,7 +272,10 @@ class _ClothingCard extends StatelessWidget {
                   children: [
                     Text(
                       item.nombre.isEmpty ? '(sin nombre)' : item.nombre,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -258,17 +294,24 @@ class _ClothingCard extends StatelessWidget {
                         colores.join(' • '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                     const SizedBox(height: 8),
                     Chip(
                       avatar: Icon(
-                        sinStock ? Icons.error_outline : Icons.inventory_2_outlined,
+                        sinStock
+                            ? Icons.error_outline
+                            : Icons.inventory_2_outlined,
                         size: 16,
                         color: sinStock ? colorScheme.error : null,
                       ),
-                      label: Text(sinStock ? 'AGOTADO' : '${item.existenciaTotal} piezas'),
+                      label: Text(
+                        sinStock ? 'AGOTADO' : '${item.existenciaTotal} piezas',
+                      ),
                       backgroundColor: sinStock
                           ? colorScheme.errorContainer.withValues(alpha: 0.6)
                           : null,
