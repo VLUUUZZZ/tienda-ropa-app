@@ -14,6 +14,17 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-22 (10) — pendiente
+
+Décima ronda de pulido de la misma sesión: pruebas de widget para el formulario de prendas.
+
+1. Nuevo `test/item_form_screen_test.dart` (4 pruebas): errores de validación con campos
+   vacíos, aviso de combinación color+talla duplicada sin guardar, etiqueta AGOTADO solo
+   cuando una fila usada tiene existencia 0, y el botón "Agregar" crea una fila de variante
+   nueva.
+
+20/20 pruebas. Verificado con flutter analyze (0 avisos).
+
 ### 2026-09-22 (9) — pendiente
 
 Novena ronda de pulido de la misma sesión:
