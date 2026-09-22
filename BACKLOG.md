@@ -14,6 +14,20 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-22 — commits `736e97e`, `4bf8e16`, pendiente
+
+Sesión de pulido (sin tareas pendientes en el backlog, según regla 2):
+
+1. `ItemFormScreen` y `QuickStockScreen`: detección de cambios sin guardar con confirmación
+   al salir (interceptando el botón de retroceso vía `PopScope`).
+2. Corregidos los 5 avisos que dejaba `flutter analyze` (llaves faltantes en `if`, y dos casos
+   de `BuildContext` cruzando un `await` ya protegidos por `mounted` pero no reconocidos por el
+   analizador — silenciados puntualmente tras confirmar que el patrón es seguro).
+3. `ScannerScreen`: botón de linterna (flash) en la barra superior, útil para escanear en lugares
+   con poca luz; se deshabilita solo si el dispositivo no tiene flash.
+
+Verificado con flutter analyze (0 avisos), flutter test (9/9) y flutter build apk --debug.
+
 ### 2026-09-20 — commit `022ea4c`
 
 Lista de pulido acordada con el usuario (búsqueda tolerante, tarjetas, edición rápida de
