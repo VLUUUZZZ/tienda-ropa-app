@@ -53,7 +53,68 @@ class _ScannerScreenState extends State<ScannerScreen> {
           ),
         ],
       ),
-      body: MobileScanner(controller: _controller, onDetect: _onDetect),
+      body: MobileScanner(
+        controller: _controller,
+        onDetect: _onDetect,
+        errorBuilder: (context, error, child) =>
+            _ScannerError(error: error, onRetry: () => _controller.start()),
+      ),
+    );
+  }
+}
+
+class _ScannerError extends StatelessWidget {
+  final MobileScannerException error;
+  final VoidCallback onRetry;
+
+  const _ScannerError({required this.error, required this.onRetry});
+
+  String get _message {
+    switch (error.errorCode) {
+      case MobileScannerErrorCode.permissionDenied:
+        return 'Se necesita permiso de cámara para escanear.\n'
+            'Actívalo desde los ajustes del sistema para esta app.';
+      case MobileScannerErrorCode.unsupported:
+        return 'Este dispositivo no tiene una cámara compatible con el escáner.';
+      default:
+        return 'No se pudo iniciar la cámara.\n${error.errorDetails?.message ?? ''}'
+            .trim();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.videocam_off_rounded,
+                color: Colors.white,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white),
+              ),
+              if (error.errorCode != MobileScannerErrorCode.unsupported) ...[
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Reintentar'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

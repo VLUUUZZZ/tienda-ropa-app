@@ -14,6 +14,16 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-22 (4) — pendiente
+
+Cuarta ronda de pulido de la misma sesión:
+
+1. `ScannerScreen`: mensaje de error claro cuando la cámara falla (permiso denegado, dispositivo
+   sin cámara compatible, u otro error), en vez de la pantalla negra genérica del paquete. Incluye
+   botón "Reintentar" cuando aplica.
+
+Verificado con flutter analyze (0 avisos), flutter test (13/13) y flutter build apk --debug.
+
 ### 2026-09-22 (3) — pendiente
 
 Tercera ronda de pulido de la misma sesión (el usuario pidió seguir puliendo sin parar):
