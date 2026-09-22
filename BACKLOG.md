@@ -14,6 +14,19 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-22 (8) — pendiente
+
+Octava ronda de pulido de la misma sesión:
+
+1. Ícono de la app: seguía siendo el logo genérico de Flutter (nunca se había cambiado).
+   Se reemplazó por un ícono propio (playera color crema sobre fondo terracota, la
+   paleta real de `buildAppTheme`) generado con un script Python/Pillow
+   (`tool/generate_launcher_icon.py`, no forma parte de la app — se ejecuta manualmente
+   si se quiere regenerar) ya que no hay una herramienta de generación de imágenes
+   disponible en esta sesión. Se regeneraron los 5 tamaños de mipmap.
+
+Verificado con flutter build apk --debug e inspección visual de los PNG generados.
+
 ### 2026-09-22 (7) — pendiente
 
 Séptima ronda de pulido de la misma sesión:
