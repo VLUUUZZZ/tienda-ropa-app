@@ -14,6 +14,17 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-22 (3) — pendiente
+
+Tercera ronda de pulido de la misma sesión (el usuario pidió seguir puliendo sin parar):
+
+1. Persistencia del tema claro/oscuro entre reinicios de la app, vía `SettingsRepository`
+   (nueva caja Hive `app_settings`) en vez de reiniciar siempre en modo claro.
+2. Nuevas pruebas: round-trip de `toMap`/`fromMap` en `ClothingItem`, valores por defecto seguros
+   cuando faltan campos opcionales, y `SettingsRepository` (persistencia del tema).
+
+13/13 pruebas. Verificado con flutter analyze (0 avisos), flutter test y flutter build apk --debug.
+
 ### 2026-09-22 (2) — pendiente
 
 Segunda ronda de pulido de la misma sesión:
