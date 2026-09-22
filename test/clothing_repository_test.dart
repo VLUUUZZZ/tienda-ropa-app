@@ -39,8 +39,17 @@ void main() {
   });
 
   test('search filters by name, case-insensitively', () async {
-    await repo.save(ClothingItem(id: '1', nombre: 'Playera Nike', precio: 250, variantes: []));
-    await repo.save(ClothingItem(id: '2', nombre: 'Pantalón Levi\'s', precio: 500, variantes: []));
+    await repo.save(
+      ClothingItem(id: '1', nombre: 'Playera Nike', precio: 250, variantes: []),
+    );
+    await repo.save(
+      ClothingItem(
+        id: '2',
+        nombre: 'Pantalón Levi\'s',
+        precio: 500,
+        variantes: [],
+      ),
+    );
 
     final results = repo.search('playera');
 
@@ -53,7 +62,14 @@ void main() {
   });
 
   test('search ignores accents and case', () async {
-    await repo.save(ClothingItem(id: '1', nombre: 'Pantalón Cargo', precio: 520, variantes: []));
+    await repo.save(
+      ClothingItem(
+        id: '1',
+        nombre: 'Pantalón Cargo',
+        precio: 520,
+        variantes: [],
+      ),
+    );
 
     expect(repo.search('pantalon').map((i) => i.id), ['1']);
     expect(repo.search('CARGO').map((i) => i.id), ['1']);
@@ -69,7 +85,9 @@ void main() {
 
   test('the sequence counter never shows up as a catalog item', () async {
     await repo.generateId();
-    await repo.save(ClothingItem(id: 'qr-1', nombre: 'Playera', precio: 100, variantes: []));
+    await repo.save(
+      ClothingItem(id: 'qr-1', nombre: 'Playera', precio: 100, variantes: []),
+    );
 
     expect(repo.getAll(), hasLength(1));
     expect(repo.getById('__sequence__'), isNull);

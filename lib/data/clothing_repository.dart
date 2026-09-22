@@ -34,9 +34,15 @@ class ClothingRepository {
   List<ClothingItem> getAll() {
     return _box.keys
         .where(_isItemKey)
-        .map((key) => ClothingItem.fromMap(Map<String, dynamic>.from(_box.get(key) as Map)))
+        .map(
+          (key) => ClothingItem.fromMap(
+            Map<String, dynamic>.from(_box.get(key) as Map),
+          ),
+        )
         .toList()
-      ..sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
+      ..sort(
+        (a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()),
+      );
   }
 
   ClothingItem? getById(String id) {

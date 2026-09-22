@@ -14,6 +14,18 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-22 (2) — pendiente
+
+Segunda ronda de pulido de la misma sesión:
+
+1. `dart format` aplicado a todo `lib/` y `test/` (6 archivos no seguían el estilo estándar).
+2. `HomeScreen`: mensaje de estado vacío distingue "catálogo realmente vacío" (invita a escanear
+   o agregar) de "sin resultados para esta búsqueda".
+3. `QrScreen`: si compartir/guardar la imagen del QR falla, ahora se muestra un snackbar de error
+   en vez de fallar en silencio.
+
+Verificado con flutter analyze (0 avisos), flutter test (9/9) y flutter build apk --debug.
+
 ### 2026-09-22 — commits `736e97e`, `4bf8e16`, pendiente
 
 Sesión de pulido (sin tareas pendientes en el backlog, según regla 2):

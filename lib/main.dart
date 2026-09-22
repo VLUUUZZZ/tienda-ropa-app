@@ -28,7 +28,9 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
 
   void _toggleTheme() {
     setState(() {
-      _themeMode = _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+      _themeMode = _themeMode == ThemeMode.light
+          ? ThemeMode.dark
+          : ThemeMode.light;
     });
   }
 
@@ -62,7 +64,9 @@ ThemeData buildAppTheme(Brightness brightness) {
     useMaterial3: true,
     brightness: brightness,
     colorScheme: colorScheme,
-    scaffoldBackgroundColor: isDark ? const Color(0xFF161314) : const Color(0xFFFBF4EF),
+    scaffoldBackgroundColor: isDark
+        ? const Color(0xFF161314)
+        : const Color(0xFFFBF4EF),
     fontFamily: 'Roboto',
     appBarTheme: AppBarTheme(
       backgroundColor: colorScheme.surface,
@@ -84,7 +88,9 @@ ThemeData buildAppTheme(Brightness brightness) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: isDark ? 0.6 : 0.7),
+      fillColor: colorScheme.surfaceContainerHighest.withValues(
+        alpha: isDark ? 0.6 : 0.7,
+      ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -115,7 +121,10 @@ ThemeData buildAppTheme(Brightness brightness) {
     ),
     chipTheme: ChipThemeData(
       backgroundColor: colorScheme.surfaceContainerHighest,
-      labelStyle: TextStyle(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+      labelStyle: TextStyle(
+        color: colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w600,
+      ),
       side: BorderSide.none,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
