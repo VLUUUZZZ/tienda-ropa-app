@@ -5,6 +5,10 @@ import '../models/clothing_item.dart';
 import 'qr_screen.dart';
 import 'quick_stock_screen.dart';
 
+/// What [ItemFormScreen] pops with, so the caller can tell a save apart from
+/// a delete and react accordingly (e.g. offer "undo" only after a delete).
+enum ItemFormResult { saved, deleted }
+
 class _VariantRow {
   final TextEditingController talla;
   final TextEditingController color;
@@ -194,7 +198,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
     if (!mounted) return;
     _dirty = false;
-    Navigator.of(context).pop(true);
+    Navigator.of(context).pop(ItemFormResult.saved);
   }
 
   Future<void> _quickEditStock() async {
@@ -231,9 +235,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Eliminar prenda'),
-        content: const Text(
-          '¿Eliminar esta prenda del catálogo? Esta acción no se puede deshacer.',
-        ),
+        content: const Text('¿Eliminar esta prenda del catálogo?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -250,7 +252,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     await widget.repo.delete(widget.item.id);
     if (!mounted) return;
     _dirty = false;
-    Navigator.of(context).pop(true);
+    Navigator.of(context).pop(ItemFormResult.deleted);
   }
 
   void _showQr() {

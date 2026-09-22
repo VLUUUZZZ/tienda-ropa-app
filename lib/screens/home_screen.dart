@@ -59,14 +59,35 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showDeletedSnackBar(ClothingItem item) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${item.nombre.isEmpty ? 'Prenda' : item.nombre} eliminada',
+        ),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'Deshacer',
+          onPressed: () async {
+            await widget.repo.save(item);
+            if (mounted) _reload();
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> _openExisting(ClothingItem item) async {
-    final saved = await Navigator.of(context).push<bool>(
+    final result = await Navigator.of(context).push<ItemFormResult>(
       MaterialPageRoute(
         builder: (_) => ItemFormScreen(repo: widget.repo, item: item),
       ),
     );
     _reload();
-    if (saved == true && mounted) _showSavedSnackBar();
+    if (!mounted) return;
+    if (result == ItemFormResult.saved) _showSavedSnackBar();
+    if (result == ItemFormResult.deleted) _showDeletedSnackBar(item);
   }
 
   Future<void> _quickEditStock(ClothingItem item) async {
@@ -88,14 +109,14 @@ class _HomeScreenState extends State<HomeScreen> {
       precio: 0,
       variantes: const [],
     );
-    final saved = await Navigator.of(context).push<bool>(
+    final result = await Navigator.of(context).push<ItemFormResult>(
       MaterialPageRoute(
         builder: (_) =>
             ItemFormScreen(repo: widget.repo, item: newItem, isNew: true),
       ),
     );
     _reload();
-    if (saved == true && mounted) _showSavedSnackBar();
+    if (result == ItemFormResult.saved && mounted) _showSavedSnackBar();
   }
 
   Future<void> _scan() async {
@@ -110,13 +131,15 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    final saved = await Navigator.of(context).push<bool>(
+    final result = await Navigator.of(context).push<ItemFormResult>(
       MaterialPageRoute(
         builder: (_) => ItemFormScreen(repo: widget.repo, item: existing),
       ),
     );
     _reload();
-    if (saved == true && mounted) _showSavedSnackBar();
+    if (!mounted) return;
+    if (result == ItemFormResult.saved) _showSavedSnackBar();
+    if (result == ItemFormResult.deleted) _showDeletedSnackBar(existing);
   }
 
   Future<void> _showUnrecognizedQrDialog() {

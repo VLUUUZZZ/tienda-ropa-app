@@ -14,6 +14,17 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-22 (5) — pendiente
+
+Quinta ronda de pulido de la misma sesión:
+
+1. Al eliminar una prenda desde `ItemFormScreen`, ahora aparece un snackbar con botón
+   "Deshacer" en la pantalla principal (4 segundos) en vez de eliminarla sin posibilidad
+   de recuperarla. `ItemFormScreen` distingue "guardado" de "eliminado" al cerrar
+   (`ItemFormResult`) para que `HomeScreen` sepa qué snackbar mostrar.
+
+Verificado con flutter analyze (0 avisos), flutter test (13/13) y flutter build apk --debug.
+
 ### 2026-09-22 (4) — pendiente
 
 Cuarta ronda de pulido de la misma sesión:
