@@ -18,13 +18,20 @@ class QuickStockScreen extends StatefulWidget {
 
 class _QuickStockScreenState extends State<QuickStockScreen> {
   late List<ClothingVariant> _variantes;
+  bool _dirty = false;
 
   @override
   void initState() {
     super.initState();
     // Work on copies so backing out without saving never touches storage.
     _variantes = widget.item.variantes
-        .map((v) => ClothingVariant(talla: v.talla, color: v.color, existencia: v.existencia))
+        .map(
+          (v) => ClothingVariant(
+            talla: v.talla,
+            color: v.color,
+            existencia: v.existencia,
+          ),
+        )
         .toList();
   }
 
@@ -32,8 +39,36 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
     setState(() {
       final v = _variantes[index];
       final next = v.existencia + delta;
-      _variantes[index] = ClothingVariant(talla: v.talla, color: v.color, existencia: next < 0 ? 0 : next);
+      _variantes[index] = ClothingVariant(
+        talla: v.talla,
+        color: v.color,
+        existencia: next < 0 ? 0 : next,
+      );
+      _dirty = true;
     });
+  }
+
+  Future<bool> _confirmDiscard() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Descartar cambios'),
+        content: const Text(
+          'Tienes cambios de existencia sin guardar. ¿Deseas salir sin guardarlos?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Seguir editando'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Descartar'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   Future<void> _save() async {
@@ -45,6 +80,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
     );
     await widget.repo.save(updated);
     if (!mounted) return;
+    _dirty = false;
     Navigator.of(context).pop(true);
   }
 
@@ -56,66 +92,87 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
     final colores = <String>[];
     final indicesPorColor = <String, List<int>>{};
     for (var i = 0; i < _variantes.length; i++) {
-      final color = _variantes[i].color.isEmpty ? '(sin color)' : _variantes[i].color;
-      indicesPorColor.putIfAbsent(color, () {
-        colores.add(color);
-        return [];
-      }).add(i);
+      final color = _variantes[i].color.isEmpty
+          ? '(sin color)'
+          : _variantes[i].color;
+      indicesPorColor
+          .putIfAbsent(color, () {
+            colores.add(color);
+            return [];
+          })
+          .add(i);
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.item.nombre.isEmpty ? 'Editar existencia' : widget.item.nombre),
-      ),
-      body: _variantes.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Esta prenda todavía no tiene colores ni tallas.\nAgrégalos desde el formulario completo.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: colorScheme.outline),
-                ),
-              ),
-            )
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-              children: [
-                for (final color in colores) ...[
-                  Text(
-                    color,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final descartar = await _confirmDiscard();
+        if (descartar && mounted) {
+          setState(() => _dirty = false);
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            widget.item.nombre.isEmpty
+                ? 'Editar existencia'
+                : widget.item.nombre,
+          ),
+        ),
+        body: _variantes.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Esta prenda todavía no tiene colores ni tallas.\nAgrégalos desde el formulario completo.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: colorScheme.outline),
                   ),
-                  const SizedBox(height: 8),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Column(
-                        children: [
-                          for (final i in indicesPorColor[color]!)
-                            _VariantRow(
-                              variant: _variantes[i],
-                              onDecrement: () => _adjust(i, -1),
-                              onIncrement: () => _adjust(i, 1),
-                            ),
-                        ],
+                ),
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                children: [
+                  for (final color in colores) ...[
+                    Text(
+                      color,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 8),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Column(
+                          children: [
+                            for (final i in indicesPorColor[color]!)
+                              _VariantRow(
+                                variant: _variantes[i],
+                                onDecrement: () => _adjust(i, -1),
+                                onIncrement: () => _adjust(i, 1),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                 ],
-              ],
-            ),
-      bottomNavigationBar: _variantes.isEmpty
-          ? null
-          : SafeArea(
-              minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: FilledButton.icon(
-                onPressed: _save,
-                icon: const Icon(Icons.save_rounded),
-                label: const Text('Guardar'),
               ),
-            ),
+        bottomNavigationBar: _variantes.isEmpty
+            ? null
+            : SafeArea(
+                minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: FilledButton.icon(
+                  onPressed: _save,
+                  icon: const Icon(Icons.save_rounded),
+                  label: const Text('Guardar'),
+                ),
+              ),
+      ),
     );
   }
 }
@@ -125,7 +182,11 @@ class _VariantRow extends StatelessWidget {
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
 
-  const _VariantRow({required this.variant, required this.onDecrement, required this.onIncrement});
+  const _VariantRow({
+    required this.variant,
+    required this.onDecrement,
+    required this.onIncrement,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -147,7 +208,11 @@ class _VariantRow extends StatelessWidget {
               padding: const EdgeInsets.only(right: 12),
               child: Text(
                 'AGOTADO',
-                style: TextStyle(color: colorScheme.error, fontWeight: FontWeight.w700, fontSize: 12),
+                style: TextStyle(
+                  color: colorScheme.error,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
               ),
             ),
           IconButton.filledTonal(
