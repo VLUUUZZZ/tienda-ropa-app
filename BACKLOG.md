@@ -14,6 +14,15 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-22 (7) — pendiente
+
+Séptima ronda de pulido de la misma sesión:
+
+1. El nombre de la app en el launcher de Android mostraba "tienda_ropa_app" (el nombre de la
+   carpeta del proyecto) en vez de "Tienda de Ropa". Corregido en `AndroidManifest.xml`.
+
+Verificado con flutter build apk --debug.
+
 ### 2026-09-22 (6) — pendiente
 
 Sexta ronda de pulido de la misma sesión: primeras pruebas de widget del proyecto.
