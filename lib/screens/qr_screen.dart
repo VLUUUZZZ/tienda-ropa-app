@@ -64,68 +64,33 @@ class _QrScreenState extends State<QrScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Código QR de la prenda')),
       body: Center(
-        child: Padding(
+        // Scrolls so the label and button still fit in landscape or with
+        // large system fonts.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              RepaintBoundary(
-                key: _repaintKey,
-                child: Container(
-                  color: Colors.white,
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(28),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            widget.item.nombre.isEmpty
-                                ? '(sin nombre)'
-                                : widget.item.nombre,
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 24),
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: colorScheme.shadow.withValues(
-                                    alpha: 0.15,
-                                  ),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: QrImageView(
-                              data: widget.item.id,
-                              version: QrVersions.auto,
-                              size: 240,
-                              gapless: true,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          SelectableText(
-                            widget.item.id,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: colorScheme.outline,
-                                ),
-                          ),
-                        ],
-                      ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.shadow.withValues(alpha: 0.15),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
                     ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: RepaintBoundary(
+                    key: _repaintKey,
+                    child: _PrintableLabel(item: widget.item),
                   ),
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
               Text(
                 'Imprime y pega este código en la prenda.\nAl escanearlo se abrirá su ficha.',
                 textAlign: TextAlign.center,
@@ -146,6 +111,71 @@ class _QrScreenState extends State<QrScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// What gets captured as the shared image: always black on white, whatever
+/// the app's theme, so it prints cleanly and scans reliably.
+class _PrintableLabel extends StatelessWidget {
+  const _PrintableLabel({required this.item});
+
+  final ClothingItem item;
+
+  static const Color _ink = Color(0xFF1B1B1D);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 22),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 240),
+            child: Text(
+              item.nombre.isEmpty ? '(sin nombre)' : item.nombre,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: _ink,
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          QrImageView(
+            data: item.id,
+            version: QrVersions.auto,
+            size: 240,
+            gapless: true,
+            backgroundColor: Colors.white,
+            eyeStyle: const QrEyeStyle(
+              eyeShape: QrEyeShape.square,
+              color: _ink,
+            ),
+            dataModuleStyle: const QrDataModuleStyle(
+              dataModuleShape: QrDataModuleShape.square,
+              color: _ink,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            item.id,
+            style: const TextStyle(
+              color: _ink,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
       ),
     );
   }

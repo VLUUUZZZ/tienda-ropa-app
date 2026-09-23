@@ -14,17 +14,46 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Pendiente
 
-1. Evitar que dos teléfonos creen el mismo código de prenda: `LocalCatalog.nextId` usa un contador local; si dos teléfonos agregan prendas sin conexión al mismo tiempo, ambos pueden generar el mismo `PRENDA-0000NN` y una prenda pisaría a la otra al sincronizar. Generar el número de forma segura (p. ej. contador en Firestore con transacción, o un prefijo por dispositivo).
-2. Imagen del QR al compartir en modo oscuro: el `Card` dentro del `RepaintBoundary` (`lib/screens/qr_screen.dart`) toma los colores del tema, así que en modo oscuro la imagen sale con fondo oscuro y texto claro. Debe salir siempre en fondo blanco con texto oscuro, lista para imprimir.
-3. Al escanear un QR registrado como Administrador, abrir la edición rápida de existencia (`QuickStockScreen`) o preguntar qué hacer (ajustar existencia / ver ficha completa), en vez de ir directo al formulario completo (los empleados ya van a la edición rápida).
-4. Búsqueda también por código (`PRENDA-000012`), color y talla, no solo por nombre.
-5. No gastar un número de código al cancelar una prenda nueva: asignar el id definitivo solo al guardar, para evitar huecos en la numeración.
-6. Nombre visible "Tienda de Ropa" también en iOS (`CFBundleDisplayName` dice "Tienda Ropa App") y actualizar `README.md` y la descripción en `pubspec.yaml`, que siguen con el texto por defecto de Flutter.
-7. Registro de ventas: botón "Vender" que descuente una pieza y guarde la venta, con historial y total del día.
-8. Filtro de "poca existencia" / "agotados" en el catálogo.
-9. Mostrar el valor total del inventario (precio × existencia).
+1. Evitar que dos teléfonos **sin conexión** creen el mismo código de prenda. Ya resuelto con conexión (ver Completado 2026-09-23); falta el caso sin red: si dos teléfonos agregan prendas sin conexión al mismo tiempo, ambos pueden generar el mismo `PRENDA-0000NN` y al sincronizar una prenda pisaría a la otra. Opciones: contador en Firestore con transacción al tener red, o detectar el choque al sincronizar y renumerar la prenda local.
+2. Registro de ventas: botón "Vender" que descuente una pieza y guarde la venta, con historial y total del día.
 
 ## Completado
+
+### 2026-09-23 — diseño visual y refuerzos (rama `claude/como-ves-la-app-g73nn7`)
+
+Pulido y refuerzo pedido por el usuario, más 7 tareas de Pendiente. Verificado con
+`flutter analyze` (0 avisos), `flutter build web`, pruebas de lógica y capturas de
+pantalla en claro/oscuro hechas en una copia aparte (el repo sigue sin `test/`, como
+pidió el usuario). No hay SDK de Android en esa sesión, así que no se generó APK.
+
+Diseño visual:
+- Tema en su propio archivo (`lib/app_theme.dart`): terracota fiel a la marca, escala
+  tipográfica única, tarjetas con borde fino, botones de 52 px de alto, avisos
+  flotantes, hojas inferiores y diálogos redondeados. Colores de existencia
+  (`StockColors`) para claro y oscuro.
+- Pantalla principal: resumen (prendas, piezas y valor del inventario; los empleados
+  ven "Agotadas" en vez del valor), filtros Todas / Poca existencia / Agotadas con
+  conteo, tarjetas con iniciales, precio con separador de miles (`$1,250.00`), código
+  de la prenda, puntos de color y una insignia de existencia con ícono + texto.
+- Ajuste rápido: encabezado por color con su muestra y total, botones táctiles de 48 px,
+  el cambio pendiente de cada talla ("+1 sin guardar") y lectura para lector de pantalla.
+- Eliminar prenda: botón rojo en la confirmación. Tooltips en botones de solo ícono.
+
+Tareas de Pendiente resueltas:
+1. Imagen del QR: etiqueta propia siempre negro sobre blanco, también en modo oscuro;
+   la pantalla ahora hace scroll si no cabe.
+2. Al escanear como Administrador se ofrece "Ajustar existencia" o "Ver ficha completa".
+3. Búsqueda por nombre, código, color y talla (la talla debe escribirse completa).
+4. Los códigos nuevos ya no se gastan al cancelar: se reservan al guardar.
+5. Con conexión, si otro teléfono usó el mismo código mientras se llenaba el formulario,
+   la prenda nueva toma el siguiente libre; además el contador avanza con cada prenda
+   que llega sincronizada.
+6. Nombre "Tienda de Ropa" en iOS y web; `README.md` y `pubspec.yaml` con texto real.
+7. Filtro de poca existencia/agotadas y valor total del inventario.
+
+Refuerzo:
+- Ajuste rápido: tocar "Guardar" dos veces aplicaba los +/- dos veces; ahora se ignora el
+  segundo toque y el botón solo se activa si hay cambios.
 
 ### 2026-09-22 (10) — pendiente
 

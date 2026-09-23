@@ -1,5 +1,21 @@
 import 'dart:math' as math;
 
+/// How much of a garment is left, for the catalog's badges and filters.
+enum StockLevel {
+  agotado,
+  poca,
+  normal;
+
+  /// At or below this many pieces in total a garment counts as running low.
+  static const int umbralPoca = 3;
+
+  static StockLevel of(int existencia) {
+    if (existencia <= 0) return agotado;
+    if (existencia <= umbralPoca) return poca;
+    return normal;
+  }
+}
+
 class ClothingVariant {
   String talla;
   String color;
@@ -46,6 +62,11 @@ class ClothingItem {
   });
 
   int get existenciaTotal => variantes.fold(0, (sum, v) => sum + v.existencia);
+
+  StockLevel get nivelExistencia => StockLevel.of(existenciaTotal);
+
+  /// What the pieces on hand are worth at the listed price.
+  double get valorInventario => precio * existenciaTotal;
 
   /// Unique colors across all variants, in first-seen order — what the
   /// catalog card and the quick stock editor show.
