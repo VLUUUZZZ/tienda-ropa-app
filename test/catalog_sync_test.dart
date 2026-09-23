@@ -9,21 +9,43 @@ import 'package:tienda_ropa_app/data/remote_catalog.dart';
 import 'package:tienda_ropa_app/models/clothing_item.dart';
 
 class FakeRemoteCatalog implements RemoteCatalog {
-  final controller = StreamController<RemoteSnapshot>();
+  // A fresh stream per watch(), like Firestore after a listener is re-opened.
+  var controller = StreamController<RemoteSnapshot>();
+  var watchCount = 0;
   final upserted = <String>[];
   final deleted = <String>[];
 
-  @override
-  Stream<RemoteSnapshot> watch() => controller.stream;
+  /// When set, writes fail with this error (e.g. no connection).
+  Object? failWritesWith;
 
   @override
-  Future<void> upsert(ClothingItem item) async => upserted.add(item.id);
+  Stream<RemoteSnapshot> watch() {
+    if (watchCount > 0) controller = StreamController<RemoteSnapshot>();
+    watchCount++;
+    return controller.stream;
+  }
 
   @override
-  Future<void> delete(String id) async => deleted.add(id);
+  Future<void> upsert(ClothingItem item) async {
+    if (failWritesWith != null) throw failWritesWith!;
+    upserted.add(item.id);
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    if (failWritesWith != null) throw failWritesWith!;
+    deleted.add(id);
+  }
 
   Future<void> emit(List<ClothingItem> items, {bool fromServer = true}) async {
     controller.add(RemoteSnapshot(items: items, fromServer: fromServer));
+    await pumpEventQueue();
+  }
+
+  /// Like Firestore: an error, then the listener is closed.
+  Future<void> fail(Object error) async {
+    controller.addError(error);
+    await controller.close();
     await pumpEventQueue();
   }
 }
@@ -59,7 +81,7 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('hive_test');
     Hive.init(tempDir.path);
-    repo = ClothingRepository();
+    repo = ClothingRepository(initialRetryDelay: Duration.zero);
     await repo.init();
     remote = FakeRemoteCatalog();
   });
@@ -104,7 +126,9 @@ void main() {
 
     await emitAndSettle(remote, repo, [item('PRENDA-000002')]);
 
-    expect(remote.upserted, ['PRENDA-000001']);
+    // Upserts are idempotent, so being pushed on attach and again on first
+    // contact is fine; what matters is it's uploaded and never deleted.
+    expect(remote.upserted.toSet(), {'PRENDA-000001'});
     expect(repo.getAll().map((i) => i.id), ['PRENDA-000001', 'PRENDA-000002']);
   });
 
@@ -139,4 +163,82 @@ void main() {
 
     expect(await repo.generateId(), 'PRENDA-000003');
   });
+
+  test('unconfirmed local changes survive stale remote snapshots', () async {
+    await repo.attachRemote(remote);
+    await emitAndSettle(remote, repo, [
+      item('PRENDA-000001', existencia: 1),
+      item('PRENDA-000002'),
+    ]);
+
+    remote.failWritesWith = Exception('sin conexión');
+    await repo.save(item('PRENDA-000001', existencia: 5));
+    await repo.delete('PRENDA-000002');
+    await pumpEventQueue();
+
+    // The server still has the old versions: they must not win.
+    await emitAndSettle(remote, repo, [
+      item('PRENDA-000001', existencia: 1),
+      item('PRENDA-000002'),
+    ]);
+
+    expect(repo.getById('PRENDA-000001')!.existenciaTotal, 5);
+    expect(repo.getById('PRENDA-000002'), isNull);
+    expect(repo.pendingIds, {'PRENDA-000001', 'PRENDA-000002'});
+  });
+
+  test(
+    'changes made while sync was off are pushed on the next attach',
+    () async {
+      await repo.attachRemote(remote);
+      await emitAndSettle(remote, repo, [item('PRENDA-000001')]);
+      await repo.detachRemote();
+
+      await repo.save(item('PRENDA-000002'));
+      await repo.delete('PRENDA-000001');
+      expect(remote.upserted, isEmpty);
+
+      await repo.attachRemote(remote);
+      await pumpEventQueue();
+
+      expect(remote.upserted, ['PRENDA-000002']);
+      expect(remote.deleted, ['PRENDA-000001']);
+      expect(repo.pendingIds, isEmpty);
+    },
+  );
+
+  test('re-opens the remote listener after an error', () async {
+    await repo.attachRemote(remote);
+    await remote.fail(Exception('permiso denegado'));
+
+    expect(remote.watchCount, 2);
+    await emitAndSettle(remote, repo, [item('PRENDA-000004')]);
+    expect(repo.getById('PRENDA-000004'), isNotNull);
+  });
+
+  test('failed writes are retried once the listener reconnects', () async {
+    await repo.attachRemote(remote);
+    remote.failWritesWith = Exception('sin conexión');
+    await repo.save(item('PRENDA-000001'));
+    await pumpEventQueue();
+    expect(repo.pendingIds, {'PRENDA-000001'});
+
+    remote.failWritesWith = null;
+    await remote.fail(Exception('red caída'));
+
+    expect(remote.upserted, ['PRENDA-000001']);
+    expect(repo.pendingIds, isEmpty);
+  });
+
+  test(
+    'a corrupt local record is skipped instead of breaking the list',
+    () async {
+      await Hive.box(
+        ClothingRepository.boxName,
+      ).put('PRENDA-000009', {'nombre': 'sin id'});
+      await repo.save(item('PRENDA-000001'));
+
+      expect(repo.getAll().map((i) => i.id), ['PRENDA-000001']);
+    },
+  );
 }
