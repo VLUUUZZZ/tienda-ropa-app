@@ -1,21 +1,36 @@
 import 'package:flutter/material.dart';
 
+import '../auth/app_user.dart';
+import '../auth/user_directory.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
 import 'item_form_screen.dart';
 import 'quick_stock_screen.dart';
 import 'scanner_screen.dart';
+import 'users/users_screen.dart';
 
+/// The catalog. What it offers depends on [user]'s role: admins get the full
+/// edit form, adding and deleting; employees only adjust stock.
 class HomeScreen extends StatefulWidget {
   final ClothingRepository repo;
+  final AppUser user;
   final bool isDarkMode;
   final VoidCallback onToggleTheme;
+
+  /// Null when there's no session to end (local-only mode).
+  final VoidCallback? onSignOut;
+
+  /// Null when there are no accounts to manage (local-only mode).
+  final UserDirectory? users;
 
   const HomeScreen({
     super.key,
     required this.repo,
+    required this.user,
     required this.isDarkMode,
     required this.onToggleTheme,
+    this.onSignOut,
+    this.users,
   });
 
   @override
@@ -86,7 +101,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _openExisting(ClothingItem item) async {
+  /// Admins get the full form; employees go straight to stock adjustment,
+  /// the only change their role allows.
+  Future<void> _openItem(ClothingItem item) async {
+    if (!widget.user.canEditCatalog) return _quickEditStock(item);
+
     final result = await Navigator.of(context).push<ItemFormResult>(
       MaterialPageRoute(
         builder: (_) => ItemFormScreen(repo: widget.repo, item: item),
@@ -138,16 +157,15 @@ class _HomeScreenState extends State<HomeScreen> {
       await _showUnrecognizedQrDialog();
       return;
     }
+    await _openItem(existing);
+  }
 
-    final result = await Navigator.of(context).push<ItemFormResult>(
+  void _openUsers(UserDirectory users) {
+    Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ItemFormScreen(repo: widget.repo, item: existing),
+        builder: (_) => UsersScreen(users: users, currentUser: widget.user),
       ),
     );
-    _reload();
-    if (!mounted) return;
-    if (result == ItemFormResult.saved) _showSavedSnackBar();
-    if (result == ItemFormResult.deleted) _showDeletedSnackBar(existing);
   }
 
   Future<void> _showUnrecognizedQrDialog() {
@@ -168,6 +186,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  bool get _canOpenUsers => widget.users != null && widget.user.canManageUsers;
+
+  String get _emptyMessage {
+    if (_searchCtrl.text.trim().isNotEmpty) {
+      return 'No hay prendas que coincidan.';
+    }
+    return widget.user.canEditCatalog
+        ? 'Aún no hay prendas registradas.\nEscanéala o agrégala con el botón +.'
+        : 'Aún no hay prendas registradas.';
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -185,6 +214,14 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: widget.isDarkMode ? 'Tema claro' : 'Tema oscuro',
             onPressed: widget.onToggleTheme,
           ),
+          if (widget.onSignOut case final onSignOut?)
+            _AccountMenu(
+              user: widget.user,
+              onManageUsers: _canOpenUsers
+                  ? () => _openUsers(widget.users!)
+                  : null,
+              onSignOut: onSignOut,
+            ),
           const SizedBox(width: 4),
         ],
       ),
@@ -219,9 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          _searchCtrl.text.trim().isEmpty
-                              ? 'Aún no hay prendas registradas.\nEscanéala o agrégala con el botón +.'
-                              : 'No hay prendas que coincidan.',
+                          _emptyMessage,
                           textAlign: TextAlign.center,
                           style: TextStyle(color: colorScheme.outline),
                         ),
@@ -234,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) => _ClothingCard(
                       item: _items[index],
-                      onTap: () => _openExisting(_items[index]),
+                      onTap: () => _openItem(_items[index]),
                       onQuickEdit: () => _quickEditStock(_items[index]),
                     ),
                   ),
@@ -250,15 +285,72 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.qr_code_scanner_rounded),
             label: const Text('Escanear'),
           ),
-          const SizedBox(width: 12),
-          FloatingActionButton(
-            heroTag: 'add',
-            onPressed: _addManually,
-            tooltip: 'Agregar prenda',
-            child: const Icon(Icons.add_rounded),
-          ),
+          if (widget.user.canEditCatalog) ...[
+            const SizedBox(width: 12),
+            FloatingActionButton(
+              heroTag: 'add',
+              onPressed: _addManually,
+              tooltip: 'Agregar prenda',
+              child: const Icon(Icons.add_rounded),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+enum _AccountAction { users, signOut }
+
+/// Who is signed in, plus the account actions their role allows.
+class _AccountMenu extends StatelessWidget {
+  const _AccountMenu({
+    required this.user,
+    required this.onManageUsers,
+    required this.onSignOut,
+  });
+
+  final AppUser user;
+  final VoidCallback? onManageUsers;
+  final VoidCallback onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_AccountAction>(
+      icon: const Icon(Icons.account_circle_outlined),
+      tooltip: 'Cuenta',
+      onSelected: (action) => switch (action) {
+        _AccountAction.users => onManageUsers?.call(),
+        _AccountAction.signOut => onSignOut(),
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          enabled: false,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(user.nombre),
+            subtitle: Text('${user.role.label} · ${user.correo}'),
+          ),
+        ),
+        const PopupMenuDivider(),
+        if (onManageUsers != null)
+          const PopupMenuItem(
+            value: _AccountAction.users,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.group_outlined),
+              title: Text('Usuarios'),
+            ),
+          ),
+        const PopupMenuItem(
+          value: _AccountAction.signOut,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.logout_rounded),
+            title: Text('Cerrar sesión'),
+          ),
+        ),
+      ],
     );
   }
 }

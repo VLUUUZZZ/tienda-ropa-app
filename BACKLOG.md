@@ -154,3 +154,17 @@ Hive local, cámara real vía mobile_scanner, share sheet nativo vía share_plus
 También se instaló el skill de diseño `ui-ux-pro-max` en `.claude/skills/` (repo
 github.com/nextlevelbuilder/ui-ux-pro-max-skill) para consultarlo en trabajo de UI/UX futuro del
 proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de Flutter).
+
+### 2026-09-22 — Login con roles
+
+- Inicio de sesión con correo y contraseña (Firebase Auth), recuperación de contraseña.
+- Roles en Firestore (`usuarios/{uid}`): **Administrador** (todo, incluida la gestión de
+  usuarios) y **Empleado** (consultar, escanear y ajustar existencias).
+- El admin crea las cuentas desde la app (Cuenta → Usuarios); puede cambiar el rol o
+  desactivar a otros, nunca a sí mismo.
+- Primer administrador: en un proyecto sin admin, el login ofrece "Configurar administrador"
+  una sola vez.
+- Los permisos se aplican en el servidor (`firestore.rules`), no solo ocultando botones; un
+  cambio rechazado por permisos se descarta y vuelve la versión del servidor.
+- A pedido del usuario se retiraron todas las pruebas automatizadas (`test/`) y el código que
+  existía solo para ellas.
