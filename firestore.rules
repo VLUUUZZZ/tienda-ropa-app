@@ -1,10 +1,10 @@
 rules_version = '2';
 
-// Roles live in usuarios/{uid}.rol and are enforced here, not just hidden in
-// the app:
-// - admin:    everything, including managing accounts.
-// - empleado: read the catalog and change stock counts only.
-// Nobody without an active profile can read or write anything.
+// Each store (tiendas/{tiendaId}) is isolated: its catalog and its staff are
+// only visible to its own members. Roles live in usuarios/{uid}:
+// - admin:    everything in their store, including managing its accounts.
+// - empleado: read their store's catalog and change stock counts only.
+// Anyone may open a new store, and becomes the admin of that store only.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -16,73 +16,90 @@ service cloud.firestore {
       return /databases/$(database)/documents/usuarios/$(request.auth.uid);
     }
 
-    function setupPath() {
-      return /databases/$(database)/documents/config/inicial;
+    function storePath(tiendaId) {
+      return /databases/$(database)/documents/tiendas/$(tiendaId);
     }
 
-    function isActive() {
+    function profile() {
+      return get(ownProfilePath()).data;
+    }
+
+    function isMemberOf(tiendaId) {
       return signedIn()
         && exists(ownProfilePath())
-        && get(ownProfilePath()).data.activo == true;
+        && profile().activo == true
+        && profile().tiendaId == tiendaId;
     }
 
-    function isAdmin() {
-      return isActive() && get(ownProfilePath()).data.rol == 'admin';
+    function isAdminOf(tiendaId) {
+      return isMemberOf(tiendaId) && profile().rol == 'admin';
     }
 
     function isValidProfile(data) {
-      return data.keys().hasOnly(['nombre', 'correo', 'rol', 'activo', 'creado'])
+      return data.keys().hasOnly(
+          ['nombre', 'correo', 'rol', 'activo', 'tiendaId', 'tiendaNombre', 'creado'])
         && data.nombre is string && data.nombre.size() > 0
         && data.correo is string
         && data.rol in ['admin', 'empleado']
-        && data.activo is bool;
+        && data.activo is bool
+        && data.tiendaId is string
+        && data.tiendaNombre is string;
     }
 
-    // Exists once the first admin was created. Readable by anyone so the
-    // login screen knows whether to offer the one-time setup.
-    match /config/inicial {
-      allow read: if true;
+    // Opening a store: in the same batch that creates the owner's profile
+    // as its admin (checked below).
+    function isOpeningOwnStore(tiendaId, data) {
+      return signedIn()
+        && data.rol == 'admin'
+        && data.activo == true
+        && !exists(storePath(tiendaId))
+        && getAfter(storePath(tiendaId)).data.duenoUid == request.auth.uid;
+    }
+
+    match /tiendas/{tiendaId} {
+      allow read: if isMemberOf(tiendaId);
       allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['adminUid'])
-        && request.resource.data.adminUid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['nombre', 'duenoUid', 'creada'])
+        && request.resource.data.nombre is string
+        && request.resource.data.duenoUid == request.auth.uid
+        && getAfter(ownProfilePath()).data.tiendaId == tiendaId
         && getAfter(ownProfilePath()).data.rol == 'admin';
+
+      match /prendas/{prendaId} {
+        allow read: if isMemberOf(tiendaId);
+        allow create, delete: if isAdminOf(tiendaId);
+        allow update: if isAdminOf(tiendaId) || (
+          isMemberOf(tiendaId)
+          // Employees: stock counts only. Name, price and the set of
+          // variants stay as they are.
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['variantes', 'actualizado'])
+          && request.resource.data.variantes.size() == resource.data.variantes.size()
+        );
+      }
     }
 
     match /usuarios/{uid} {
-      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      // Your own profile, or your store's staff if you're its admin.
+      allow read: if signedIn() && (
+        request.auth.uid == uid || isAdminOf(resource.data.tiendaId));
 
       allow create: if isValidProfile(request.resource.data) && (
-        isAdmin()
-        // One-time bootstrap: the first admin creates their own profile in
-        // the same batch that creates config/inicial.
-        || (signedIn()
-          && request.auth.uid == uid
-          && request.resource.data.rol == 'admin'
-          && request.resource.data.activo == true
-          && !exists(setupPath())
-          && existsAfter(setupPath()))
+        // An admin adding staff to their own store.
+        isAdminOf(request.resource.data.tiendaId)
+        // Or someone opening their own new store.
+        || (request.auth.uid == uid
+          && isOpeningOwnStore(request.resource.data.tiendaId, request.resource.data))
       );
 
-      // Admins can't edit themselves, so the store can't lose its last admin
-      // by accident.
-      allow update: if isAdmin()
+      // Admins manage their store's staff, never themselves (so a store
+      // can't lose its last admin by accident), and nobody changes store.
+      allow update: if isAdminOf(resource.data.tiendaId)
         && request.auth.uid != uid
-        && isValidProfile(request.resource.data);
+        && isValidProfile(request.resource.data)
+        && request.resource.data.tiendaId == resource.data.tiendaId;
 
       allow delete: if false;
-    }
-
-    match /prendas/{prendaId} {
-      allow read: if isActive();
-      allow create, delete: if isAdmin();
-      allow update: if isAdmin() || (
-        isActive()
-        // Employees: stock counts only. Name, price and the set of
-        // variants stay as they are.
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['variantes', 'actualizado'])
-        && request.resource.data.variantes.size() == resource.data.variantes.size()
-      );
     }
   }
 }

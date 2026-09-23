@@ -9,12 +9,13 @@ import '../../widgets/error_text.dart';
 import '../../widgets/password_field.dart';
 import 'role_selector.dart';
 
-/// Lets an admin create an employee's (or another admin's) account with a
-/// temporary password to hand over.
+/// Lets an admin create an employee's (or another admin's) account in their
+/// store, with a temporary password to hand over.
 class UserFormScreen extends StatefulWidget {
-  const UserFormScreen({super.key, required this.users});
+  const UserFormScreen({super.key, required this.users, required this.tienda});
 
   final UserDirectory users;
+  final Tienda tienda;
 
   @override
   State<UserFormScreen> createState() => _UserFormScreenState();
@@ -39,6 +40,7 @@ class _UserFormScreenState extends State<UserFormScreen> with AsyncSubmit {
     if (!_formKey.currentState!.validate()) return;
     final created = await submit(
       () => widget.users.create(
+        tienda: widget.tienda,
         nombre: _nombreCtrl.text,
         correo: _correoCtrl.text,
         password: _passwordCtrl.text,

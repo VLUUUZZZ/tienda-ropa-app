@@ -50,12 +50,11 @@ abstract class AuthService {
 
   Future<void> sendPasswordReset(String correo);
 
-  /// True only on a brand-new project that has no administrator yet.
-  Future<bool> needsFirstAdmin();
-
-  /// Creates the first administrator and signs in as them. Only works once
-  /// per project (enforced by the security rules).
-  Future<void> createFirstAdmin({
+  /// Opens a new store: creates the account, makes it the store's
+  /// administrator and signs in as them. The store starts empty and is only
+  /// visible to its own staff.
+  Future<void> createStore({
+    required String nombreTienda,
     required String nombre,
     required String correo,
     required String password,

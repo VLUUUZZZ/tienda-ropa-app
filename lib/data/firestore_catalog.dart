@@ -1,20 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../firestore_paths.dart';
 import '../models/clothing_item.dart';
 import 'remote_catalog.dart';
 
-/// Catalog stored in Firestore under `prendas/{id}`, where the document id is
-/// the same id printed on the garment's QR.
+/// One store's catalog in Firestore (see [FirestorePaths.catalog]), where the
+/// document id is the same id printed on the garment's QR.
 class FirestoreCatalog implements RemoteCatalog {
-  static const String collectionName = 'prendas';
+  FirestoreCatalog(FirebaseFirestore firestore, String tiendaId)
+    : _collection = FirestorePaths.catalog(firestore, tiendaId);
 
-  final FirebaseFirestore _firestore;
-
-  FirestoreCatalog(this._firestore);
-
-  CollectionReference<Map<String, dynamic>> get _collection =>
-      _firestore.collection(collectionName);
+  final CollectionReference<Map<String, dynamic>> _collection;
 
   @override
   Stream<RemoteSnapshot> watch() {

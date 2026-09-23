@@ -7,7 +7,7 @@ import '../../widgets/auth_layout.dart';
 import '../../widgets/busy_button.dart';
 import '../../widgets/error_text.dart';
 import '../../widgets/password_field.dart';
-import 'first_admin_screen.dart';
+import 'new_store_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.auth});
@@ -22,24 +22,11 @@ class _LoginScreenState extends State<LoginScreen> with AsyncSubmit {
   final _formKey = GlobalKey<FormState>();
   final _correoCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
-  bool _needsFirstAdmin = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkFirstAdmin();
-  }
-
   @override
   void dispose() {
     _correoCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _checkFirstAdmin() async {
-    final needed = await widget.auth.needsFirstAdmin();
-    if (mounted) setState(() => _needsFirstAdmin = needed);
   }
 
   Future<void> _signIn() async {
@@ -72,9 +59,9 @@ class _LoginScreenState extends State<LoginScreen> with AsyncSubmit {
     }
   }
 
-  void _openFirstAdmin() {
+  void _openNewStore() {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => FirstAdminScreen(auth: widget.auth)),
+      MaterialPageRoute(builder: (_) => NewStoreScreen(auth: widget.auth)),
     );
   }
 
@@ -118,14 +105,12 @@ class _LoginScreenState extends State<LoginScreen> with AsyncSubmit {
                 onPressed: busy ? null : _resetPassword,
                 child: const Text('¿Olvidaste tu contraseña?'),
               ),
-              if (_needsFirstAdmin) ...[
-                const Divider(height: 24),
-                OutlinedButton.icon(
-                  onPressed: _openFirstAdmin,
-                  icon: const Icon(Icons.admin_panel_settings_outlined),
-                  label: const Text('Configurar administrador'),
-                ),
-              ],
+              const Divider(height: 24),
+              OutlinedButton.icon(
+                onPressed: busy ? null : _openNewStore,
+                icon: const Icon(Icons.add_business_outlined),
+                label: const Text('Iniciar nueva tienda'),
+              ),
             ],
           ),
         ),

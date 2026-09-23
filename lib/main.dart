@@ -14,31 +14,37 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
 
-  final repo = ClothingRepository();
-  await repo.init();
-
   final settings = SettingsRepository();
   await settings.init();
 
   // Local config only, so this never waits on the network.
   final backend = await connectFirebase();
 
-  runApp(TiendaRopaApp(repo: repo, settings: settings, backend: backend));
+  // Without a backend there's no login: a single local catalog. With one,
+  // each store's catalog is opened by the auth gate on sign-in.
+  final localRepo = backend == null ? await ClothingRepository.open() : null;
+
+  runApp(
+    TiendaRopaApp(settings: settings, backend: backend, localRepo: localRepo),
+  );
 }
 
 class TiendaRopaApp extends StatefulWidget {
-  final ClothingRepository repo;
   final SettingsRepository settings;
 
-  /// Null runs the app local-only, without login.
+  /// Null runs the app local-only, without login, on [localRepo].
   final Backend? backend;
+  final ClothingRepository? localRepo;
 
   const TiendaRopaApp({
     super.key,
-    required this.repo,
     required this.settings,
     this.backend,
-  });
+    this.localRepo,
+  }) : assert(
+         (backend == null) != (localRepo == null),
+         'Either a backend or a local catalog',
+       );
 
   @override
   State<TiendaRopaApp> createState() => _TiendaRopaAppState();
@@ -70,12 +76,12 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
       theme: buildAppTheme(Brightness.light),
       darkTheme: buildAppTheme(Brightness.dark),
       home: switch (widget.backend) {
-        null => _buildHome(AppUser.local),
+        null => _buildHome(AppUser.local, widget.localRepo!),
         final backend => AuthGate(
           backend: backend,
-          repo: widget.repo,
-          signedInBuilder: (_, user) => _buildHome(
+          signedInBuilder: (_, user, repo) => _buildHome(
             user,
+            repo,
             onSignOut: backend.auth.signOut,
             users: backend.users,
           ),
@@ -85,12 +91,13 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
   }
 
   Widget _buildHome(
-    AppUser user, {
+    AppUser user,
+    ClothingRepository repo, {
     VoidCallback? onSignOut,
     UserDirectory? users,
   }) {
     return HomeScreen(
-      repo: widget.repo,
+      repo: repo,
       user: user,
       isDarkMode: _themeMode == ThemeMode.dark,
       onToggleTheme: _toggleTheme,

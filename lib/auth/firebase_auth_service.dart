@@ -6,23 +6,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'app_user.dart';
 import 'auth_service.dart';
 import 'firebase_auth_errors.dart';
+import '../firestore_paths.dart';
 
-/// [AuthService] on Firebase Auth (email and password), with each user's role
-/// kept in Firestore under `usuarios/{uid}`.
+/// [AuthService] on Firebase Auth (email and password), with each user's
+/// store and role kept in Firestore under `usuarios/{uid}`.
 class FirebaseAuthService implements AuthService {
   FirebaseAuthService(this._auth, this._firestore);
 
-  static const String usersCollection = 'usuarios';
-
-  /// Exists once the first administrator was created; the security rules
-  /// only allow creating an admin for yourself while it doesn't.
-  static const String _setupDocPath = 'config/inicial';
-
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
-
-  CollectionReference<Map<String, dynamic>> get _profiles =>
-      _firestore.collection(usersCollection);
 
   @override
   Stream<AuthState> watch() {
@@ -39,10 +31,13 @@ class FirebaseAuthService implements AuthService {
       }
       controller.add(const AuthLoading());
       // A live listener, so a role change or deactivation applies at once.
-      profileSub = _profiles.doc(user.uid).snapshots().listen((doc) {
-        final state = _stateFor(user, doc);
-        if (state != null) controller.add(state);
-      }, onError: (Object _) => controller.add(AccessDenied(user.email ?? '')));
+      profileSub = FirestorePaths.user(_firestore, user.uid).snapshots().listen(
+        (doc) {
+          final state = _stateFor(user, doc);
+          if (state != null) controller.add(state);
+        },
+        onError: (Object _) => controller.add(AccessDenied(user.email ?? '')),
+      );
     }
 
     controller = StreamController<AuthState>(
@@ -55,8 +50,8 @@ class FirebaseAuthService implements AuthService {
     return controller.stream;
   }
 
-  /// Null while the answer isn't known yet: right after signing in, the
-  /// profile may simply not be in the offline cache.
+  /// Null while the answer isn't known yet: right after signing in (or
+  /// creating a store) the profile may not have reached the device.
   static AuthState? _stateFor(
     User user,
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -66,7 +61,8 @@ class FirebaseAuthService implements AuthService {
       return doc.metadata.isFromCache ? null : AccessDenied(user.email ?? '');
     }
     final profile = AppUser.fromMap(user.uid, data);
-    return profile.activo ? SignedIn(profile) : AccessDenied(profile.correo);
+    final hasAccess = profile.activo && profile.tienda != null;
+    return hasAccess ? SignedIn(profile) : AccessDenied(profile.correo);
   }
 
   @override
@@ -86,20 +82,8 @@ class FirebaseAuthService implements AuthService {
       _guard(() => _auth.sendPasswordResetEmail(email: correo.trim()));
 
   @override
-  Future<bool> needsFirstAdmin() async {
-    try {
-      final setup = await _firestore
-          .doc(_setupDocPath)
-          .get(const GetOptions(source: Source.server));
-      return !setup.exists;
-    } catch (_) {
-      // Offline or unknown: never offer admin setup on a guess.
-      return false;
-    }
-  }
-
-  @override
-  Future<void> createFirstAdmin({
+  Future<void> createStore({
+    required String nombreTienda,
     required String nombre,
     required String correo,
     required String password,
@@ -111,26 +95,34 @@ class FirebaseAuthService implements AuthService {
       ),
     );
     final user = credential.user!;
-    final profile = AppUser(
+    final tiendaRef = FirestorePaths.stores(_firestore).doc();
+    final admin = AppUser(
       uid: user.uid,
       nombre: nombre.trim(),
       correo: correo.trim(),
       role: UserRole.admin,
+      tienda: Tienda(id: tiendaRef.id, nombre: nombreTienda.trim()),
     );
 
-    // One batch, so the rules can check both writes together.
+    // One batch, so the rules can check the store and its owner together.
     final batch = _firestore.batch()
-      ..set(_profiles.doc(user.uid), {
-        ...profile.toMap(),
-        'creado': FieldValue.serverTimestamp(),
+      ..set(tiendaRef, {
+        'nombre': nombreTienda.trim(),
+        'duenoUid': user.uid,
+        'creada': FieldValue.serverTimestamp(),
       })
-      ..set(_firestore.doc(_setupDocPath), {'adminUid': user.uid});
+      ..set(FirestorePaths.user(_firestore, user.uid), {
+        ...admin.toMap(),
+        'creado': FieldValue.serverTimestamp(),
+      });
     try {
       await batch.commit();
     } catch (_) {
-      // Someone else finished setup first: don't leave an account behind.
+      // Don't leave behind an account with no store.
       await user.delete();
-      throw const AuthException('Este proyecto ya tiene administrador.');
+      throw const AuthException(
+        'No se pudo crear la tienda. Revisa tu conexión e inténtalo de nuevo.',
+      );
     }
   }
 
