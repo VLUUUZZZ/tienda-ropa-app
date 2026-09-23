@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
+import '../widgets/snackbars.dart';
 import 'qr_screen.dart';
 import 'quick_stock_screen.dart';
 
@@ -61,15 +62,27 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     );
     _nombreCtrl.addListener(_markDirty);
     _precioCtrl.addListener(_markDirty);
-    if (widget.item.variantes.isEmpty) {
-      _variantes.add(_VariantRow());
-    } else {
-      for (final v in widget.item.variantes) {
-        _variantes.add(
-          _VariantRow(talla: v.talla, color: v.color, existencia: v.existencia),
-        );
-      }
+    _setVariantRows(widget.item.variantes);
+  }
+
+  /// Replaces the variant rows with [variantes] (one blank row if empty).
+  void _setVariantRows(List<ClothingVariant> variantes) {
+    for (final row in _variantes) {
+      row.dispose();
     }
+    _variantes
+      ..clear()
+      ..addAll(
+        variantes.isEmpty
+            ? [_VariantRow()]
+            : variantes.map(
+                (v) => _VariantRow(
+                  talla: v.talla,
+                  color: v.color,
+                  existencia: v.existencia,
+                ),
+              ),
+      );
     for (final row in _variantes) {
       _attachDirtyListeners(row);
     }
@@ -194,7 +207,14 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       variantes: variantes,
     );
 
-    await widget.repo.save(updated);
+    try {
+      await widget.repo.save(updated);
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackBar(context, 'No se pudo guardar. Inténtalo de nuevo.');
+      }
+      return;
+    }
 
     if (!mounted) return;
     _dirty = false;
@@ -209,24 +229,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         builder: (_) => QuickStockScreen(repo: widget.repo, item: current),
       ),
     );
-    if (saved == true && mounted) {
-      // Reflect the updated counts in this screen's fields too.
-      setState(() {
-        final refreshed = widget.repo.getById(widget.item.id)!;
-        for (var i = 0; i < _variantes.length; i++) {
-          _variantes[i].dispose();
-        }
-        _variantes.clear();
-        for (final v in refreshed.variantes) {
-          final row = _VariantRow(
-            talla: v.talla,
-            color: v.color,
-            existencia: v.existencia,
-          );
-          _attachDirtyListeners(row);
-          _variantes.add(row);
-        }
-      });
+    if (saved != true || !mounted) return;
+    // Reflect the updated counts in this screen's fields too.
+    final refreshed = widget.repo.getById(widget.item.id);
+    if (refreshed != null) {
+      setState(() => _setVariantRows(refreshed.variantes));
     }
   }
 
@@ -249,7 +256,14 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       ),
     );
     if (confirm != true) return;
-    await widget.repo.delete(widget.item.id);
+    try {
+      await widget.repo.delete(widget.item.id);
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackBar(context, 'No se pudo eliminar. Inténtalo de nuevo.');
+      }
+      return;
+    }
     if (!mounted) return;
     _dirty = false;
     Navigator.of(context).pop(ItemFormResult.deleted);

@@ -5,6 +5,7 @@ import '../auth/user_directory.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
 import '../widgets/role_badge.dart';
+import '../widgets/snackbars.dart';
 import 'item_form_screen.dart';
 import 'quick_stock_screen.dart';
 import 'scanner_screen.dart';
@@ -93,13 +94,22 @@ class _HomeScreenState extends State<HomeScreen> {
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
           label: 'Deshacer',
-          onPressed: () async {
-            await widget.repo.save(item);
-            if (mounted) _reload();
-          },
+          onPressed: () => _restore(item),
         ),
       ),
     );
+  }
+
+  Future<void> _restore(ClothingItem item) async {
+    try {
+      await widget.repo.save(item);
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackBar(context, 'No se pudo restaurar la prenda.');
+      }
+      return;
+    }
+    if (mounted) _reload();
   }
 
   /// Admins get the full form; employees go straight to stock adjustment,

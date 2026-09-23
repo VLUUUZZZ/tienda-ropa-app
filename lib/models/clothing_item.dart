@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 class ClothingVariant {
   String talla;
   String color;
@@ -8,6 +10,11 @@ class ClothingVariant {
     required this.color,
     required this.existencia,
   });
+
+  /// What makes a variant unique within a garment: its color and talla,
+  /// ignoring case and surrounding spaces.
+  String get key =>
+      '${color.trim().toLowerCase()}|${talla.trim().toLowerCase()}';
 
   Map<String, dynamic> toMap() => {
     'talla': talla,
@@ -60,14 +67,32 @@ class ClothingItem {
   ) {
     final seen = <String>{};
     for (final v in variantes) {
-      final key =
-          '${v.color.trim().toLowerCase()}|${v.talla.trim().toLowerCase()}';
-      if (!seen.add(key)) {
+      if (!seen.add(v.key)) {
         return (color: v.color.trim(), talla: v.talla.trim());
       }
     }
     return null;
   }
+
+  /// A copy with each variant's stock moved by its entry in [deltas] (keyed
+  /// by [ClothingVariant.key]), never below zero.
+  ///
+  /// Applying changes as deltas onto the latest version, instead of saving
+  /// absolute counts read earlier, keeps adjustments made meanwhile on other
+  /// devices. Deltas for variants that no longer exist are ignored.
+  ClothingItem withStockChanges(Map<String, int> deltas) => ClothingItem(
+    id: id,
+    nombre: nombre,
+    precio: precio,
+    variantes: [
+      for (final v in variantes)
+        ClothingVariant(
+          talla: v.talla,
+          color: v.color,
+          existencia: math.max(0, v.existencia + (deltas[v.key] ?? 0)),
+        ),
+    ],
+  );
 
   Map<String, dynamic> toMap() => {
     'id': id,

@@ -8,9 +8,9 @@ import 'role_selector.dart';
 import 'user_form_screen.dart';
 
 /// Admin screen: everyone with an account in the admin's store, their role
-/// and whether they can get in. Admins can't change their own account here, so nobody locks the
-/// store out of administration by accident.
-class UsersScreen extends StatelessWidget {
+/// and whether they can get in. Admins can't change their own account here,
+/// so nobody locks the store out of administration by accident.
+class UsersScreen extends StatefulWidget {
   const UsersScreen({
     super.key,
     required this.users,
@@ -19,6 +19,20 @@ class UsersScreen extends StatelessWidget {
 
   final UserDirectory users;
   final AppUser currentUser;
+
+  @override
+  State<UsersScreen> createState() => _UsersScreenState();
+}
+
+class _UsersScreenState extends State<UsersScreen> {
+  // Created once: building it in build() would re-subscribe to Firestore on
+  // every rebuild.
+  late final Stream<List<AppUser>> _staff = widget.users.watchStore(
+    widget.currentUser.tienda!,
+  );
+
+  UserDirectory get users => widget.users;
+  AppUser get currentUser => widget.currentUser;
 
   Future<void> _create(BuildContext context) async {
     final created = await Navigator.of(context).push<bool>(
@@ -62,7 +76,7 @@ class UsersScreen extends StatelessWidget {
         label: const Text('Nuevo'),
       ),
       body: StreamBuilder<List<AppUser>>(
-        stream: users.watchStore(currentUser.tienda!),
+        stream: _staff,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const Center(child: Text('No se pudo cargar la lista.'));
