@@ -24,6 +24,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _searchCtrl = TextEditingController();
+  late final Listenable _repoChanges = widget.repo.listenable;
   List<ClothingItem> _items = [];
 
   @override
@@ -31,12 +32,19 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _reload();
     _searchCtrl.addListener(() => _reload());
+    // Picks up changes synced from other devices.
+    _repoChanges.addListener(_onRepoChanged);
   }
 
   @override
   void dispose() {
+    _repoChanges.removeListener(_onRepoChanged);
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _onRepoChanged() {
+    if (mounted) _reload();
   }
 
   void _reload() {
