@@ -5,8 +5,12 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 1. La sesión diaria toma las tareas de "Pendiente", de arriba hacia abajo.
 2. Si no hay ninguna pendiente, se dedica a pulir lo que ya existe (bugs, UI/UX, rendimiento, pruebas) — sin agregar funciones nuevas grandes por su cuenta.
 3. Cada tarea completada se mueve a "Completado" con la fecha y el commit correspondiente.
-4. Todo cambio se compila y se prueba antes de darse por terminado, y queda guardado en git (nunca se sube a ningún remoto sin que tú lo pidas).
-5. Si en algún momento se necesita una base de datos remota/backend, debe ser Firebase (acordado con el usuario el 2026-09-22).
+4. Todo cambio se compila y se prueba antes de darse por terminado, y queda guardado en git.
+5. Sincronización con GitHub, para que ninguna sesión repita trabajo de otra:
+   - Al empezar, antes de tomar una tarea: `git pull origin master` y revisar este archivo ya actualizado (y el código) para confirmar que la tarea no está hecha.
+   - Al terminar cada tarea: moverla a "Completado" y subir el commit a `master` (`git push origin master`) de inmediato, no al final de la sesión.
+   - Nunca usar `git push --force` sobre `master`: si el push es rechazado, hacer `git pull` (merge), resolver conflictos, volver a compilar/probar y subir de nuevo.
+6. Si en algún momento se necesita una base de datos remota/backend, debe ser Firebase (acordado con el usuario el 2026-09-22).
 
 ## Pendiente
 
