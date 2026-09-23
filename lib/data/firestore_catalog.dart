@@ -18,9 +18,20 @@ class FirestoreCatalog implements RemoteCatalog {
     return _collection.snapshots().map(
       (snapshot) => RemoteSnapshot(
         items: snapshot.docs.map(_parse).nonNulls.toList(),
+        ids: {for (final doc in snapshot.docs) doc.id},
         fromServer: !snapshot.metadata.isFromCache,
       ),
     );
+  }
+
+  @override
+  Future<ClothingItem?> fetch(String id) async {
+    final doc = await _collection
+        .doc(id)
+        .get(const GetOptions(source: Source.server));
+    final data = doc.data();
+    if (data == null) return null;
+    return ClothingItem.fromMap({...data, 'id': doc.id});
   }
 
   ClothingItem? _parse(QueryDocumentSnapshot<Map<String, dynamic>> doc) {

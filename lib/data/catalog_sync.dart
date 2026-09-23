@@ -83,13 +83,32 @@ class CatalogSync {
       }
       await _state.confirm(id, token);
     } on RemoteWriteRejected catch (e) {
-      // Retrying can't help; dropping the pending mark lets the next remote
-      // snapshot restore the server's version locally.
+      // Retrying can't help: drop the change and put the server's version
+      // back. Waiting for the next snapshot isn't enough, because the one
+      // that reverts the rejected write can arrive while the change is
+      // still marked pending, and be skipped.
       debugPrint('Cambio a $id rechazado, se descarta: $e');
       await _state.confirm(id, token);
+      await _restoreFromRemote(id);
     } catch (e) {
       // Stays pending: retried on reconnect or on the next launch.
       debugPrint('No se sincronizó $id, se reintentará: $e');
+    }
+  }
+
+  Future<void> _restoreFromRemote(String id) async {
+    try {
+      final server = await _remote.fetch(id);
+      // A newer local change made meanwhile gets its own round trip.
+      if (!_running || _state.pendingToken(id) != null) return;
+      if (server == null) {
+        await _local.remove(id);
+      } else {
+        await _local.write(server);
+      }
+    } catch (e) {
+      // The next server snapshot will bring it back instead.
+      debugPrint('No se pudo restaurar $id del servidor: $e');
     }
   }
 
@@ -129,13 +148,19 @@ class CatalogSync {
     // Items with unconfirmed local changes keep their local version: the
     // remote copy of them is stale until our write reaches it.
     final pending = _state.pendingIds;
-    final remoteItems = snapshot.items.where(
-      (item) => LocalCatalog.isItemId(item.id),
-    );
-    final remoteIds = {for (final item in remoteItems) item.id};
+    final remoteIds = snapshot.ids.where(LocalCatalog.isItemId).toSet();
 
-    for (final item in remoteItems) {
-      if (!pending.contains(item.id)) await _local.writeIfChanged(item);
+    for (final item in snapshot.items) {
+      if (!LocalCatalog.isItemId(item.id) || pending.contains(item.id)) {
+        continue;
+      }
+      try {
+        await _local.writeIfChanged(item);
+      } catch (e) {
+        // One garment that can't be stored must not stop the rest, nor
+        // break the listener (which would stop sync for the session).
+        debugPrint('Prenda ${item.id} no se pudo guardar: $e');
+      }
     }
 
     // Only the server can be trusted to say an item was deleted: a cold or

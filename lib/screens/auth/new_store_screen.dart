@@ -72,6 +72,7 @@ class _NewStoreScreenState extends State<NewStoreScreen> with AsyncSubmit {
           children: [
             TextFormField(
               controller: _nombreCtrl,
+              maxLength: CredentialValidators.maxNombre,
               textCapitalization: TextCapitalization.words,
               textInputAction: TextInputAction.next,
               validator: CredentialValidators.required,

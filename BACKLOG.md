@@ -19,6 +19,45 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-23 — robustez (rama `claude/como-ves-la-app-g73nn7`)
+
+El usuario pidió priorizar la robustez sobre lo estético. Verificado con `flutter analyze`
+(0 avisos), `flutter build web`, 27 pruebas de lógica/sincronización/formulario y 28 pruebas
+de reglas en el emulador de Firestore, todo en una copia aparte (el repo sigue sin `test/`).
+Se comprobó que las pruebas nuevas fallan con el código anterior.
+
+Errores reales corregidos:
+1. **Se perdían ventas**: si un empleado vendía mientras el admin tenía abierta la ficha,
+   al guardar la ficha se sobrescribía la existencia. Ahora se guarda solo lo que cambió en
+   el formulario, sobre la versión más reciente (como el ajuste rápido).
+2. **Doble toque en Guardar** del formulario cerraba dos pantallas (podía sacar de la
+   principal). En la pantalla principal, un doble toque abría dos pantallas iguales.
+3. **Un documento mal formado en Firestore borraba la prenda** de los teléfonos (se leía
+   como "eliminada"). Ahora solo cuenta como borrada si el documento ya no existe.
+4. **Un id con acentos, espacios o muy largo** (p. ej. creado a mano en la consola) hacía
+   fallar el guardado en Hive y detenía toda la sincronización. Ahora se ignora ese
+   documento y el resto sigue.
+5. **Un cambio rechazado por permisos** podía quedarse en el teléfono. Ahora se trae la
+   versión del servidor en cuanto se rechaza.
+6. **Crear un usuario** dejaba una cuenta sin perfil (y el correo ocupado) si fallaba
+   guardar el perfil. Ahora esa cuenta se borra.
+
+Refuerzos:
+- Lectura tolerante de prendas y perfiles: tipos equivocados, valores negativos, NaN o
+  enormes se corrigen en vez de ocultar la prenda o dejar fuera al usuario.
+- Límites (`Limites` en `clothing_item.dart`): nombre 80, talla 15, color 30, precio hasta
+  $1,000,000, existencia hasta 99,999 por talla, 100 tallas/colores por prenda. Campos
+  numéricos solo aceptan dígitos.
+- Precio acepta "1,250.50", "1.250,50", "$ 300"; se guarda redondeado a centavos.
+- "Café" y "cafe" (o "M" y "m ") cuentan como la misma variante.
+- Formularios de sesión/usuarios: cualquier error inesperado muestra un mensaje.
+- Arranque: si no abre el almacenamiento o Firebase, pantalla con "Reintentar" en vez de
+  quedarse en blanco; errores no controlados se registran sin cerrar la app. Si fallan
+  las preferencias, se usa el tema por defecto.
+- `firestore.rules`: las prendas deben tener la forma que escribe la app (campos
+  permitidos, id igual al documento, precio numérico 0–1,000,000, hasta 100 variantes).
+  **Hay que publicarlas** para que apliquen: `firebase deploy --only firestore:rules`.
+
 ### 2026-09-23 — diseño visual y refuerzos (rama `claude/como-ves-la-app-g73nn7`)
 
 Pulido y refuerzo pedido por el usuario, más 7 tareas de Pendiente. Verificado con

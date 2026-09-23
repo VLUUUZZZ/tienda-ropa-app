@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 
 import '../firestore_paths.dart';
 import 'app_user.dart';
@@ -47,31 +48,56 @@ class FirestoreUserDirectory implements UserDirectory {
     required UserRole role,
   }) async {
     final creatorAuth = FirebaseAuth.instanceFor(app: await _creatorApp());
-    final UserCredential credential;
     try {
-      credential = await creatorAuth.createUserWithEmailAndPassword(
-        email: correo.trim(),
-        password: password,
+      final UserCredential credential;
+      try {
+        credential = await creatorAuth.createUserWithEmailAndPassword(
+          email: correo.trim(),
+          password: password,
+        );
+      } on FirebaseAuthException catch (e) {
+        throw authExceptionFrom(e);
+      }
+      final account = credential.user!;
+
+      final profile = AppUser(
+        uid: account.uid,
+        nombre: nombre.trim(),
+        correo: correo.trim(),
+        role: role,
+        tienda: tienda,
       );
-    } on FirebaseAuthException catch (e) {
-      throw authExceptionFrom(e);
+      try {
+        // Not timed out: offline, Firestore keeps the write queued and
+        // sends it later, so giving up here would leave a profile behind
+        // for an account deleted below.
+        await _write(
+          () => FirestorePaths.user(
+            _firestore,
+            profile.uid,
+          ).set({...profile.toMap(), 'creado': FieldValue.serverTimestamp()}),
+        );
+      } catch (e) {
+        // Without its profile the account can't enter any store, and its
+        // email would stay taken. Still signed in as it on the creator app,
+        // so it can remove itself.
+        await _deleteQuietly(account);
+        if (e is AuthException) rethrow;
+        throw const AuthException(
+          'No se pudo crear el usuario. Revisa tu conexión e inténtalo de nuevo.',
+        );
+      }
     } finally {
       await creatorAuth.signOut();
     }
+  }
 
-    final profile = AppUser(
-      uid: credential.user!.uid,
-      nombre: nombre.trim(),
-      correo: correo.trim(),
-      role: role,
-      tienda: tienda,
-    );
-    await _write(
-      () => FirestorePaths.user(
-        _firestore,
-        profile.uid,
-      ).set({...profile.toMap(), 'creado': FieldValue.serverTimestamp()}),
-    );
+  static Future<void> _deleteQuietly(User account) async {
+    try {
+      await account.delete();
+    } catch (e) {
+      debugPrint('No se pudo borrar la cuenta sin perfil ${account.uid}: $e');
+    }
   }
 
   @override
