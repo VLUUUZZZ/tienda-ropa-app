@@ -5,14 +5,94 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 1. La sesión diaria toma las tareas de "Pendiente", de arriba hacia abajo.
 2. Si no hay ninguna pendiente, se dedica a pulir lo que ya existe (bugs, UI/UX, rendimiento, pruebas) — sin agregar funciones nuevas grandes por su cuenta.
 3. Cada tarea completada se mueve a "Completado" con la fecha y el commit correspondiente.
-4. Todo cambio se compila y se prueba antes de darse por terminado, y queda guardado en git (nunca se sube a ningún remoto sin que tú lo pidas).
-5. Si en algún momento se necesita una base de datos remota/backend, debe ser Firebase (acordado con el usuario el 2026-09-22).
+4. Todo cambio se compila y se prueba antes de darse por terminado, y queda guardado en git.
+5. Sincronización con GitHub, para que ninguna sesión repita trabajo de otra:
+   - Al empezar, antes de tomar una tarea: `git pull origin master` y revisar este archivo ya actualizado (y el código) para confirmar que la tarea no está hecha.
+   - Al terminar cada tarea: moverla a "Completado" y subir el commit a `master` (`git push origin master`) de inmediato, no al final de la sesión.
+   - Nunca usar `git push --force` sobre `master`: si el push es rechazado, hacer `git pull` (merge), resolver conflictos, volver a compilar/probar y subir de nuevo.
+6. Si en algún momento se necesita una base de datos remota/backend, debe ser Firebase (acordado con el usuario el 2026-09-22).
 
 ## Pendiente
 
-(vacío por ahora — agrega tareas aquí, una por línea)
+1. Evitar que dos teléfonos **sin conexión** creen el mismo código de prenda. Ya resuelto con conexión (ver Completado 2026-09-23); falta el caso sin red: si dos teléfonos agregan prendas sin conexión al mismo tiempo, ambos pueden generar el mismo `PRENDA-0000NN` y al sincronizar una prenda pisaría a la otra. Opciones: contador en Firestore con transacción al tener red, o detectar el choque al sincronizar y renumerar la prenda local.
+2. Registro de ventas: botón "Vender" que descuente una pieza y guarde la venta, con historial y total del día.
 
 ## Completado
+
+### 2026-09-23 — robustez (rama `claude/como-ves-la-app-g73nn7`)
+
+El usuario pidió priorizar la robustez sobre lo estético. Verificado con `flutter analyze`
+(0 avisos), `flutter build web`, 27 pruebas de lógica/sincronización/formulario y 28 pruebas
+de reglas en el emulador de Firestore, todo en una copia aparte (el repo sigue sin `test/`).
+Se comprobó que las pruebas nuevas fallan con el código anterior.
+
+Errores reales corregidos:
+1. **Se perdían ventas**: si un empleado vendía mientras el admin tenía abierta la ficha,
+   al guardar la ficha se sobrescribía la existencia. Ahora se guarda solo lo que cambió en
+   el formulario, sobre la versión más reciente (como el ajuste rápido).
+2. **Doble toque en Guardar** del formulario cerraba dos pantallas (podía sacar de la
+   principal). En la pantalla principal, un doble toque abría dos pantallas iguales.
+3. **Un documento mal formado en Firestore borraba la prenda** de los teléfonos (se leía
+   como "eliminada"). Ahora solo cuenta como borrada si el documento ya no existe.
+4. **Un id con acentos, espacios o muy largo** (p. ej. creado a mano en la consola) hacía
+   fallar el guardado en Hive y detenía toda la sincronización. Ahora se ignora ese
+   documento y el resto sigue.
+5. **Un cambio rechazado por permisos** podía quedarse en el teléfono. Ahora se trae la
+   versión del servidor en cuanto se rechaza.
+6. **Crear un usuario** dejaba una cuenta sin perfil (y el correo ocupado) si fallaba
+   guardar el perfil. Ahora esa cuenta se borra.
+
+Refuerzos:
+- Lectura tolerante de prendas y perfiles: tipos equivocados, valores negativos, NaN o
+  enormes se corrigen en vez de ocultar la prenda o dejar fuera al usuario.
+- Límites (`Limites` en `clothing_item.dart`): nombre 80, talla 15, color 30, precio hasta
+  $1,000,000, existencia hasta 99,999 por talla, 100 tallas/colores por prenda. Campos
+  numéricos solo aceptan dígitos.
+- Precio acepta "1,250.50", "1.250,50", "$ 300"; se guarda redondeado a centavos.
+- "Café" y "cafe" (o "M" y "m ") cuentan como la misma variante.
+- Formularios de sesión/usuarios: cualquier error inesperado muestra un mensaje.
+- Arranque: si no abre el almacenamiento o Firebase, pantalla con "Reintentar" en vez de
+  quedarse en blanco; errores no controlados se registran sin cerrar la app. Si fallan
+  las preferencias, se usa el tema por defecto.
+- `firestore.rules`: las prendas deben tener la forma que escribe la app (campos
+  permitidos, id igual al documento, precio numérico 0–1,000,000, hasta 100 variantes).
+  **Hay que publicarlas** para que apliquen: `firebase deploy --only firestore:rules`.
+
+### 2026-09-23 — diseño visual y refuerzos (rama `claude/como-ves-la-app-g73nn7`)
+
+Pulido y refuerzo pedido por el usuario, más 7 tareas de Pendiente. Verificado con
+`flutter analyze` (0 avisos), `flutter build web`, pruebas de lógica y capturas de
+pantalla en claro/oscuro hechas en una copia aparte (el repo sigue sin `test/`, como
+pidió el usuario). No hay SDK de Android en esa sesión, así que no se generó APK.
+
+Diseño visual:
+- Tema en su propio archivo (`lib/app_theme.dart`): terracota fiel a la marca, escala
+  tipográfica única, tarjetas con borde fino, botones de 52 px de alto, avisos
+  flotantes, hojas inferiores y diálogos redondeados. Colores de existencia
+  (`StockColors`) para claro y oscuro.
+- Pantalla principal: resumen (prendas, piezas y valor del inventario; los empleados
+  ven "Agotadas" en vez del valor), filtros Todas / Poca existencia / Agotadas con
+  conteo, tarjetas con iniciales, precio con separador de miles (`$1,250.00`), código
+  de la prenda, puntos de color y una insignia de existencia con ícono + texto.
+- Ajuste rápido: encabezado por color con su muestra y total, botones táctiles de 48 px,
+  el cambio pendiente de cada talla ("+1 sin guardar") y lectura para lector de pantalla.
+- Eliminar prenda: botón rojo en la confirmación. Tooltips en botones de solo ícono.
+
+Tareas de Pendiente resueltas:
+1. Imagen del QR: etiqueta propia siempre negro sobre blanco, también en modo oscuro;
+   la pantalla ahora hace scroll si no cabe.
+2. Al escanear como Administrador se ofrece "Ajustar existencia" o "Ver ficha completa".
+3. Búsqueda por nombre, código, color y talla (la talla debe escribirse completa).
+4. Los códigos nuevos ya no se gastan al cancelar: se reservan al guardar.
+5. Con conexión, si otro teléfono usó el mismo código mientras se llenaba el formulario,
+   la prenda nueva toma el siguiente libre; además el contador avanza con cada prenda
+   que llega sincronizada.
+6. Nombre "Tienda de Ropa" en iOS y web; `README.md` y `pubspec.yaml` con texto real.
+7. Filtro de poca existencia/agotadas y valor total del inventario.
+
+Refuerzo:
+- Ajuste rápido: tocar "Guardar" dos veces aplicaba los +/- dos veces; ahora se ignora el
+  segundo toque y el botón solo se activa si hay cambios.
 
 ### 2026-09-22 (10) — pendiente
 

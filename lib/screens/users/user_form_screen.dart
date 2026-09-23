@@ -61,6 +61,7 @@ class _UserFormScreenState extends State<UserFormScreen> with AsyncSubmit {
           children: [
             TextFormField(
               controller: _nombreCtrl,
+              maxLength: CredentialValidators.maxNombre,
               textCapitalization: TextCapitalization.words,
               textInputAction: TextInputAction.next,
               validator: CredentialValidators.required,

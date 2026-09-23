@@ -2,6 +2,10 @@
 abstract final class CredentialValidators {
   static const int minPasswordLength = 6;
 
+  /// A person's name; a new store is named "Tienda de" + the name, which
+  /// has to fit the server's limit for store names.
+  static const int maxNombre = 60;
+
   static final RegExp _email = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
   static String? required(String? value) =>
