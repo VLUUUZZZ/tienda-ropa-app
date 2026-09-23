@@ -1,0 +1,92 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+
+import 'app_user.dart';
+import 'auth_service.dart';
+import 'firebase_auth_errors.dart';
+import 'firebase_auth_service.dart';
+import 'user_directory.dart';
+
+/// [UserDirectory] on Firebase: accounts in Firebase Auth, roles in the
+/// `usuarios` collection.
+class FirestoreUserDirectory implements UserDirectory {
+  FirestoreUserDirectory(this._firestore, this._options);
+
+  /// Name of a second Firebase app used only to create accounts: creating
+  /// one signs in as it, and doing that on the main app would log the
+  /// admin out.
+  static const String _accountCreatorApp = 'altaUsuarios';
+
+  final FirebaseFirestore _firestore;
+  final FirebaseOptions _options;
+
+  CollectionReference<Map<String, dynamic>> get _profiles =>
+      _firestore.collection(FirebaseAuthService.usersCollection);
+
+  @override
+  Stream<List<AppUser>> watchAll() => _profiles.snapshots().map(
+    (snapshot) =>
+        snapshot.docs.map((doc) => AppUser.fromMap(doc.id, doc.data())).toList()
+          ..sort(
+            (a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()),
+          ),
+  );
+
+  @override
+  Future<void> create({
+    required String nombre,
+    required String correo,
+    required String password,
+    required UserRole role,
+  }) async {
+    final creatorAuth = FirebaseAuth.instanceFor(app: await _creatorApp());
+    final UserCredential credential;
+    try {
+      credential = await creatorAuth.createUserWithEmailAndPassword(
+        email: correo.trim(),
+        password: password,
+      );
+    } on FirebaseAuthException catch (e) {
+      throw authExceptionFrom(e);
+    } finally {
+      await creatorAuth.signOut();
+    }
+
+    final profile = AppUser(
+      uid: credential.user!.uid,
+      nombre: nombre.trim(),
+      correo: correo.trim(),
+      role: role,
+    );
+    await _write(
+      () => _profiles.doc(profile.uid).set({
+        ...profile.toMap(),
+        'creado': FieldValue.serverTimestamp(),
+      }),
+    );
+  }
+
+  @override
+  Future<void> update(AppUser user) =>
+      _write(() => _profiles.doc(user.uid).update(user.toMap()));
+
+  Future<FirebaseApp> _creatorApp() async {
+    for (final app in Firebase.apps) {
+      if (app.name == _accountCreatorApp) return app;
+    }
+    return Firebase.initializeApp(name: _accountCreatorApp, options: _options);
+  }
+
+  static Future<void> _write(Future<void> Function() action) async {
+    try {
+      await action();
+    } on FirebaseException catch (e) {
+      throw AuthException(
+        e.code == 'permission-denied'
+            ? 'No tienes permiso para gestionar usuarios.'
+            : 'No se pudo guardar el usuario (${e.code}).',
+      );
+    }
+  }
+}

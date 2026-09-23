@@ -14,17 +14,10 @@ import 'sync_state.dart';
 /// same offline. Every change is recorded as pending in [SyncState] and, once
 /// a [RemoteCatalog] is attached, [CatalogSync] mirrors it to the backend.
 class ClothingRepository {
-  ClothingRepository({
-    this.initialRetryDelay = const Duration(seconds: 5),
-    this.maxRetryDelay = const Duration(minutes: 5),
-  });
-
   /// Wait before re-listening to the remote after an error; doubles on each
-  /// consecutive failure up to [maxRetryDelay].
-  final Duration initialRetryDelay;
-  final Duration maxRetryDelay;
-
-  static const String boxName = LocalCatalog.boxName;
+  /// consecutive failure up to [_maxRetryDelay].
+  static const Duration _initialRetryDelay = Duration(seconds: 5);
+  static const Duration _maxRetryDelay = Duration(minutes: 5);
 
   late final LocalCatalog _local;
   late final SyncState _syncState;
@@ -45,7 +38,7 @@ class ClothingRepository {
       local: _local,
       state: _syncState,
       remote: remote,
-      backoff: Backoff(initial: initialRetryDelay, max: maxRetryDelay),
+      backoff: Backoff(initial: _initialRetryDelay, max: _maxRetryDelay),
     )..start();
   }
 
@@ -53,14 +46,6 @@ class ClothingRepository {
     await _sync?.stop();
     _sync = null;
   }
-
-  /// Completes once the latest remote snapshot has been applied locally.
-  @visibleForTesting
-  Future<void> get remoteSettled => _sync?.settled ?? Future.value();
-
-  /// Ids with local changes the remote hasn't confirmed yet.
-  @visibleForTesting
-  Set<String> get pendingIds => _syncState.pendingIds;
 
   /// Mints the next human-readable id, e.g. "PRENDA-000024".
   Future<String> generateId() => _local.nextId();

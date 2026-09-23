@@ -1,11 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import 'auth/app_user.dart';
+import 'auth/user_directory.dart';
+import 'backend.dart';
 import 'data/clothing_repository.dart';
-import 'data/firebase_sync.dart';
 import 'data/settings_repository.dart';
+import 'firebase_backend.dart';
+import 'screens/auth/auth_gate.dart';
 import 'screens/home_screen.dart';
 
 Future<void> main() async {
@@ -18,17 +20,25 @@ Future<void> main() async {
   final settings = SettingsRepository();
   await settings.init();
 
-  runApp(TiendaRopaApp(repo: repo, settings: settings));
+  // Local config only, so this never waits on the network.
+  final backend = await connectFirebase();
 
-  // After runApp so a slow or missing connection never delays startup.
-  unawaited(startFirebaseSync(repo));
+  runApp(TiendaRopaApp(repo: repo, settings: settings, backend: backend));
 }
 
 class TiendaRopaApp extends StatefulWidget {
   final ClothingRepository repo;
   final SettingsRepository settings;
 
-  const TiendaRopaApp({super.key, required this.repo, required this.settings});
+  /// Null runs the app local-only, without login.
+  final Backend? backend;
+
+  const TiendaRopaApp({
+    super.key,
+    required this.repo,
+    required this.settings,
+    this.backend,
+  });
 
   @override
   State<TiendaRopaApp> createState() => _TiendaRopaAppState();
@@ -59,11 +69,33 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
       themeMode: _themeMode,
       theme: buildAppTheme(Brightness.light),
       darkTheme: buildAppTheme(Brightness.dark),
-      home: HomeScreen(
-        repo: widget.repo,
-        isDarkMode: _themeMode == ThemeMode.dark,
-        onToggleTheme: _toggleTheme,
-      ),
+      home: switch (widget.backend) {
+        null => _buildHome(AppUser.local),
+        final backend => AuthGate(
+          backend: backend,
+          repo: widget.repo,
+          signedInBuilder: (_, user) => _buildHome(
+            user,
+            onSignOut: backend.auth.signOut,
+            users: backend.users,
+          ),
+        ),
+      },
+    );
+  }
+
+  Widget _buildHome(
+    AppUser user, {
+    VoidCallback? onSignOut,
+    UserDirectory? users,
+  }) {
+    return HomeScreen(
+      repo: widget.repo,
+      user: user,
+      isDarkMode: _themeMode == ThemeMode.dark,
+      onToggleTheme: _toggleTheme,
+      onSignOut: onSignOut,
+      users: users,
     );
   }
 }

@@ -38,13 +38,26 @@ class FirestoreCatalog implements RemoteCatalog {
   }
 
   @override
-  Future<void> upsert(ClothingItem item) {
-    return _collection.doc(item.id).set({
+  Future<void> upsert(ClothingItem item) => _write(
+    () => _collection.doc(item.id).set({
       ...item.toMap(),
       'actualizado': FieldValue.serverTimestamp(),
-    });
-  }
+    }),
+  );
 
   @override
-  Future<void> delete(String id) => _collection.doc(id).delete();
+  Future<void> delete(String id) => _write(() => _collection.doc(id).delete());
+
+  /// A rules rejection won't succeed on retry, so it's reported as
+  /// [RemoteWriteRejected] instead of a plain error.
+  static Future<void> _write(Future<void> Function() action) async {
+    try {
+      await action();
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        throw RemoteWriteRejected(e.message ?? e.code);
+      }
+      rethrow;
+    }
+  }
 }

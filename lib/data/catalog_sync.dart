@@ -15,7 +15,8 @@ import 'sync_state.dart';
 /// * Local changes are pushed with [push] and stay pending in [SyncState]
 ///   until confirmed, so they survive failures and app restarts.
 /// * If the remote listener fails it is re-opened with [Backoff], and
-///   pending changes are pushed again.
+///   pending changes are pushed again. Writes the remote rejects for good
+///   ([RemoteWriteRejected]) are dropped, and the remote version wins.
 class CatalogSync {
   CatalogSync({
     required LocalCatalog local,
@@ -35,10 +36,6 @@ class CatalogSync {
   StreamSubscription<void>? _subscription;
   Timer? _retryTimer;
   bool _running = false;
-  Future<void> _lastApply = Future.value();
-
-  /// Completes once the latest remote snapshot has been applied locally.
-  Future<void> get settled => _lastApply;
 
   void start() {
     if (_running) return;
@@ -85,6 +82,11 @@ class CatalogSync {
         await _remote.upsert(item);
       }
       await _state.confirm(id, token);
+    } on RemoteWriteRejected catch (e) {
+      // Retrying can't help; dropping the pending mark lets the next remote
+      // snapshot restore the server's version locally.
+      debugPrint('Cambio a $id rechazado, se descarta: $e');
+      await _state.confirm(id, token);
     } catch (e) {
       // Stays pending: retried on reconnect or on the next launch.
       debugPrint('No se sincronizó $id, se reintentará: $e');
@@ -97,7 +99,7 @@ class CatalogSync {
     // asyncMap applies snapshots one at a time, in order.
     _subscription = _remote
         .watch()
-        .asyncMap((snapshot) => _lastApply = _apply(snapshot))
+        .asyncMap(_apply)
         .listen(
           (_) => _backoff.reset(),
           onError: (Object e) {

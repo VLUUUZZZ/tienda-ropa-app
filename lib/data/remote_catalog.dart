@@ -23,3 +23,14 @@ abstract class RemoteCatalog {
 
   Future<void> delete(String id);
 }
+
+/// The remote refused a write for good (e.g. the user's role doesn't allow
+/// it), as opposed to a failure worth retrying.
+class RemoteWriteRejected implements Exception {
+  const RemoteWriteRejected(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'Escritura rechazada: $reason';
+}

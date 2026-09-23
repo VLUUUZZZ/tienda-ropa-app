@@ -1,11 +1,88 @@
 rules_version = '2';
 
-// The app signs in anonymously, so only installs of the app (not random
-// requests to the project's API) can read or write the catalog.
+// Roles live in usuarios/{uid}.rol and are enforced here, not just hidden in
+// the app:
+// - admin:    everything, including managing accounts.
+// - empleado: read the catalog and change stock counts only.
+// Nobody without an active profile can read or write anything.
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownProfilePath() {
+      return /databases/$(database)/documents/usuarios/$(request.auth.uid);
+    }
+
+    function setupPath() {
+      return /databases/$(database)/documents/config/inicial;
+    }
+
+    function isActive() {
+      return signedIn()
+        && exists(ownProfilePath())
+        && get(ownProfilePath()).data.activo == true;
+    }
+
+    function isAdmin() {
+      return isActive() && get(ownProfilePath()).data.rol == 'admin';
+    }
+
+    function isValidProfile(data) {
+      return data.keys().hasOnly(['nombre', 'correo', 'rol', 'activo', 'creado'])
+        && data.nombre is string && data.nombre.size() > 0
+        && data.correo is string
+        && data.rol in ['admin', 'empleado']
+        && data.activo is bool;
+    }
+
+    // Exists once the first admin was created. Readable by anyone so the
+    // login screen knows whether to offer the one-time setup.
+    match /config/inicial {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['adminUid'])
+        && request.resource.data.adminUid == request.auth.uid
+        && getAfter(ownProfilePath()).data.rol == 'admin';
+    }
+
+    match /usuarios/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+      allow create: if isValidProfile(request.resource.data) && (
+        isAdmin()
+        // One-time bootstrap: the first admin creates their own profile in
+        // the same batch that creates config/inicial.
+        || (signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.rol == 'admin'
+          && request.resource.data.activo == true
+          && !exists(setupPath())
+          && existsAfter(setupPath()))
+      );
+
+      // Admins can't edit themselves, so the store can't lose its last admin
+      // by accident.
+      allow update: if isAdmin()
+        && request.auth.uid != uid
+        && isValidProfile(request.resource.data);
+
+      allow delete: if false;
+    }
+
     match /prendas/{prendaId} {
-      allow read, write: if request.auth != null;
+      allow read: if isActive();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isActive()
+        // Employees: stock counts only. Name, price and the set of
+        // variants stay as they are.
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['variantes', 'actualizado'])
+        && request.resource.data.variantes.size() == resource.data.variantes.size()
+      );
     }
   }
 }
