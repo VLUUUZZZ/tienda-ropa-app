@@ -179,3 +179,18 @@ proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de 
 - El admin registra a sus empleados desde Cuenta → Usuarios; la barra superior muestra la
   tienda, el nombre del usuario y su rol.
 - Se retira "Configurar administrador" (ya no hay un único admin global).
+
+### Noche 2026-09-22/23
+
+**Ronda 1 (23:30)**
+- Ajuste rápido de existencias: al guardar se aplican solo los +/- hechos en la pantalla sobre
+  la versión más reciente de la prenda (`ClothingItem.withStockChanges`), para no pisar
+  ajustes hechos mientras tanto en otro teléfono. Si la prenda fue eliminada, se avisa.
+- Guardar, eliminar y deshacer muestran un mensaje claro si falla el almacenamiento, en vez
+  de quedarse colgados (`showErrorSnackBar`).
+- `getById` ya no truena con un registro corrupto; el formulario ya no usa `!` al refrescar
+  tras el ajuste rápido (la prenda pudo borrarse) y reconstruye las filas en un solo método.
+- El escáner recorta espacios/saltos de línea alrededor del código leído.
+- Al cerrar sesión, el catálogo se cierra después de que se van sus pantallas; si no se
+  puede abrir el catálogo de la tienda se muestra "Reintentar" en vez de cargar sin fin.
+- La lista de usuarios se suscribe a Firestore una sola vez, no en cada redibujo.

@@ -18,7 +18,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
     if (_handled) return;
     final barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
-    final value = barcodes.first.rawValue;
+    // Some printers/readers add spaces or a line break around the id.
+    final value = barcodes.first.rawValue?.trim();
     if (value == null || value.isEmpty) return;
     _handled = true;
     Navigator.of(context).pop(value);

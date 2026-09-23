@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
+import '../widgets/snackbars.dart';
 
 /// Fast +/- adjustment of existing colors and sizes, grouped by color — no
 /// need to open the full edit form just to bump a count up or down. Does not
@@ -71,14 +72,29 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
     return result ?? false;
   }
 
+  /// How much each variant moved on this screen, by [ClothingVariant.key].
+  Map<String, int> get _stockChanges => {
+    for (var i = 0; i < _variantes.length; i++)
+      _variantes[i].key:
+          _variantes[i].existencia - widget.item.variantes[i].existencia,
+  };
+
   Future<void> _save() async {
-    final updated = ClothingItem(
-      id: widget.item.id,
-      nombre: widget.item.nombre,
-      precio: widget.item.precio,
-      variantes: _variantes,
-    );
-    await widget.repo.save(updated);
+    // The garment may have changed on another device since this screen
+    // opened: apply only this screen's +/- on top of its latest version.
+    final latest = widget.repo.getById(widget.item.id);
+    if (latest == null) {
+      showErrorSnackBar(context, 'Esta prenda ya no existe en el catálogo.');
+      return;
+    }
+    try {
+      await widget.repo.save(latest.withStockChanges(_stockChanges));
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackBar(context, 'No se pudo guardar. Inténtalo de nuevo.');
+      }
+      return;
+    }
     if (!mounted) return;
     _dirty = false;
     Navigator.of(context).pop(true);

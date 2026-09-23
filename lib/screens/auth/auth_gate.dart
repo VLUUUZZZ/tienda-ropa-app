@@ -41,6 +41,9 @@ class _AuthGateState extends State<AuthGate> {
   ClothingRepository? _repo;
   String? _repoTiendaId;
 
+  /// Set when the store's catalog couldn't be opened on this device.
+  bool _openFailed = false;
+
   @override
   void initState() {
     super.initState();
@@ -73,24 +76,40 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _openStore(Tienda tienda) async {
-    if (_repoTiendaId == tienda.id) return;
+    if (_repoTiendaId == tienda.id && !_openFailed) return;
     await _closeStore();
     _repoTiendaId = tienda.id;
-    final repo = await ClothingRepository.open(tiendaId: tienda.id);
+    final ClothingRepository repo;
+    try {
+      repo = await ClothingRepository.open(tiendaId: tienda.id);
+    } catch (e) {
+      debugPrint('No se pudo abrir el catálogo de ${tienda.id}: $e');
+      if (mounted) setState(() => _openFailed = true);
+      return;
+    }
     if (!mounted || _repoTiendaId != tienda.id) {
       await repo.close();
       return;
     }
     await repo.attachRemote(widget.backend.catalogFor(tienda));
-    setState(() => _repo = repo);
+    setState(() {
+      _repo = repo;
+      _openFailed = false;
+    });
   }
 
   Future<void> _closeStore() async {
     final repo = _repo;
     _repo = null;
     _repoTiendaId = null;
-    if (mounted) setState(() {});
-    await repo?.close();
+    _openFailed = false;
+    if (repo == null) return;
+    if (mounted) {
+      setState(() {});
+      // Let the store's screens go away before their storage is closed.
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    await repo.close();
   }
 
   static bool _changesWhoIsIn(AuthState previous, AuthState next) {
@@ -108,6 +127,10 @@ class _AuthGateState extends State<AuthGate> {
       SignedOut() => LoginScreen(auth: auth),
       AccessDenied(:final correo) => _AccessDeniedScreen(
         correo: correo,
+        onSignOut: auth.signOut,
+      ),
+      SignedIn(:final user) when _openFailed => _OpenFailedScreen(
+        onRetry: () => _openStore(user.tienda!),
         onSignOut: auth.signOut,
       ),
       SignedIn() when repo == null => _LoadingScreen(onSignOut: auth.signOut),
@@ -141,6 +164,33 @@ class _LoadingScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _OpenFailedScreen extends StatelessWidget {
+  const _OpenFailedScreen({required this.onRetry, required this.onSignOut});
+
+  final VoidCallback onRetry;
+  final VoidCallback onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    return AuthLayout(
+      title: 'No se pudo abrir la tienda',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Hubo un problema al cargar el catálogo en este teléfono. '
+            'Revisa que tenga espacio libre e inténtalo de nuevo.',
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          FilledButton(onPressed: onRetry, child: const Text('Reintentar')),
+          TextButton(onPressed: onSignOut, child: const Text('Cerrar sesión')),
+        ],
       ),
     );
   }

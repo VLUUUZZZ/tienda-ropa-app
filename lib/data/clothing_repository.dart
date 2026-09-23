@@ -70,7 +70,16 @@ class ClothingRepository {
   List<ClothingItem> getAll() => _local.readAll()
     ..sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
 
-  ClothingItem? getById(String id) => _local.read(id);
+  /// Null if there's no such garment, or its record is unreadable: a corrupt
+  /// entry must never crash the screen that opens or scans it.
+  ClothingItem? getById(String id) {
+    try {
+      return _local.read(id);
+    } catch (e) {
+      debugPrint('Prenda $id ilegible: $e');
+      return null;
+    }
+  }
 
   Future<void> save(ClothingItem item) async {
     await _local.write(item);
