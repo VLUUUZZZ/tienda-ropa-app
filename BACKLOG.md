@@ -10,7 +10,15 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Pendiente
 
-(vacío por ahora — agrega tareas aquí, una por línea)
+1. Evitar que dos teléfonos creen el mismo código de prenda: `LocalCatalog.nextId` usa un contador local; si dos teléfonos agregan prendas sin conexión al mismo tiempo, ambos pueden generar el mismo `PRENDA-0000NN` y una prenda pisaría a la otra al sincronizar. Generar el número de forma segura (p. ej. contador en Firestore con transacción, o un prefijo por dispositivo).
+2. Imagen del QR al compartir en modo oscuro: el `Card` dentro del `RepaintBoundary` (`lib/screens/qr_screen.dart`) toma los colores del tema, así que en modo oscuro la imagen sale con fondo oscuro y texto claro. Debe salir siempre en fondo blanco con texto oscuro, lista para imprimir.
+3. Al escanear un QR registrado como Administrador, abrir la edición rápida de existencia (`QuickStockScreen`) o preguntar qué hacer (ajustar existencia / ver ficha completa), en vez de ir directo al formulario completo (los empleados ya van a la edición rápida).
+4. Búsqueda también por código (`PRENDA-000012`), color y talla, no solo por nombre.
+5. No gastar un número de código al cancelar una prenda nueva: asignar el id definitivo solo al guardar, para evitar huecos en la numeración.
+6. Nombre visible "Tienda de Ropa" también en iOS (`CFBundleDisplayName` dice "Tienda Ropa App") y actualizar `README.md` y la descripción en `pubspec.yaml`, que siguen con el texto por defecto de Flutter.
+7. Registro de ventas: botón "Vender" que descuente una pieza y guarde la venta, con historial y total del día.
+8. Filtro de "poca existencia" / "agotados" en el catálogo.
+9. Mostrar el valor total del inventario (precio × existencia).
 
 ## Completado
 
