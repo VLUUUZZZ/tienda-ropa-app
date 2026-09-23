@@ -54,7 +54,14 @@ class LocalCatalog {
     return items;
   }
 
-  Future<void> write(ClothingItem item) => _box.put(item.id, item.toMap());
+  /// Also moves the id counter past [item]'s number, whether the garment was
+  /// created here or arrived from another device, so [peekNextId] never
+  /// offers a number already in use.
+  Future<void> write(ClothingItem item) async {
+    await _box.put(item.id, item.toMap());
+    final n = _parseId(item.id);
+    if (n != null && n > _sequence) await _box.put(_sequenceKey, n);
+  }
 
   /// Writes [item] only if it differs from what's stored, so an unchanged
   /// remote snapshot doesn't trigger needless disk writes and UI rebuilds.
@@ -78,20 +85,29 @@ class LocalCatalog {
     }
   }
 
-  /// Mints the next human-readable id, e.g. "PRENDA-000024". Meant to be
-  /// printed on a QR sticker, so it needs to be short and easy to read back
-  /// if the sticker gets smudged.
+  int get _sequence => (_box.get(_sequenceKey) as int?) ?? 0;
+
+  /// The next human-readable id, e.g. "PRENDA-000024", without reserving it:
+  /// [write] advances the counter once a garment with that id is saved.
+  /// Meant to be printed on a QR sticker, so it needs to be short and easy to
+  /// read back if the sticker gets smudged.
   ///
   /// Skips ids already in the catalog: with sync, another device may have
   /// used numbers this device's counter hasn't reached yet.
-  Future<String> nextId() async {
-    var next = ((_box.get(_sequenceKey) as int?) ?? 0) + 1;
+  String peekNextId() {
+    var next = _sequence + 1;
     while (_box.containsKey(_formatId(next))) {
       next++;
     }
-    await _box.put(_sequenceKey, next);
     return _formatId(next);
   }
 
   static String _formatId(int n) => '$_idPrefix${n.toString().padLeft(6, '0')}';
+
+  static final RegExp _idPattern = RegExp('^$_idPrefix(\\d+)\$');
+
+  static int? _parseId(String id) {
+    final match = _idPattern.firstMatch(id);
+    return match == null ? null : int.tryParse(match.group(1)!);
+  }
 }

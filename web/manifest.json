@@ -1,11 +1,11 @@
 {
-    "name": "tienda_ropa_app",
-    "short_name": "tienda_ropa_app",
+    "name": "Tienda de Ropa",
+    "short_name": "Tienda",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FBF4EF",
+    "theme_color": "#B5754A",
+    "description": "Catálogo e inventario de la tienda de ropa.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

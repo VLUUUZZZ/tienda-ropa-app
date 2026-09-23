@@ -199,8 +199,13 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       return;
     }
 
+    // Another device may have saved a garment under this same number while
+    // the form was open; taking the next free one keeps both garments.
+    var id = widget.item.id;
+    if (widget.isNew && widget.repo.exists(id)) id = widget.repo.nextId();
+
     final updated = ClothingItem(
-      id: widget.item.id,
+      id: id,
       nombre: _nombreCtrl.text.trim(),
       precio:
           double.tryParse(_precioCtrl.text.trim().replaceAll(',', '.')) ?? 0,
@@ -248,7 +253,12 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancelar'),
           ),
-          TextButton(
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+              minimumSize: const Size(64, 44),
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Eliminar'),
           ),
@@ -285,7 +295,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isExisting = widget.repo.getById(widget.item.id) != null;
+    // A new garment's number can show up from another device mid-edit; that
+    // doesn't make this form an edit of it.
+    final isExisting =
+        !widget.isNew && widget.repo.getById(widget.item.id) != null;
 
     return PopScope(
       canPop: !_dirty,
@@ -442,6 +455,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                             ),
                             IconButton(
                               icon: const Icon(Icons.remove_circle_outline),
+                              tooltip: 'Quitar esta talla/color',
                               onPressed: _variantes.length > 1
                                   ? () => _removeVariantRow(index)
                                   : null,

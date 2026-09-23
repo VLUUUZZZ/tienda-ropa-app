@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/clothing_item.dart';
+import '../utils/texto.dart';
 import 'backoff.dart';
 import 'catalog_sync.dart';
 import 'local_catalog.dart';
@@ -64,8 +65,12 @@ class ClothingRepository {
     _sync = null;
   }
 
-  /// Mints the next human-readable id, e.g. "PRENDA-000024".
-  Future<String> generateId() => _local.nextId();
+  /// The id the next new garment would get, e.g. "PRENDA-000024". Nothing is
+  /// reserved until that garment is saved, so abandoning a new garment
+  /// leaves no gap in the numbering.
+  String nextId() => _local.peekNextId();
+
+  bool exists(String id) => _local.ids.contains(id);
 
   List<ClothingItem> getAll() => _local.readAll()
     ..sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
@@ -96,24 +101,26 @@ class ClothingRepository {
     _sync?.push(id);
   }
 
-  List<ClothingItem> search(String query) {
-    final q = _normalize(query.trim());
-    final all = getAll();
+  /// Matches the name, code or a color by substring, and a talla only when
+  /// typed in full (so "3" doesn't pull in every talla 32, 34...). Case and
+  /// accents are ignored everywhere.
+  ///
+  /// Searches [items] when given (already read from the catalog), otherwise
+  /// the whole catalog.
+  List<ClothingItem> search(String query, [List<ClothingItem>? items]) {
+    final q = normalizar(query.trim());
+    final all = items ?? getAll();
     if (q.isEmpty) return all;
-    return all.where((item) => _normalize(item.nombre).contains(q)).toList();
+    return all.where((item) => _matches(item, q)).toList();
   }
 
-  /// Lowercases and strips common Spanish accents so "pantalon" also finds
-  /// "Pantalón" — the tolerant matching the search box is meant to have.
-  static String _normalize(String input) {
-    const accented = 'áàäâéèëêíìïîóòöôúùüûñ';
-    const plain = 'aaaaeeeeiiiioooouuuun';
-    final buffer = StringBuffer();
-    for (final rune in input.toLowerCase().runes) {
-      final ch = String.fromCharCode(rune);
-      final idx = accented.indexOf(ch);
-      buffer.write(idx == -1 ? ch : plain[idx]);
+  static bool _matches(ClothingItem item, String q) {
+    if (normalizar(item.nombre).contains(q)) return true;
+    if (normalizar(item.id).contains(q)) return true;
+    for (final v in item.variantes) {
+      if (normalizar(v.color).contains(q)) return true;
+      if (normalizar(v.talla.trim()) == q) return true;
     }
-    return buffer.toString();
+    return false;
   }
 }

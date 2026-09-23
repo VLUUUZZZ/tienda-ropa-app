@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
+import '../utils/formato.dart';
+import '../widgets/color_dot.dart';
 import '../widgets/snackbars.dart';
 
 /// Fast +/- adjustment of existing colors and sizes, grouped by color — no
@@ -20,6 +22,10 @@ class QuickStockScreen extends StatefulWidget {
 class _QuickStockScreenState extends State<QuickStockScreen> {
   late List<ClothingVariant> _variantes;
   bool _dirty = false;
+
+  /// Guards against a double tap on Guardar: each save applies this screen's
+  /// changes as deltas, so saving twice would count them twice.
+  bool _saving = false;
 
   @override
   void initState() {
@@ -72,14 +78,25 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
     return result ?? false;
   }
 
+  int _delta(int i) =>
+      _variantes[i].existencia - widget.item.variantes[i].existencia;
+
   /// How much each variant moved on this screen, by [ClothingVariant.key].
   Map<String, int> get _stockChanges => {
-    for (var i = 0; i < _variantes.length; i++)
-      _variantes[i].key:
-          _variantes[i].existencia - widget.item.variantes[i].existencia,
+    for (var i = 0; i < _variantes.length; i++) _variantes[i].key: _delta(i),
   };
 
   Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await _applyChanges();
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _applyChanges() async {
     // The garment may have changed on another device since this screen
     // opened: apply only this screen's +/- on top of its latest version.
     final latest = widget.repo.getById(widget.item.id);
@@ -145,7 +162,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
                   child: Text(
                     'Esta prenda todavía no tiene colores ni tallas.\nAgrégalos desde el formulario completo.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: colorScheme.outline),
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
                   ),
                 ),
               )
@@ -153,29 +170,31 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                 children: [
                   for (final color in colores) ...[
-                    Text(
-                      color,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                    _ColorHeader(
+                      color: color,
+                      total: indicesPorColor[color]!.fold(
+                        0,
+                        (sum, i) => sum + _variantes[i].existencia,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Card(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Column(
-                          children: [
-                            for (final i in indicesPorColor[color]!)
-                              _VariantRow(
-                                variant: _variantes[i],
-                                onDecrement: () => _adjust(i, -1),
-                                onIncrement: () => _adjust(i, 1),
-                              ),
+                      child: Column(
+                        children: [
+                          for (final (n, i)
+                              in indicesPorColor[color]!.indexed) ...[
+                            if (n > 0) const Divider(indent: 16, endIndent: 16),
+                            _VariantRow(
+                              variant: _variantes[i],
+                              delta: _delta(i),
+                              onDecrement: () => _adjust(i, -1),
+                              onIncrement: () => _adjust(i, 1),
+                            ),
                           ],
-                        ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                   ],
                 ],
               ),
@@ -184,8 +203,14 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
             : SafeArea(
                 minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: FilledButton.icon(
-                  onPressed: _save,
-                  icon: const Icon(Icons.save_rounded),
+                  onPressed: _dirty && !_saving ? _save : null,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_rounded),
                   label: const Text('Guardar'),
                 ),
               ),
@@ -194,13 +219,47 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
   }
 }
 
+/// A color's name with its swatch and how many pieces it has in total.
+class _ColorHeader extends StatelessWidget {
+  const _ColorHeader({required this.color, required this.total});
+
+  final String color;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          ColorDot(nombre: color, size: 16),
+          const SizedBox(width: 8),
+          Expanded(child: Text(color, style: textTheme.titleMedium)),
+          Text(
+            formatoPiezas(total),
+            style: textTheme.labelLarge?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _VariantRow extends StatelessWidget {
   final ClothingVariant variant;
+
+  /// How far this screen has moved the count; shown so the person can see
+  /// what they're about to save.
+  final int delta;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
 
   const _VariantRow({
     required this.variant,
+    required this.delta,
     required this.onDecrement,
     required this.onIncrement,
   });
@@ -208,49 +267,58 @@ class _VariantRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final agotado = variant.existencia == 0;
+    final talla = variant.talla.isEmpty ? '(sin talla)' : variant.talla;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.fromLTRB(16, 8, 10, 8),
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              variant.talla.isEmpty ? '(sin talla)' : variant.talla,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(talla, style: textTheme.titleMedium),
+                if (agotado || delta != 0)
+                  Text(
+                    [
+                      if (agotado) 'Agotado',
+                      if (delta != 0)
+                        '${delta > 0 ? '+' : ''}$delta sin guardar',
+                    ].join(' · '),
+                    style: textTheme.labelMedium?.copyWith(
+                      color: agotado ? colorScheme.error : colorScheme.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+              ],
             ),
           ),
-          if (agotado)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
+          IconButton.filledTonal(
+            icon: const Icon(Icons.remove_rounded),
+            tooltip: 'Restar una pieza de talla $talla',
+            onPressed: variant.existencia > 0 ? onDecrement : null,
+          ),
+          SizedBox(
+            width: 48,
+            child: Semantics(
+              liveRegion: true,
+              label: '${formatoPiezas(variant.existencia)} en talla $talla',
+              excludeSemantics: true,
               child: Text(
-                'AGOTADO',
-                style: TextStyle(
-                  color: colorScheme.error,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
+                '${variant.existencia}',
+                textAlign: TextAlign.center,
+                style: textTheme.titleLarge?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
             ),
-          IconButton.filledTonal(
-            icon: const Icon(Icons.remove_rounded),
-            tooltip: 'Restar una pieza',
-            onPressed: variant.existencia > 0 ? onDecrement : null,
-            visualDensity: VisualDensity.compact,
           ),
-          ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 32),
-            child: Text(
-              '${variant.existencia}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-          ),
-          IconButton.filledTonal(
+          IconButton.filled(
             icon: const Icon(Icons.add_rounded),
-            tooltip: 'Sumar una pieza',
+            tooltip: 'Sumar una pieza a talla $talla',
             onPressed: onIncrement,
-            visualDensity: VisualDensity.compact,
           ),
         ],
       ),
