@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'data/clothing_repository.dart';
+import 'data/firebase_sync.dart';
 import 'data/settings_repository.dart';
 import 'screens/home_screen.dart';
 
@@ -16,6 +19,9 @@ Future<void> main() async {
   await settings.init();
 
   runApp(TiendaRopaApp(repo: repo, settings: settings));
+
+  // After runApp so a slow or missing connection never delays startup.
+  unawaited(startFirebaseSync(repo));
 }
 
 class TiendaRopaApp extends StatefulWidget {
