@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "292293794363",
+    "project_id": "tienda-ropa-app-uzzie",
+    "storage_bucket": "tienda-ropa-app-uzzie.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:292293794363:android:4cd929b3d9394af4885a1e",
+        "android_client_info": {
+          "package_name": "com.tiendaropa.tienda_ropa_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJ9SHlTIYdvUAPMBgrYogIX5pIOzjxLWM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

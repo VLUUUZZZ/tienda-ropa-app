@@ -1,0 +1,24 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "tienda-ropa-app-uzzie",
+          "appId": "1:292293794363:android:4cd929b3d9394af4885a1e",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "tienda-ropa-app-uzzie",
+          "configurations": {
+            "android": "1:292293794363:android:4cd929b3d9394af4885a1e"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}
