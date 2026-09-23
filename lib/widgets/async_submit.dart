@@ -20,6 +20,17 @@ mixin AsyncSubmit<T extends StatefulWidget> on State<T> {
     } on AuthException catch (e) {
       if (mounted) setState(() => error = e.message);
       return false;
+    } catch (e) {
+      // Anything unexpected (network, plugin) still ends as a message, not
+      // as an uncaught error with the form silently doing nothing.
+      debugPrint('Error inesperado al enviar el formulario: $e');
+      if (mounted) {
+        setState(
+          () => error =
+              'Algo salió mal. Revisa tu conexión e inténtalo de nuevo.',
+        );
+      }
+      return false;
     } finally {
       if (mounted) setState(() => busy = false);
     }

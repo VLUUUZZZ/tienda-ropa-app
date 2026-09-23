@@ -83,6 +83,20 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  /// True while a screen opened from here is up, so a double tap on a card
+  /// or button doesn't open it twice.
+  bool _navigating = false;
+
+  Future<void> _once(Future<void> Function() action) async {
+    if (_navigating) return;
+    _navigating = true;
+    try {
+      await action();
+    } finally {
+      _navigating = false;
+    }
+  }
+
   void _setFiltro(_Filtro filtro) {
     _filtro = filtro;
     _reload();
@@ -311,8 +325,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, index) => _ClothingCard(
                       item: _items[index],
-                      onTap: () => _openItem(_items[index]),
-                      onQuickEdit: () => _quickEditStock(_items[index]),
+                      onTap: () => _once(() => _openItem(_items[index])),
+                      onQuickEdit: () =>
+                          _once(() => _quickEditStock(_items[index])),
                     ),
                   ),
           ),
@@ -323,7 +338,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           FloatingActionButton.extended(
             heroTag: 'scan',
-            onPressed: _scan,
+            onPressed: () => _once(_scan),
             icon: const Icon(Icons.qr_code_scanner_rounded),
             label: const Text('Escanear'),
           ),
@@ -331,7 +346,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 12),
             FloatingActionButton(
               heroTag: 'add',
-              onPressed: _addManually,
+              onPressed: () => _once(_addManually),
               tooltip: 'Agregar prenda',
               child: const Icon(Icons.add_rounded),
             ),

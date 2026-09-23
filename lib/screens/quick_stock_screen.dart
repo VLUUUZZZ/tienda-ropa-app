@@ -45,11 +45,10 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
   void _adjust(int index, int delta) {
     setState(() {
       final v = _variantes[index];
-      final next = v.existencia + delta;
       _variantes[index] = ClothingVariant(
         talla: v.talla,
         color: v.color,
-        existencia: next < 0 ? 0 : next,
+        existencia: ClothingVariant.clampExistencia(v.existencia + delta),
       );
       _dirty = true;
     });
@@ -318,7 +317,9 @@ class _VariantRow extends StatelessWidget {
           IconButton.filled(
             icon: const Icon(Icons.add_rounded),
             tooltip: 'Sumar una pieza a talla $talla',
-            onPressed: onIncrement,
+            onPressed: variant.existencia < Limites.existenciaMax
+                ? onIncrement
+                : null,
           ),
         ],
       ),

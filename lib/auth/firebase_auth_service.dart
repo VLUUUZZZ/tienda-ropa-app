@@ -56,7 +56,12 @@ class FirebaseAuthService implements AuthService {
     User user,
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {
-    final data = doc.data();
+    final Map<String, dynamic>? data;
+    try {
+      data = doc.data();
+    } catch (_) {
+      return AccessDenied(user.email ?? '');
+    }
     if (data == null) {
       return doc.metadata.isFromCache ? null : AccessDenied(user.email ?? '');
     }
