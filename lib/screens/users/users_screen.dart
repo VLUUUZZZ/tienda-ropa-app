@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import '../../auth/app_user.dart';
 import '../../auth/auth_service.dart';
 import '../../auth/user_directory.dart';
+import '../../widgets/role_badge.dart';
 import 'role_selector.dart';
 import 'user_form_screen.dart';
 
-/// Admin screen: everyone with an account, their role and whether they can
-/// get in. Admins can't change their own account here, so nobody locks the
+/// Admin screen: everyone with an account in the admin's store, their role
+/// and whether they can get in. Admins can't change their own account here, so nobody locks the
 /// store out of administration by accident.
 class UsersScreen extends StatelessWidget {
   const UsersScreen({
@@ -21,7 +22,10 @@ class UsersScreen extends StatelessWidget {
 
   Future<void> _create(BuildContext context) async {
     final created = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => UserFormScreen(users: users)),
+      MaterialPageRoute(
+        builder: (_) =>
+            UserFormScreen(users: users, tienda: currentUser.tienda!),
+      ),
     );
     if (created == true && context.mounted) {
       _showMessage(context, 'Cuenta creada');
@@ -58,7 +62,7 @@ class UsersScreen extends StatelessWidget {
         label: const Text('Nuevo'),
       ),
       body: StreamBuilder<List<AppUser>>(
-        stream: users.watchAll(),
+        stream: users.watchStore(currentUser.tienda!),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const Center(child: Text('No se pudo cargar la lista.'));
@@ -116,10 +120,7 @@ class _UserTile extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              user.role.label,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
+            RoleBadge(role: user.role),
             if (!user.activo)
               Text('Desactivado', style: TextStyle(color: colorScheme.error)),
           ],

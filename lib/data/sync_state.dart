@@ -6,8 +6,6 @@ import 'package:hive_flutter/hive_flutter.dart';
 class SyncState {
   SyncState._(this._box);
 
-  static const String _boxName = 'catalog_sync';
-
   /// Set once the items that existed only on this device (from before the
   /// backend was connected) have been uploaded.
   static const String _initialUploadKey = 'uploadedLocalCatalog';
@@ -20,8 +18,10 @@ class SyncState {
 
   final Box _box;
 
-  static Future<SyncState> open() async =>
-      SyncState._(await Hive.openBox(_boxName));
+  static Future<SyncState> open(String boxName) async =>
+      SyncState._(await Hive.openBox(boxName));
+
+  Future<void> close() => _box.close();
 
   bool get initialUploadDone => _box.get(_initialUploadKey) == true;
 

@@ -9,19 +9,25 @@ import '../../data/clothing_repository.dart';
 import '../../widgets/auth_layout.dart';
 import 'login_screen.dart';
 
-/// Shows the store only to a signed-in user with an active profile, and
-/// keeps catalog sync running exactly while that's the case.
+typedef SignedInBuilder =
+    Widget Function(
+      BuildContext context,
+      AppUser user,
+      ClothingRepository repo,
+    );
+
+/// Shows a store only to a signed-in user with an active profile. While they
+/// are in, it keeps their store's catalog open and synced; on sign-out it
+/// closes it.
 class AuthGate extends StatefulWidget {
   const AuthGate({
     super.key,
     required this.backend,
-    required this.repo,
     required this.signedInBuilder,
   });
 
   final Backend backend;
-  final ClothingRepository repo;
-  final Widget Function(BuildContext context, AppUser user) signedInBuilder;
+  final SignedInBuilder signedInBuilder;
 
   @override
   State<AuthGate> createState() => _AuthGateState();
@@ -30,6 +36,10 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   late final StreamSubscription<AuthState> _subscription;
   AuthState _state = const AuthLoading();
+
+  /// The open catalog, and whose store it belongs to.
+  ClothingRepository? _repo;
+  String? _repoTiendaId;
 
   @override
   void initState() {
@@ -40,11 +50,11 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void dispose() {
     unawaited(_subscription.cancel());
-    unawaited(widget.repo.detachRemote());
+    unawaited(_repo?.close());
     super.dispose();
   }
 
-  void _onAuthState(AuthState next) {
+  Future<void> _onAuthState(AuthState next) async {
     if (!mounted) return;
     if (_changesWhoIsIn(_state, next)) {
       // Screens opened by the previous user must not stay on top.
@@ -52,11 +62,35 @@ class _AuthGateState extends State<AuthGate> {
     }
     setState(() => _state = next);
 
-    if (next is SignedIn) {
-      unawaited(widget.repo.attachRemote(widget.backend.catalog));
-    } else if (next is! AuthLoading) {
-      unawaited(widget.repo.detachRemote());
+    switch (next) {
+      case SignedIn(:final user):
+        await _openStore(user.tienda!);
+      case SignedOut() || AccessDenied():
+        await _closeStore();
+      case AuthLoading():
+        break;
     }
+  }
+
+  Future<void> _openStore(Tienda tienda) async {
+    if (_repoTiendaId == tienda.id) return;
+    await _closeStore();
+    _repoTiendaId = tienda.id;
+    final repo = await ClothingRepository.open(tiendaId: tienda.id);
+    if (!mounted || _repoTiendaId != tienda.id) {
+      await repo.close();
+      return;
+    }
+    await repo.attachRemote(widget.backend.catalogFor(tienda));
+    setState(() => _repo = repo);
+  }
+
+  Future<void> _closeStore() async {
+    final repo = _repo;
+    _repo = null;
+    _repoTiendaId = null;
+    if (mounted) setState(() {});
+    await repo?.close();
   }
 
   static bool _changesWhoIsIn(AuthState previous, AuthState next) {
@@ -68,6 +102,7 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     final auth = widget.backend.auth;
+    final repo = _repo;
     return switch (_state) {
       AuthLoading() => _LoadingScreen(onSignOut: auth.signOut),
       SignedOut() => LoginScreen(auth: auth),
@@ -75,9 +110,10 @@ class _AuthGateState extends State<AuthGate> {
         correo: correo,
         onSignOut: auth.signOut,
       ),
+      SignedIn() when repo == null => _LoadingScreen(onSignOut: auth.signOut),
       SignedIn(:final user) => KeyedSubtree(
         key: ValueKey(user.uid),
-        child: widget.signedInBuilder(context, user),
+        child: widget.signedInBuilder(context, user, repo!),
       ),
     };
   }

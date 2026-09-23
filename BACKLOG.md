@@ -168,3 +168,14 @@ proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de 
   cambio rechazado por permisos se descarta y vuelve la versión del servidor.
 - A pedido del usuario se retiraron todas las pruebas automatizadas (`test/`) y el código que
   existía solo para ellas.
+
+### 2026-09-22 — Varias tiendas, cada una con su propio espacio
+
+- El login ofrece **Iniciar nueva tienda**: pide nombre, correo y contraseña, y deja a esa
+  persona como Administrador de una tienda nueva ("Tienda de <nombre>"). Después entra solo
+  con correo y contraseña.
+- Cada tienda está aislada: su catálogo (`tiendas/{id}/prendas`) y su personal solo los ven
+  sus miembros; en el teléfono cada tienda guarda sus datos por separado.
+- El admin registra a sus empleados desde Cuenta → Usuarios; la barra superior muestra la
+  tienda, el nombre del usuario y su rol.
+- Se retira "Configurar administrador" (ya no hay un único admin global).

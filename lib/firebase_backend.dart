@@ -31,6 +31,6 @@ Future<Backend?> connectFirebase() async {
   return Backend(
     auth: FirebaseAuthService(FirebaseAuth.instance, firestore),
     users: FirestoreUserDirectory(firestore, options),
-    catalog: FirestoreCatalog(firestore),
+    catalogFor: (tienda) => FirestoreCatalog(firestore, tienda.id),
   );
 }

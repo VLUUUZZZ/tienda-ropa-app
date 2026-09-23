@@ -4,6 +4,7 @@ import '../auth/app_user.dart';
 import '../auth/user_directory.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
+import '../widgets/role_badge.dart';
 import 'item_form_screen.dart';
 import 'quick_stock_screen.dart';
 import 'scanner_screen.dart';
@@ -203,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tienda de Ropa'),
+        title: _StoreTitle(user: widget.user),
         actions: [
           IconButton(
             icon: Icon(
@@ -296,6 +297,45 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// The store's name, and who is in with their role next to it.
+class _StoreTitle extends StatelessWidget {
+  const _StoreTitle({required this.user});
+
+  final AppUser user;
+
+  @override
+  Widget build(BuildContext context) {
+    final tienda = user.tienda;
+    if (tienda == null) return const Text('Tienda de Ropa');
+
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(tienda.nombre, maxLines: 1, overflow: TextOverflow.ellipsis),
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                user.nombre,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            RoleBadge(role: user.role),
+          ],
+        ),
+      ],
     );
   }
 }

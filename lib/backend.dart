@@ -1,3 +1,4 @@
+import 'auth/app_user.dart';
 import 'auth/auth_service.dart';
 import 'auth/user_directory.dart';
 import 'data/remote_catalog.dart';
@@ -8,10 +9,12 @@ class Backend {
   const Backend({
     required this.auth,
     required this.users,
-    required this.catalog,
+    required this.catalogFor,
   });
 
   final AuthService auth;
   final UserDirectory users;
-  final RemoteCatalog catalog;
+
+  /// Each store has its own catalog.
+  final RemoteCatalog Function(Tienda tienda) catalogFor;
 }

@@ -2,14 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 
+import '../firestore_paths.dart';
 import 'app_user.dart';
 import 'auth_service.dart';
 import 'firebase_auth_errors.dart';
-import 'firebase_auth_service.dart';
 import 'user_directory.dart';
 
-/// [UserDirectory] on Firebase: accounts in Firebase Auth, roles in the
-/// `usuarios` collection.
+/// [UserDirectory] on Firebase: accounts in Firebase Auth, profiles (store
+/// and role) in the `usuarios` collection.
 class FirestoreUserDirectory implements UserDirectory {
   FirestoreUserDirectory(this._firestore, this._options);
 
@@ -21,20 +21,26 @@ class FirestoreUserDirectory implements UserDirectory {
   final FirebaseFirestore _firestore;
   final FirebaseOptions _options;
 
-  CollectionReference<Map<String, dynamic>> get _profiles =>
-      _firestore.collection(FirebaseAuthService.usersCollection);
-
   @override
-  Stream<List<AppUser>> watchAll() => _profiles.snapshots().map(
-    (snapshot) =>
-        snapshot.docs.map((doc) => AppUser.fromMap(doc.id, doc.data())).toList()
-          ..sort(
-            (a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()),
-          ),
-  );
+  Stream<List<AppUser>> watchStore(Tienda tienda) =>
+      FirestorePaths.users(_firestore)
+          .where('tiendaId', isEqualTo: tienda.id)
+          .snapshots()
+          .map(
+            (snapshot) =>
+                snapshot.docs
+                    .map((doc) => AppUser.fromMap(doc.id, doc.data()))
+                    .toList()
+                  ..sort(
+                    (a, b) => a.nombre.toLowerCase().compareTo(
+                      b.nombre.toLowerCase(),
+                    ),
+                  ),
+          );
 
   @override
   Future<void> create({
+    required Tienda tienda,
     required String nombre,
     required String correo,
     required String password,
@@ -58,18 +64,20 @@ class FirestoreUserDirectory implements UserDirectory {
       nombre: nombre.trim(),
       correo: correo.trim(),
       role: role,
+      tienda: tienda,
     );
     await _write(
-      () => _profiles.doc(profile.uid).set({
-        ...profile.toMap(),
-        'creado': FieldValue.serverTimestamp(),
-      }),
+      () => FirestorePaths.user(
+        _firestore,
+        profile.uid,
+      ).set({...profile.toMap(), 'creado': FieldValue.serverTimestamp()}),
     );
   }
 
   @override
-  Future<void> update(AppUser user) =>
-      _write(() => _profiles.doc(user.uid).update(user.toMap()));
+  Future<void> update(AppUser user) => _write(
+    () => FirestorePaths.user(_firestore, user.uid).update(user.toMap()),
+  );
 
   Future<FirebaseApp> _creatorApp() async {
     for (final app in Firebase.apps) {

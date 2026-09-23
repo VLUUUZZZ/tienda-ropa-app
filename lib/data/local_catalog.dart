@@ -10,8 +10,6 @@ import '../models/clothing_item.dart';
 class LocalCatalog {
   LocalCatalog._(this._box);
 
-  static const String boxName = 'clothing_items';
-
   /// Stores the running counter used to mint readable ids (see [nextId]).
   /// Kept in the same box under a key that can never collide with an item id,
   /// since item ids always start with [_idPrefix].
@@ -20,8 +18,10 @@ class LocalCatalog {
 
   final Box _box;
 
-  static Future<LocalCatalog> open() async =>
+  static Future<LocalCatalog> open(String boxName) async =>
       LocalCatalog._(await Hive.openBox(boxName));
+
+  Future<void> close() => _box.close();
 
   /// Fires on every change, whether made here or synced from elsewhere.
   Listenable get listenable => _box.listenable();

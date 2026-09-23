@@ -8,18 +8,21 @@ import '../../widgets/busy_button.dart';
 import '../../widgets/error_text.dart';
 import '../../widgets/password_field.dart';
 
-/// One-time setup of the store's first administrator, offered only while
-/// the project has none.
-class FirstAdminScreen extends StatefulWidget {
-  const FirstAdminScreen({super.key, required this.auth});
+/// Opens a new store: whoever registers here becomes its administrator and
+/// can then add their employees. Each store is isolated from the others.
+///
+/// Asks only for the owner's name, email and password; from then on they
+/// sign in with email and password.
+class NewStoreScreen extends StatefulWidget {
+  const NewStoreScreen({super.key, required this.auth});
 
   final AuthService auth;
 
   @override
-  State<FirstAdminScreen> createState() => _FirstAdminScreenState();
+  State<NewStoreScreen> createState() => _NewStoreScreenState();
 }
 
-class _FirstAdminScreenState extends State<FirstAdminScreen> with AsyncSubmit {
+class _NewStoreScreenState extends State<NewStoreScreen> with AsyncSubmit {
   final _formKey = GlobalKey<FormState>();
   final _nombreCtrl = TextEditingController();
   final _correoCtrl = TextEditingController();
@@ -41,7 +44,8 @@ class _FirstAdminScreenState extends State<FirstAdminScreen> with AsyncSubmit {
   Future<void> _create() async {
     if (!_formKey.currentState!.validate()) return;
     final created = await submit(
-      () => widget.auth.createFirstAdmin(
+      () => widget.auth.createStore(
+        nombreTienda: 'Tienda de ${_nombreCtrl.text.trim()}',
         nombre: _nombreCtrl.text,
         correo: _correoCtrl.text,
         password: _passwordCtrl.text,
@@ -56,10 +60,10 @@ class _FirstAdminScreenState extends State<FirstAdminScreen> with AsyncSubmit {
   @override
   Widget build(BuildContext context) {
     return AuthLayout(
-      title: 'Primer administrador',
+      title: 'Inicia tu nueva tienda',
       subtitle:
-          'Esta cuenta podrá gestionar el catálogo y crear las cuentas de '
-          'los empleados.',
+          'Serás el administrador: gestionas el catálogo y registras a tus '
+          'empleados.',
       showBack: true,
       child: Form(
         key: _formKey,
@@ -72,7 +76,7 @@ class _FirstAdminScreenState extends State<FirstAdminScreen> with AsyncSubmit {
               textInputAction: TextInputAction.next,
               validator: CredentialValidators.required,
               decoration: const InputDecoration(
-                labelText: 'Nombre',
+                labelText: 'Tu nombre',
                 prefixIcon: Icon(Icons.person_outline_rounded),
               ),
             ),
@@ -106,11 +110,7 @@ class _FirstAdminScreenState extends State<FirstAdminScreen> with AsyncSubmit {
               ErrorText(error!),
             ],
             const SizedBox(height: 20),
-            BusyButton(
-              label: 'Crear administrador',
-              busy: busy,
-              onPressed: _create,
-            ),
+            BusyButton(label: 'Crear tienda', busy: busy, onPressed: _create),
           ],
         ),
       ),

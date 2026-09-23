@@ -13,19 +13,36 @@ import 'sync_state.dart';
 /// Reads always come from the device ([LocalCatalog]), so the app works the
 /// same offline. Every change is recorded as pending in [SyncState] and, once
 /// a [RemoteCatalog] is attached, [CatalogSync] mirrors it to the backend.
+///
+/// Each store keeps its own data on the device, so two stores signed in on
+/// the same phone never mix their catalogs.
 class ClothingRepository {
+  ClothingRepository._(this._local, this._syncState);
+
   /// Wait before re-listening to the remote after an error; doubles on each
   /// consecutive failure up to [_maxRetryDelay].
   static const Duration _initialRetryDelay = Duration(seconds: 5);
   static const Duration _maxRetryDelay = Duration(minutes: 5);
 
-  late final LocalCatalog _local;
-  late final SyncState _syncState;
+  final LocalCatalog _local;
+  final SyncState _syncState;
   CatalogSync? _sync;
 
-  Future<void> init() async {
-    _local = await LocalCatalog.open();
-    _syncState = await SyncState.open();
+  /// Opens the catalog of the store [tiendaId], or the local-only catalog
+  /// when null (app without backend, and data from before stores existed).
+  static Future<ClothingRepository> open({String? tiendaId}) async {
+    String scoped(String base) => tiendaId == null ? base : '${base}_$tiendaId';
+    return ClothingRepository._(
+      await LocalCatalog.open(scoped('clothing_items')),
+      await SyncState.open(scoped('catalog_sync')),
+    );
+  }
+
+  /// Stops sync and releases the store's storage (e.g. on sign-out).
+  Future<void> close() async {
+    await detachRemote();
+    await _local.close();
+    await _syncState.close();
   }
 
   /// Fires whenever the catalog changes, including changes that arrive from
