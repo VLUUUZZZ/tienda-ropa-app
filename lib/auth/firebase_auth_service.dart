@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'app_user.dart';
 import 'auth_service.dart';
 import 'firebase_auth_errors.dart';
+import 'session_watcher.dart';
 import '../firestore_paths.dart';
 
 /// [AuthService] on Firebase Auth (email and password), with each user's
@@ -16,54 +17,9 @@ class FirebaseAuthService implements AuthService {
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
 
+  /// Each listener gets its own [SessionWatcher].
   @override
-  Stream<AuthState> watch() {
-    late final StreamController<AuthState> controller;
-    StreamSubscription<User?>? authSub;
-    StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? profileSub;
-
-    void followProfile(User? user) {
-      unawaited(profileSub?.cancel());
-      profileSub = null;
-      if (user == null) {
-        controller.add(const SignedOut());
-        return;
-      }
-      controller.add(const AuthLoading());
-      // A live listener, so a role change or deactivation applies at once.
-      profileSub = FirestorePaths.user(_firestore, user.uid).snapshots().listen(
-        (doc) {
-          final state = _stateFor(user, doc);
-          if (state != null) controller.add(state);
-        },
-        onError: (Object _) => controller.add(AccessDenied(user.email ?? '')),
-      );
-    }
-
-    controller = StreamController<AuthState>(
-      onListen: () => authSub = _auth.authStateChanges().listen(followProfile),
-      onCancel: () async {
-        await profileSub?.cancel();
-        await authSub?.cancel();
-      },
-    );
-    return controller.stream;
-  }
-
-  /// Null while the answer isn't known yet: right after signing in (or
-  /// creating a store) the profile may not have reached the device.
-  static AuthState? _stateFor(
-    User user,
-    DocumentSnapshot<Map<String, dynamic>> doc,
-  ) {
-    final data = doc.data();
-    if (data == null) {
-      return doc.metadata.isFromCache ? null : AccessDenied(user.email ?? '');
-    }
-    final profile = AppUser.fromMap(user.uid, data);
-    final hasAccess = profile.activo && profile.tienda != null;
-    return hasAccess ? SignedIn(profile) : AccessDenied(profile.correo);
-  }
+  Stream<AuthState> watch() => SessionWatcher(_auth, _firestore).states;
 
   @override
   Future<void> signIn({required String correo, required String password}) =>

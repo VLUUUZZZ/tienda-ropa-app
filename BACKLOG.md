@@ -235,3 +235,10 @@ proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de 
 - `ClothingItem` y `ClothingVariant` tienen campos finales (inmutables): una prenda que
   comparten la UI y la sincronización ya no puede modificarse por accidente. Ningún código
   los modificaba, así que no cambia el comportamiento.
+
+**Ronda 7 (2026-09-24 10:45)**
+- Sesión: un error pasajero al leer el perfil (red, servidor) ya no deja la pantalla
+  "Sin acceso" para siempre. Solo un permiso realmente denegado la muestra; en cualquier otro
+  caso se conserva el estado actual y el perfil se vuelve a escuchar con espera creciente,
+  así un cambio de rol o una reactivación se siguen detectando sin cerrar sesión.
+- Esa lógica pasa de `FirebaseAuthService.watch` a su propia clase (`SessionWatcher`).
