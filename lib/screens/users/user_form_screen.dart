@@ -86,6 +86,7 @@ class _UserFormScreenState extends State<UserFormScreen> with AsyncSubmit {
               controller: _passwordCtrl,
               label: 'Contraseña temporal',
               textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _create(),
             ),
             const SizedBox(height: 20),
             Text('Rol', style: Theme.of(context).textTheme.titleMedium),
