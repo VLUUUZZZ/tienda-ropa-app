@@ -220,3 +220,10 @@ proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de 
   horizontal; el error al compartir usa el mismo aviso rojo que el resto de la app.
 - Login, nueva tienda y alta de usuarios muestran un mensaje también ante errores
   inesperados, en vez de quedarse sin respuesta (`AsyncSubmit`).
+
+**Ronda 5 (2026-09-24 08:55)**
+- La confirmación "Descartar cambios" al salir con cambios sin guardar vivía copiada en el
+  formulario de prenda y en el ajuste rápido de existencias; ahora es un solo widget
+  reutilizable (`UnsavedChangesGuard`), con el mismo comportamiento y textos.
+- Avisos de error consistentes: la combinación color/talla repetida y los errores al editar
+  usuarios usan el mismo aviso rojo que el resto de la app.

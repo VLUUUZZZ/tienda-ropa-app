@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
 import '../widgets/snackbars.dart';
+import '../widgets/unsaved_changes_guard.dart';
 
 /// Fast +/- adjustment of existing colors and sizes, grouped by color — no
 /// need to open the full edit form just to bump a count up or down. Does not
@@ -47,29 +48,6 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
       );
       _dirty = true;
     });
-  }
-
-  Future<bool> _confirmDiscard() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Descartar cambios'),
-        content: const Text(
-          'Tienes cambios de existencia sin guardar. ¿Deseas salir sin guardarlos?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Seguir editando'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Descartar'),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
   }
 
   /// How much each variant moved on this screen, by [ClothingVariant.key].
@@ -119,17 +97,10 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
           .add(i);
     }
 
-    return PopScope(
-      canPop: !_dirty,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-        final descartar = await _confirmDiscard();
-        if (!descartar) return;
-        if (!mounted) return;
-        setState(() => _dirty = false);
-        // ignore: use_build_context_synchronously
-        Navigator.of(context).pop();
-      },
+    return UnsavedChangesGuard(
+      hasChanges: _dirty,
+      message:
+          'Tienes cambios de existencia sin guardar. ¿Deseas salir sin guardarlos?',
       child: Scaffold(
         appBar: AppBar(
           title: Text(
