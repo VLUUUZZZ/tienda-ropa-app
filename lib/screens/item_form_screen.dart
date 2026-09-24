@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
 import '../widgets/snackbars.dart';
+import '../widgets/unsaved_changes_guard.dart';
 import 'item_form/variant_row.dart';
 import 'qr_screen.dart';
 import 'quick_stock_screen.dart';
@@ -70,29 +71,6 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     if (!_dirty) setState(() => _dirty = true);
   }
 
-  Future<bool> _confirmDiscard() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Descartar cambios'),
-        content: const Text(
-          'Tienes cambios sin guardar. ¿Deseas salir sin guardarlos?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Seguir editando'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Descartar'),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
-  }
-
   @override
   void dispose() {
     _nombreCtrl.dispose();
@@ -129,13 +107,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
     final duplicate = ClothingItem.firstDuplicateVariant(variantes);
     if (duplicate != null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'La combinación ${duplicate.color} / ${duplicate.talla} ya está registrada.',
-          ),
-        ),
+      showErrorSnackBar(
+        context,
+        'La combinación ${duplicate.color} / ${duplicate.talla} ya está registrada.',
       );
       return;
     }
@@ -228,17 +202,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   Widget build(BuildContext context) {
     final isExisting = widget.repo.getById(widget.item.id) != null;
 
-    return PopScope(
-      canPop: !_dirty,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-        final descartar = await _confirmDiscard();
-        if (!descartar) return;
-        if (!mounted) return;
-        setState(() => _dirty = false);
-        // ignore: use_build_context_synchronously
-        Navigator.of(context).pop();
-      },
+    return UnsavedChangesGuard(
+      hasChanges: _dirty,
+      message: 'Tienes cambios sin guardar. ¿Deseas salir sin guardarlos?',
       child: Scaffold(
         appBar: AppBar(
           title: Text(widget.isNew ? 'Nueva prenda' : 'Editar prenda'),
