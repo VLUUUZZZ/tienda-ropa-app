@@ -56,10 +56,15 @@ class LocalCatalog {
 
   Future<void> write(ClothingItem item) => _box.put(item.id, item.toMap());
 
-  /// Writes [item] only if it differs from what's stored, so an unchanged
-  /// remote snapshot doesn't trigger needless disk writes and UI rebuilds.
-  Future<void> writeIfChanged(ClothingItem item) async {
-    if (!_storedEquals(item)) await write(item);
+  /// Writes those of [items] that differ from what's stored, all in one disk
+  /// write, so a remote snapshot with many garments doesn't cause one write
+  /// (and one UI refresh) per garment, and an unchanged one causes none.
+  Future<void> writeAllChanged(Iterable<ClothingItem> items) async {
+    final changed = {
+      for (final item in items)
+        if (!_storedEquals(item)) item.id: item.toMap(),
+    };
+    if (changed.isNotEmpty) await _box.putAll(changed);
   }
 
   Future<void> remove(String id) => _box.delete(id);

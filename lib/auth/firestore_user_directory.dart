@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 
 import '../firestore_paths.dart';
 import 'app_user.dart';
@@ -47,31 +48,45 @@ class FirestoreUserDirectory implements UserDirectory {
     required UserRole role,
   }) async {
     final creatorAuth = FirebaseAuth.instanceFor(app: await _creatorApp());
-    final UserCredential credential;
     try {
-      credential = await creatorAuth.createUserWithEmailAndPassword(
-        email: correo.trim(),
-        password: password,
+      final User account;
+      try {
+        final credential = await creatorAuth.createUserWithEmailAndPassword(
+          email: correo.trim(),
+          password: password,
+        );
+        account = credential.user!;
+      } on FirebaseAuthException catch (e) {
+        throw authExceptionFrom(e);
+      }
+
+      final profile = AppUser(
+        uid: account.uid,
+        nombre: nombre.trim(),
+        correo: correo.trim(),
+        role: role,
+        tienda: tienda,
       );
-    } on FirebaseAuthException catch (e) {
-      throw authExceptionFrom(e);
+      try {
+        await _write(
+          () => FirestorePaths.user(
+            _firestore,
+            profile.uid,
+          ).set({...profile.toMap(), 'creado': FieldValue.serverTimestamp()}),
+        );
+      } on AuthException {
+        // Without a profile the account is useless, and its email would stay
+        // taken: undo it so the admin can simply try again.
+        try {
+          await account.delete();
+        } catch (e) {
+          debugPrint('No se pudo deshacer la cuenta ${account.uid}: $e');
+        }
+        rethrow;
+      }
     } finally {
       await creatorAuth.signOut();
     }
-
-    final profile = AppUser(
-      uid: credential.user!.uid,
-      nombre: nombre.trim(),
-      correo: correo.trim(),
-      role: role,
-      tienda: tienda,
-    );
-    await _write(
-      () => FirestorePaths.user(
-        _firestore,
-        profile.uid,
-      ).set({...profile.toMap(), 'creado': FieldValue.serverTimestamp()}),
-    );
   }
 
   @override

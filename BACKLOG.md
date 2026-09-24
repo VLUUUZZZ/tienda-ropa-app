@@ -194,3 +194,11 @@ proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de 
 - Al cerrar sesión, el catálogo se cierra después de que se van sus pantallas; si no se
   puede abrir el catálogo de la tienda se muestra "Reintentar" en vez de cargar sin fin.
 - La lista de usuarios se suscribe a Firestore una sola vez, no en cada redibujo.
+
+**Ronda 2 (2026-09-23 17:00)**
+- Alta de empleados: si falla guardar el perfil después de crear la cuenta, la cuenta se
+  deshace; antes quedaba huérfana y su correo ya no se podía volver a registrar.
+- Sincronización: cada snapshot remoto se guarda en el teléfono con una sola escritura
+  (`LocalCatalog.writeAllChanged`) en vez de una por prenda.
+- Pantalla principal: los cambios que llegan de otros teléfonos refrescan la lista una vez
+  por cuadro, no una vez por prenda.

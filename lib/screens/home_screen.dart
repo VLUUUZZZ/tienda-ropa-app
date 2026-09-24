@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../auth/app_user.dart';
 import '../auth/user_directory.dart';
@@ -43,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _searchCtrl = TextEditingController();
   late final Listenable _repoChanges = widget.repo.listenable;
   List<ClothingItem> _items = [];
+  bool _reloadScheduled = false;
 
   @override
   void initState() {
@@ -60,8 +62,15 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  /// Sync can change many garments at once, each one notifying separately:
+  /// refresh the list once per frame instead of once per garment.
   void _onRepoChanged() {
-    if (mounted) _reload();
+    if (_reloadScheduled) return;
+    _reloadScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _reloadScheduled = false;
+      if (mounted) _reload();
+    });
   }
 
   void _reload() {

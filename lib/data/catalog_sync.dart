@@ -134,9 +134,9 @@ class CatalogSync {
     );
     final remoteIds = {for (final item in remoteItems) item.id};
 
-    for (final item in remoteItems) {
-      if (!pending.contains(item.id)) await _local.writeIfChanged(item);
-    }
+    await _local.writeAllChanged(
+      remoteItems.where((item) => !pending.contains(item.id)),
+    );
 
     // Only the server can be trusted to say an item was deleted: a cold or
     // partial offline cache could otherwise look like "everything was deleted".
