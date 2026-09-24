@@ -14,6 +14,42 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-24 — commits `a18433e`, `c6145b5`, `558d2e3`, `bf2f68c`
+
+Sesión automática diaria (sin tareas pendientes en el backlog, según regla 2). Revisión
+completa de las pantallas de catálogo, escáner, QR y sobre todo del login/cuentas
+(lo más nuevo del proyecto, agregado el 2026-09-22), buscando errores reales, no solo
+estilo:
+
+1. Si un inicio de sesión, registro de tienda o alta de empleado fallaba por algo que
+   no fuera un error conocido de Firebase (por ejemplo un problema de red raro), la
+   pantalla simplemente dejaba de mostrar el círculo de "cargando" sin decir nada —
+   la persona no sabía si funcionó o no. Ahora siempre aparece un mensaje de error.
+2. El formulario para dar de alta un nuevo usuario no enviaba el formulario al
+   presionar "Listo" en el teclado después de escribir la contraseña temporal, a
+   diferencia de los demás formularios de la app (inicio de sesión, nueva tienda).
+   Ahora es consistente.
+3. El texto del aviso flotante de error (por ejemplo "No se pudo guardar") no fijaba
+   su color, así que podía verse con poco contraste sobre el fondo rojo según el
+   tema. Ahora usa el mismo color que su ícono.
+4. Se actualizó `pubspec.lock` con la versión estable actual de Flutter (algunas
+   dependencias internas subieron de versión menor) y se excluyeron las carpetas de
+   cada plataforma (android, ios, web, etc.) del analizador de código, para que no
+   las revise sin necesidad.
+
+No se tocó el código de sincronización con Firebase (`lib/data/catalog_sync.dart` y
+relacionados): es lógica delicada que ya funciona bien y maneja el catálogo real de la
+tienda, así que se prefirió no arriesgar cambios ahí sin que el dueño lo pida
+explícitamente.
+
+Nota: como se pidió el 2026-09-22 retirar todas las pruebas automatizadas del
+proyecto, esta sesión no agregó pruebas nuevas (para no contradecir esa decisión).
+
+Verificado con `flutter analyze` (0 avisos). No se pudo correr `flutter build apk`
+porque este entorno no tiene el SDK de Android instalado (solo se instaló Flutter);
+el resto de los cambios son de bajo riesgo (mensajes y consistencia visual, sin tocar
+lógica de guardado ni de sincronización).
+
 ### 2026-09-22 (10) — pendiente
 
 Décima ronda de pulido de la misma sesión: pruebas de widget para el formulario de prendas.
