@@ -20,6 +20,13 @@ mixin AsyncSubmit<T extends StatefulWidget> on State<T> {
     } on AuthException catch (e) {
       if (mounted) setState(() => error = e.message);
       return false;
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => error = 'Ocurrió un error inesperado. Inténtalo de nuevo.',
+        );
+      }
+      return false;
     } finally {
       if (mounted) setState(() => busy = false);
     }
