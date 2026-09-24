@@ -202,3 +202,13 @@ proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de 
   (`LocalCatalog.writeAllChanged`) en vez de una por prenda.
 - Pantalla principal: los cambios que llegan de otros teléfonos refrescan la lista una vez
   por cuadro, no una vez por prenda.
+
+**Ronda 3 (2026-09-23 21:30)**
+- Pantalla principal dividida: `StoreTitle`, `AccountMenu` y `ClothingCard` pasan a
+  `lib/screens/home/` (home_screen.dart de 517 a ~330 líneas), sin cambios de comportamiento.
+- Formulario de prenda: cada fila de talla/color/existencia vive en
+  `lib/screens/item_form/variant_row.dart` (controladores, validación y widget); las filas
+  llevan clave propia para que al quitar una no se crucen los mensajes de validación, y
+  "AGOTADO" se actualiza también al escribir talla o color.
+- Agregar prenda muestra un mensaje si no se puede generar el código nuevo, en vez de fallar
+  en silencio.
