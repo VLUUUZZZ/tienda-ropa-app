@@ -212,3 +212,11 @@ proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de 
   "AGOTADO" se actualiza también al escribir talla o color.
 - Agregar prenda muestra un mensaje si no se puede generar el código nuevo, en vez de fallar
   en silencio.
+
+**Ronda 4 (2026-09-23 22:45)**
+- Etiqueta QR: la parte que se guarda/imprime (`_QrSticker`) siempre sale negro sobre blanco,
+  aunque la app esté en tema oscuro (antes salía con fondo oscuro y texto claro).
+- La pantalla del QR ahora se desplaza, para que no se corte en teléfonos chicos o en
+  horizontal; el error al compartir usa el mismo aviso rojo que el resto de la app.
+- Login, nueva tienda y alta de usuarios muestran un mensaje también ante errores
+  inesperados, en vez de quedarse sin respuesta (`AsyncSubmit`).
