@@ -227,3 +227,11 @@ proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de 
   reutilizable (`UnsavedChangesGuard`), con el mismo comportamiento y textos.
 - Avisos de error consistentes: la combinación color/talla repetida y los errores al editar
   usuarios usan el mismo aviso rojo que el resto de la app.
+
+**Ronda 6 (2026-09-24 09:00)**
+- El precio se interpretaba con el mismo código copiado en tres lugares del formulario
+  (guardar, vista del QR y validación); ahora hay una sola función (`_parsePrecio`), que
+  acepta coma decimal.
+- `ClothingItem` y `ClothingVariant` tienen campos finales (inmutables): una prenda que
+  comparten la UI y la sincronización ya no puede modificarse por accidente. Ningún código
+  los modificaba, así que no cambia el comportamiento.

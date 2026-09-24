@@ -97,6 +97,16 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     });
   }
 
+  /// Accepts a decimal comma as well ("199,50"), as typed on many phones.
+  static double? _parsePrecio(String text) =>
+      double.tryParse(text.trim().replaceAll(',', '.'));
+
+  static String? _validatePrecio(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Requerido';
+    final precio = _parsePrecio(value);
+    return precio == null || precio < 0 ? 'Precio inválido' : null;
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -117,8 +127,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     final updated = ClothingItem(
       id: widget.item.id,
       nombre: _nombreCtrl.text.trim(),
-      precio:
-          double.tryParse(_precioCtrl.text.trim().replaceAll(',', '.')) ?? 0,
+      precio: _parsePrecio(_precioCtrl.text) ?? 0,
       variantes: variantes,
     );
 
@@ -189,8 +198,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     final snapshot = ClothingItem(
       id: widget.item.id,
       nombre: _nombreCtrl.text.trim(),
-      precio:
-          double.tryParse(_precioCtrl.text.trim().replaceAll(',', '.')) ?? 0,
+      precio: _parsePrecio(_precioCtrl.text) ?? 0,
       variantes: const [],
     );
     Navigator.of(
@@ -259,16 +267,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) return 'Requerido';
-                          final parsed = double.tryParse(
-                            v.trim().replaceAll(',', '.'),
-                          );
-                          if (parsed == null || parsed < 0) {
-                            return 'Precio inválido';
-                          }
-                          return null;
-                        },
+                        validator: _validatePrecio,
                       ),
                     ],
                   ),
