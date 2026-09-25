@@ -122,8 +122,8 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => ItemFormScreen(repo: widget.repo, item: item),
       ),
     );
-    _reload();
     if (!mounted) return;
+    _reload();
     if (result == ItemFormResult.saved) _showSavedSnackBar();
     if (result == ItemFormResult.deleted) _showDeletedSnackBar(item);
   }
@@ -134,8 +134,9 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => QuickStockScreen(repo: widget.repo, item: item),
       ),
     );
+    if (!mounted) return;
     _reload();
-    if (saved == true && mounted) _showSavedSnackBar();
+    if (saved == true) _showSavedSnackBar();
   }
 
   Future<void> _addManually() async {
@@ -153,8 +154,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ItemFormScreen(repo: widget.repo, item: newItem, isNew: true),
       ),
     );
+    if (!mounted) return;
     _reload();
-    if (result == ItemFormResult.saved && mounted) _showSavedSnackBar();
+    if (result == ItemFormResult.saved) _showSavedSnackBar();
   }
 
   Future<void> _scan() async {
