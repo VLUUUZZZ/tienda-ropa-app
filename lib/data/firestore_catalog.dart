@@ -20,12 +20,14 @@ class FirestoreCatalog implements RemoteCatalog {
     // server confirms it — Firestore treats that transition as a
     // metadata-only change and skips it by default. That follow-up is what
     // [CatalogSync] waits for to know it can trust the server's answer.
-    return _collection.snapshots(includeMetadataChanges: true).map(
-      (snapshot) => RemoteSnapshot(
-        items: snapshot.docs.map(_parse).nonNulls.toList(),
-        fromServer: !snapshot.metadata.isFromCache,
-      ),
-    );
+    return _collection
+        .snapshots(includeMetadataChanges: true)
+        .map(
+          (snapshot) => RemoteSnapshot(
+            items: snapshot.docs.map(_parse).nonNulls.toList(),
+            fromServer: !snapshot.metadata.isFromCache,
+          ),
+        );
   }
 
   ClothingItem? _parse(QueryDocumentSnapshot<Map<String, dynamic>> doc) {

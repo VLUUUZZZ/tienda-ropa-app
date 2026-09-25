@@ -12,21 +12,79 @@ import 'screens/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
+  await _start();
+}
 
-  final settings = SettingsRepository();
-  await settings.init();
+/// Everything needed before the app can show its first real screen. Kept
+/// separate from [main] so a failure (e.g. corrupt local storage) can offer
+/// "Reintentar" instead of a startup crash with no way back in.
+Future<void> _start() async {
+  try {
+    await Hive.initFlutter();
 
-  // Local config only, so this never waits on the network.
-  final backend = await connectFirebase();
+    final settings = SettingsRepository();
+    await settings.init();
 
-  // Without a backend there's no login: a single local catalog. With one,
-  // each store's catalog is opened by the auth gate on sign-in.
-  final localRepo = backend == null ? await ClothingRepository.open() : null;
+    // Local config only, so this never waits on the network.
+    final backend = await connectFirebase();
 
-  runApp(
-    TiendaRopaApp(settings: settings, backend: backend, localRepo: localRepo),
-  );
+    // Without a backend there's no login: a single local catalog. With one,
+    // each store's catalog is opened by the auth gate on sign-in.
+    final localRepo = backend == null ? await ClothingRepository.open() : null;
+
+    runApp(
+      TiendaRopaApp(settings: settings, backend: backend, localRepo: localRepo),
+    );
+  } catch (e) {
+    debugPrint('No se pudo iniciar la app: $e');
+    runApp(_StartupFailedApp(onRetry: _start));
+  }
+}
+
+/// Shown instead of crashing to a blank screen when something needed to
+/// start the app (usually local storage) couldn't be prepared.
+class _StartupFailedApp extends StatelessWidget {
+  const _StartupFailedApp({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Tienda de Ropa',
+      debugShowCheckedModeBanner: false,
+      theme: buildAppTheme(Brightness.light),
+      darkTheme: buildAppTheme(Brightness.dark),
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'No se pudo iniciar la app',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Revisa que el teléfono tenga espacio libre e inténtalo '
+                  'de nuevo.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: onRetry,
+                  child: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class TiendaRopaApp extends StatefulWidget {
