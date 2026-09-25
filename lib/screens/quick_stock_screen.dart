@@ -208,7 +208,7 @@ class _VariantRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final agotado = variant.existencia == 0;
+    final agotado = variant.existencia <= 0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
