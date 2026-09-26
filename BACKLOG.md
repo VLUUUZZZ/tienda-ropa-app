@@ -14,6 +14,118 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-26 — sesión automática diaria de pulido
+
+Sin tareas en "Pendiente", así que se dedicó a pulir detalles reales encontrados
+al revisar el código (nada de funciones nuevas):
+
+1. En el formulario de prenda, una fila de talla/color vacía sin usar podía
+   bloquear el botón "Guardar" por un valor sospechoso en "Existencia", aunque
+   esa fila se descarta igual al guardar. Ya no bloquea.
+2. El aviso de "combinación ya registrada" ahora se ve igual (rojo, con ícono)
+   que los demás errores de esa pantalla, en vez de un aviso gris distinto.
+3. Si la cámara fallaba al escanear por un motivo raro, a veces se mostraba
+   texto técnico en inglés debajo del mensaje en español. Ya queda solo en
+   español.
+4. Al recuperar la contraseña con un correo mal escrito (no vacío), se
+   mostraba "escribe tu correo" como si estuviera vacío. Ahora avisa
+   correctamente que el formato es incorrecto.
+5. El administrador de contraseñas del teléfono no ofrecía guardar ni
+   autocompletar en ningún formulario de la app. Ahora sí, en inicio de
+   sesión y al crear una tienda nueva; en cambio, al crear la cuenta de un
+   empleado se desactivó a propósito (esa contraseña temporal no es la del
+   administrador).
+6. Pequeños detalles: el botón de limpiar la búsqueda ya tiene su tooltip,
+   como los demás botones de la app; la pantalla de editar prenda ya no
+   vuelve a leer la base de datos local en cada repintado, solo para saber
+   si la prenda ya existía.
+
+Verificado con `flutter analyze` (0 avisos). No se ejecutó `flutter build apk`
+porque esta sesión automática no tiene el SDK de Android instalado (se avisa
+para que se revise con un build real antes de publicar en la tienda). No se
+agregaron pruebas automatizadas porque el propio backlog registra que se
+retiraron a pedido del dueño de la app (ver nota de 2026-09-22 más abajo).
+
+### 2026-09-25 — commits `3b2537f`, `ff7572f`, `a0a70a8`, `35b2a6e`, `fc00278`, `429397f`, `0734ed6`, `34ba8e8`
+
+Sesión automática diaria (sin tareas pendientes en el backlog, según regla 2). Se pidió una
+auditoría dedicada del código (no solo revisión superficial) buscando bugs reales, y se
+corrigieron los que fueron seguros de arreglar sin poder probar contra un proyecto de
+Firebase real:
+
+1. Al volver de editar/escanear una prenda o de crear una nueva, la pantalla principal
+   podía intentar refrescarse justo después de haberse cerrado (por ejemplo si la sesión
+   termina mientras esa pantalla estaba abierta), lo que podía producir un error interno.
+   Corregido el orden de las comprobaciones.
+2. Si un administrador editaba el rol o el estado de un empleado y algo fallaba de forma
+   no habitual, no aparecía ningún aviso. Ahora siempre se muestra un mensaje.
+3. La etiqueta "AGOTADO" aparecía con distinto criterio en el formulario completo y en la
+   edición rápida de existencia; ahora usan el mismo.
+4. Los mensajes de error de inicio de sesión sin traducción específica mostraban el código
+   técnico en inglés (por ejemplo "internal-error"); ahora siempre se ve un mensaje en
+   español.
+5. Al crear una tienda nueva, si algo fallaba y además fallaba el intento de deshacer esa
+   creación, el usuario veía un error confuso en vez del mensaje claro esperado.
+6. Al dar de alta un empleado, si se creaba su acceso pero fallaba guardar su ficha (nombre,
+   tienda, rol), quedaba una cuenta fantasma que nadie podía usar y que dejaba ese correo
+   inutilizable para siempre. Ahora esa cuenta se deshace automáticamente.
+7. Una tienda recién creada y todavía vacía podía no terminar de confirmar con el servidor
+   que ya no había nada pendiente por subir del teléfono, dejando ese primer catálogo sin
+   sincronizar en algunos casos.
+8. Si algo impedía preparar el almacenamiento del teléfono al abrir la app (por ejemplo,
+   sin espacio libre), la app se quedaba en una pantalla en blanco sin remedio. Ahora
+   muestra un aviso con botón para reintentar.
+
+No se agregaron pruebas automatizadas nuevas (el usuario pidió antes retirarlas de
+`test/` y no se quiso ir en contra de eso). Se detectaron además dos problemas más
+delicados que se decidió NO tocar hoy, por prudencia, ya que tocan la sincronización con
+Firebase y no hay forma de probarlos contra un proyecto real en esta sesión automática:
+si la misma prenda se edita dos veces muy seguido, el orden en que esos dos cambios
+llegan al servidor no está garantizado del todo; y la numeración de una prenda nueva
+(PRENDA-000024, etc.) no tiene protección si se presionara "Agregar" dos veces muy
+rápido. Ninguno de los dos es un problema con el uso normal de la app.
+
+Verificado con flutter analyze (0 avisos) y dart format. No se pudo compilar el APK
+(flutter build apk) porque esta sesión automática no tiene el SDK de Android instalado;
+tampoco se ejecutó flutter test porque el proyecto no tiene carpeta test/ (se retiró a
+propósito antes).
+
+### 2026-09-24 — commits `a18433e`, `c6145b5`, `558d2e3`, `bf2f68c`
+
+Sesión automática diaria (sin tareas pendientes en el backlog, según regla 2). Revisión
+completa de las pantallas de catálogo, escáner, QR y sobre todo del login/cuentas
+(lo más nuevo del proyecto, agregado el 2026-09-22), buscando errores reales, no solo
+estilo:
+
+1. Si un inicio de sesión, registro de tienda o alta de empleado fallaba por algo que
+   no fuera un error conocido de Firebase (por ejemplo un problema de red raro), la
+   pantalla simplemente dejaba de mostrar el círculo de "cargando" sin decir nada —
+   la persona no sabía si funcionó o no. Ahora siempre aparece un mensaje de error.
+2. El formulario para dar de alta un nuevo usuario no enviaba el formulario al
+   presionar "Listo" en el teclado después de escribir la contraseña temporal, a
+   diferencia de los demás formularios de la app (inicio de sesión, nueva tienda).
+   Ahora es consistente.
+3. El texto del aviso flotante de error (por ejemplo "No se pudo guardar") no fijaba
+   su color, así que podía verse con poco contraste sobre el fondo rojo según el
+   tema. Ahora usa el mismo color que su ícono.
+4. Se actualizó `pubspec.lock` con la versión estable actual de Flutter (algunas
+   dependencias internas subieron de versión menor) y se excluyeron las carpetas de
+   cada plataforma (android, ios, web, etc.) del analizador de código, para que no
+   las revise sin necesidad.
+
+No se tocó el código de sincronización con Firebase (`lib/data/catalog_sync.dart` y
+relacionados): es lógica delicada que ya funciona bien y maneja el catálogo real de la
+tienda, así que se prefirió no arriesgar cambios ahí sin que el dueño lo pida
+explícitamente.
+
+Nota: como se pidió el 2026-09-22 retirar todas las pruebas automatizadas del
+proyecto, esta sesión no agregó pruebas nuevas (para no contradecir esa decisión).
+
+Verificado con `flutter analyze` (0 avisos). No se pudo correr `flutter build apk`
+porque este entorno no tiene el SDK de Android instalado (solo se instaló Flutter);
+el resto de los cambios son de bajo riesgo (mensajes y consistencia visual, sin tocar
+lógica de guardado ni de sincronización).
+
 ### 2026-09-22 (10) — pendiente
 
 Décima ronda de pulido de la misma sesión: pruebas de widget para el formulario de prendas.

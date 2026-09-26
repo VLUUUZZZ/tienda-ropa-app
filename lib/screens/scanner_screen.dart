@@ -78,8 +78,8 @@ class _ScannerError extends StatelessWidget {
       case MobileScannerErrorCode.unsupported:
         return 'Este dispositivo no tiene una cámara compatible con el escáner.';
       default:
-        return 'No se pudo iniciar la cámara.\n${error.errorDetails?.message ?? ''}'
-            .trim();
+        return 'No se pudo iniciar la cámara.\n'
+            'Verifica que ninguna otra app la esté usando e inténtalo de nuevo.';
     }
   }
 

@@ -47,31 +47,40 @@ class FirestoreUserDirectory implements UserDirectory {
     required UserRole role,
   }) async {
     final creatorAuth = FirebaseAuth.instanceFor(app: await _creatorApp());
-    final UserCredential credential;
     try {
-      credential = await creatorAuth.createUserWithEmailAndPassword(
+      final credential = await creatorAuth.createUserWithEmailAndPassword(
         email: correo.trim(),
         password: password,
       );
+      final profile = AppUser(
+        uid: credential.user!.uid,
+        nombre: nombre.trim(),
+        correo: correo.trim(),
+        role: role,
+        tienda: tienda,
+      );
+      try {
+        await _write(
+          () => FirestorePaths.user(
+            _firestore,
+            profile.uid,
+          ).set({...profile.toMap(), 'creado': FieldValue.serverTimestamp()}),
+        );
+      } catch (_) {
+        // Don't leave behind a login with no profile: nobody could ever use
+        // it, and the email would be stuck as "already in use" forever.
+        try {
+          await credential.user!.delete();
+        } catch (_) {
+          // Ignored: the write's own error is what gets reported below.
+        }
+        rethrow;
+      }
     } on FirebaseAuthException catch (e) {
       throw authExceptionFrom(e);
     } finally {
       await creatorAuth.signOut();
     }
-
-    final profile = AppUser(
-      uid: credential.user!.uid,
-      nombre: nombre.trim(),
-      correo: correo.trim(),
-      role: role,
-      tienda: tienda,
-    );
-    await _write(
-      () => FirestorePaths.user(
-        _firestore,
-        profile.uid,
-      ).set({...profile.toMap(), 'creado': FieldValue.serverTimestamp()}),
-    );
   }
 
   @override

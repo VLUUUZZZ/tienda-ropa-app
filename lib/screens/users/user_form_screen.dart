@@ -86,6 +86,11 @@ class _UserFormScreenState extends State<UserFormScreen> with AsyncSubmit {
               controller: _passwordCtrl,
               label: 'Contraseña temporal',
               textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _create(),
+              // No es la contraseña de quien usa este teléfono: no ofrecer
+              // guardarla ni autocompletarla desde el administrador de
+              // contraseñas del dispositivo.
+              autofillHints: const [],
             ),
             const SizedBox(height: 20),
             Text('Rol', style: Theme.of(context).textTheme.titleMedium),
