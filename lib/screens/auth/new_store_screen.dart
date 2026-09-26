@@ -67,51 +67,60 @@ class _NewStoreScreenState extends State<NewStoreScreen> with AsyncSubmit {
       showBack: true,
       child: Form(
         key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextFormField(
-              controller: _nombreCtrl,
-              textCapitalization: TextCapitalization.words,
-              textInputAction: TextInputAction.next,
-              validator: CredentialValidators.required,
-              decoration: const InputDecoration(
-                labelText: 'Tu nombre',
-                prefixIcon: Icon(Icons.person_outline_rounded),
+        child: AutofillGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _nombreCtrl,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.next,
+                validator: CredentialValidators.required,
+                decoration: const InputDecoration(
+                  labelText: 'Tu nombre',
+                  prefixIcon: Icon(Icons.person_outline_rounded),
+                ),
               ),
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _correoCtrl,
-              keyboardType: TextInputType.emailAddress,
-              autocorrect: false,
-              textInputAction: TextInputAction.next,
-              validator: CredentialValidators.email,
-              decoration: const InputDecoration(
-                labelText: 'Correo',
-                prefixIcon: Icon(Icons.mail_outline_rounded),
-              ),
-            ),
-            const SizedBox(height: 14),
-            PasswordField(
-              controller: _passwordCtrl,
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 14),
-            PasswordField(
-              controller: _confirmCtrl,
-              label: 'Confirmar contraseña',
-              validator: _validateConfirm,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _create(),
-            ),
-            if (error != null) ...[
               const SizedBox(height: 14),
-              ErrorText(error!),
+              TextFormField(
+                controller: _correoCtrl,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                autofillHints: const [AutofillHints.email],
+                textInputAction: TextInputAction.next,
+                validator: CredentialValidators.email,
+                decoration: const InputDecoration(
+                  labelText: 'Correo',
+                  prefixIcon: Icon(Icons.mail_outline_rounded),
+                ),
+              ),
+              const SizedBox(height: 14),
+              PasswordField(
+                controller: _passwordCtrl,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.newPassword],
+              ),
+              const SizedBox(height: 14),
+              PasswordField(
+                controller: _confirmCtrl,
+                label: 'Confirmar contraseña',
+                validator: _validateConfirm,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _create(),
+                autofillHints: const [AutofillHints.newPassword],
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 14),
+                ErrorText(error!),
+              ],
+              const SizedBox(height: 20),
+              BusyButton(
+                label: 'Crear tienda',
+                busy: busy,
+                onPressed: _create,
+              ),
             ],
-            const SizedBox(height: 20),
-            BusyButton(label: 'Crear tienda', busy: busy, onPressed: _create),
-          ],
+          ),
         ),
       ),
     );
