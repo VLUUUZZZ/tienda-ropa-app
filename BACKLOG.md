@@ -14,6 +14,38 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-26 — sesión automática diaria de pulido
+
+Sin tareas en "Pendiente", así que se dedicó a pulir detalles reales encontrados
+al revisar el código (nada de funciones nuevas):
+
+1. En el formulario de prenda, una fila de talla/color vacía sin usar podía
+   bloquear el botón "Guardar" por un valor sospechoso en "Existencia", aunque
+   esa fila se descarta igual al guardar. Ya no bloquea.
+2. El aviso de "combinación ya registrada" ahora se ve igual (rojo, con ícono)
+   que los demás errores de esa pantalla, en vez de un aviso gris distinto.
+3. Si la cámara fallaba al escanear por un motivo raro, a veces se mostraba
+   texto técnico en inglés debajo del mensaje en español. Ya queda solo en
+   español.
+4. Al recuperar la contraseña con un correo mal escrito (no vacío), se
+   mostraba "escribe tu correo" como si estuviera vacío. Ahora avisa
+   correctamente que el formato es incorrecto.
+5. El administrador de contraseñas del teléfono no ofrecía guardar ni
+   autocompletar en ningún formulario de la app. Ahora sí, en inicio de
+   sesión y al crear una tienda nueva; en cambio, al crear la cuenta de un
+   empleado se desactivó a propósito (esa contraseña temporal no es la del
+   administrador).
+6. Pequeños detalles: el botón de limpiar la búsqueda ya tiene su tooltip,
+   como los demás botones de la app; la pantalla de editar prenda ya no
+   vuelve a leer la base de datos local en cada repintado, solo para saber
+   si la prenda ya existía.
+
+Verificado con `flutter analyze` (0 avisos). No se ejecutó `flutter build apk`
+porque esta sesión automática no tiene el SDK de Android instalado (se avisa
+para que se revise con un build real antes de publicar en la tienda). No se
+agregaron pruebas automatizadas porque el propio backlog registra que se
+retiraron a pedido del dueño de la app (ver nota de 2026-09-22 más abajo).
+
 ### 2026-09-25 — commits `3b2537f`, `ff7572f`, `a0a70a8`, `35b2a6e`, `fc00278`, `429397f`, `0734ed6`, `34ba8e8`
 
 Sesión automática diaria (sin tareas pendientes en el backlog, según regla 2). Se pidió una
