@@ -251,6 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? null
                     : IconButton(
                         icon: const Icon(Icons.clear_rounded),
+                        tooltip: 'Limpiar búsqueda',
                         onPressed: () => _searchCtrl.clear(),
                       ),
               ),
