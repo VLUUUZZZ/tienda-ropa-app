@@ -37,6 +37,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   late final TextEditingController _precioCtrl;
   final List<VariantRowControllers> _variantes = [];
   bool _dirty = false;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -108,6 +109,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   Future<void> _save() async {
+    // A second tap while saving would pop this screen twice, closing the
+    // catalog behind it too.
+    if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
 
     final variantes = [
@@ -131,10 +135,12 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       variantes: variantes,
     );
 
+    setState(() => _saving = true);
     try {
       await widget.repo.save(updated);
     } catch (e) {
       if (mounted) {
+        setState(() => _saving = false);
         showErrorSnackBar(context, 'No se pudo guardar. Inténtalo de nuevo.');
       }
       return;
@@ -309,7 +315,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                 ),
               const SizedBox(height: 20),
               FilledButton.icon(
-                onPressed: _save,
+                onPressed: _saving ? null : _save,
                 icon: const Icon(Icons.save_rounded),
                 label: const Text('Guardar'),
               ),
