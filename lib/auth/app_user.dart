@@ -60,17 +60,23 @@ class AppUser {
 
   bool get canManageUsers => isAdmin;
 
+  /// Tolerant of missing or wrong-typed fields. Anything unclear falls on
+  /// the safe side: no store and inactive means no access.
   factory AppUser.fromMap(String uid, Map<String, dynamic> map) {
-    final tiendaId = map['tiendaId'] as String?;
+    String? text(String key) => switch (map[key]) {
+      final String s when s.trim().isNotEmpty => s.trim(),
+      _ => null,
+    };
+    final tiendaId = text('tiendaId');
     return AppUser(
       uid: uid,
-      nombre: map['nombre'] as String? ?? '',
-      correo: map['correo'] as String? ?? '',
-      role: UserRole.fromId(map['rol'] as String?),
+      nombre: text('nombre') ?? '',
+      correo: text('correo') ?? '',
+      role: UserRole.fromId(text('rol')),
       tienda: tiendaId == null
           ? null
-          : Tienda(id: tiendaId, nombre: map['tiendaNombre'] as String? ?? ''),
-      activo: map['activo'] as bool? ?? false,
+          : Tienda(id: tiendaId, nombre: text('tiendaNombre') ?? ''),
+      activo: map['activo'] == true,
     );
   }
 

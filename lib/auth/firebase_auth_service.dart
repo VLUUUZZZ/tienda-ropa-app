@@ -56,7 +56,12 @@ class FirebaseAuthService implements AuthService {
     User user,
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {
-    final data = doc.data();
+    final Map<String, dynamic>? data;
+    try {
+      data = doc.data();
+    } catch (_) {
+      return AccessDenied(user.email ?? '');
+    }
     if (data == null) {
       return doc.metadata.isFromCache ? null : AccessDenied(user.email ?? '');
     }
@@ -118,8 +123,14 @@ class FirebaseAuthService implements AuthService {
     try {
       await batch.commit();
     } catch (_) {
-      // Don't leave behind an account with no store.
-      await user.delete();
+      // Don't leave behind an account with no store. If even this fails,
+      // the account stays orphaned, but the message shown must still be the
+      // one below and not whatever this cleanup attempt threw.
+      try {
+        await user.delete();
+      } catch (_) {
+        // Ignored: reported below regardless of the outcome.
+      }
       throw const AuthException(
         'No se pudo crear la tienda. Revisa tu conexión e inténtalo de nuevo.',
       );

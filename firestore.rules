@@ -46,6 +46,18 @@ service cloud.firestore {
         && data.tiendaNombre is string;
     }
 
+    // A garment as the app writes it (see ClothingItem.toMap and Limites in
+    // lib/models/clothing_item.dart; the name limit here is looser so older
+    // garments stay editable). Rules can't loop over the variants, so
+    // each one's fields are checked by the app; here, the shape and bounds.
+    function isValidPrenda(prendaId, data) {
+      return data.keys().hasOnly(['id', 'nombre', 'precio', 'variantes', 'actualizado'])
+        && data.id == prendaId
+        && data.nombre is string && data.nombre.size() <= 200
+        && data.precio is number && data.precio >= 0 && data.precio <= 1000000
+        && data.variantes is list && data.variantes.size() <= 100;
+    }
+
     // Opening a store: in the same batch that creates the owner's profile
     // as its admin (checked below).
     function isOpeningOwnStore(tiendaId, data) {
@@ -61,21 +73,25 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['nombre', 'duenoUid', 'creada'])
         && request.resource.data.nombre is string
+        && request.resource.data.nombre.size() <= 120
         && request.resource.data.duenoUid == request.auth.uid
         && getAfter(ownProfilePath()).data.tiendaId == tiendaId
         && getAfter(ownProfilePath()).data.rol == 'admin';
 
       match /prendas/{prendaId} {
         allow read: if isMemberOf(tiendaId);
-        allow create, delete: if isAdminOf(tiendaId);
-        allow update: if isAdminOf(tiendaId) || (
+        allow create: if isAdminOf(tiendaId)
+          && isValidPrenda(prendaId, request.resource.data);
+        allow delete: if isAdminOf(tiendaId);
+        allow update: if isValidPrenda(prendaId, request.resource.data) && (
+          isAdminOf(tiendaId) || (
           isMemberOf(tiendaId)
           // Employees: stock counts only. Name, price and the set of
           // variants stay as they are.
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['variantes', 'actualizado'])
           && request.resource.data.variantes.size() == resource.data.variantes.size()
-        );
+        ));
       }
     }
 
