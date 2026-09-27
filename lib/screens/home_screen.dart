@@ -69,16 +69,28 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showSavedSnackBar() {
+    // Explicit colors instead of the default SnackBar look: the default
+    // background flips between dark (light theme) and light (dark theme),
+    // so a hardcoded white icon would turn invisible in dark mode.
+    final colorScheme = Theme.of(context).colorScheme;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Row(
           children: [
-            Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            Text('Cambios guardados'),
+            Icon(
+              Icons.check_circle_outline,
+              color: colorScheme.onInverseSurface,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Cambios guardados',
+              style: TextStyle(color: colorScheme.onInverseSurface),
+            ),
           ],
         ),
-        duration: Duration(seconds: 2),
+        backgroundColor: colorScheme.inverseSurface,
+        duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
       ),
     );
