@@ -175,8 +175,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     return row.color.text.trim().isEmpty ? 'Requerido' : null;
   }
 
-  String? _validateExistencia(String? value) {
-    final text = value?.trim() ?? '';
+  String? _validateExistencia(_VariantRow row) {
+    if (!_rowIsUsed(row)) return null;
+    final text = row.existencia.text.trim();
     if (text.isEmpty) return null; // treated as 0
     final parsed = int.tryParse(text);
     if (parsed == null) return 'Inválido';
@@ -222,12 +223,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     final duplicate = ClothingItem.firstDuplicateVariant(variantes);
     if (duplicate != null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'La combinación ${duplicate.color} / ${duplicate.talla} ya está registrada.',
-          ),
-        ),
+      showErrorSnackBar(
+        context,
+        'La combinación ${duplicate.color} / ${duplicate.talla} ya está registrada.',
       );
       return;
     }
@@ -360,10 +358,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // A new garment's number can show up from another device mid-edit; that
-    // doesn't make this form an edit of it.
-    final isExisting =
-        !widget.isNew && widget.repo.getById(widget.item.id) != null;
+    final isExisting = !widget.isNew;
 
     return PopScope(
       canPop: !_dirty,
@@ -527,7 +522,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                                   FilteringTextInputFormatter.digitsOnly,
                                   LengthLimitingTextInputFormatter(5),
                                 ],
-                                validator: _validateExistencia,
+                                validator: (_) => _validateExistencia(row),
                               ),
                             ),
                             IconButton(

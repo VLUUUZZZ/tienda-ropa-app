@@ -18,9 +18,15 @@ class BusyButton extends StatelessWidget {
     return FilledButton(
       onPressed: busy ? null : onPressed,
       child: busy
-          ? const SizedBox.square(
+          ? SizedBox.square(
               dimension: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                // The default spinner color matches FilledButton's own
+                // background (colorScheme.primary), so it's invisible unless
+                // set explicitly to the button's foreground color.
+                color: Theme.of(context).colorScheme.onPrimary,
+              ),
             )
           : Text(label),
     );

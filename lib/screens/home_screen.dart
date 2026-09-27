@@ -103,20 +103,29 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showSavedSnackBar() {
+    // Explicit colors instead of the default SnackBar look: the default
+    // background flips between dark (light theme) and light (dark theme),
+    // so a hardcoded white icon would turn invisible in dark mode.
+    final colorScheme = Theme.of(context).colorScheme;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
             Icon(
               Icons.check_circle_outline,
-              color: Theme.of(context).colorScheme.onInverseSurface,
+              color: colorScheme.onInverseSurface,
               size: 20,
             ),
             const SizedBox(width: 8),
-            const Text('Cambios guardados'),
+            Text(
+              'Cambios guardados',
+              style: TextStyle(color: colorScheme.onInverseSurface),
+            ),
           ],
         ),
+        backgroundColor: colorScheme.inverseSurface,
         duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -158,8 +167,8 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => ItemFormScreen(repo: widget.repo, item: item),
       ),
     );
-    _reload();
     if (!mounted) return;
+    _reload();
     if (result == ItemFormResult.saved) _showSavedSnackBar();
     if (result == ItemFormResult.deleted) _showDeletedSnackBar(item);
   }
@@ -170,8 +179,9 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => QuickStockScreen(repo: widget.repo, item: item),
       ),
     );
+    if (!mounted) return;
     _reload();
-    if (saved == true && mounted) _showSavedSnackBar();
+    if (saved == true) _showSavedSnackBar();
   }
 
   Future<void> _addManually() async {
@@ -187,8 +197,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ItemFormScreen(repo: widget.repo, item: newItem, isNew: true),
       ),
     );
+    if (!mounted) return;
     _reload();
-    if (result == ItemFormResult.saved && mounted) _showSavedSnackBar();
+    if (result == ItemFormResult.saved) _showSavedSnackBar();
   }
 
   Future<void> _scan() async {
@@ -300,7 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? null
                     : IconButton(
                         icon: const Icon(Icons.clear_rounded),
-                        tooltip: 'Borrar búsqueda',
+                        tooltip: 'Limpiar búsqueda',
                         onPressed: () => _searchCtrl.clear(),
                       ),
               ),
