@@ -114,11 +114,7 @@ class _NewStoreScreenState extends State<NewStoreScreen> with AsyncSubmit {
                 ErrorText(error!),
               ],
               const SizedBox(height: 20),
-              BusyButton(
-                label: 'Crear tienda',
-                busy: busy,
-                onPressed: _create,
-              ),
+              BusyButton(label: 'Crear tienda', busy: busy, onPressed: _create),
             ],
           ),
         ),
