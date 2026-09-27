@@ -20,7 +20,7 @@ class QuickStockScreen extends StatefulWidget {
 
 class _QuickStockScreenState extends State<QuickStockScreen> {
   late List<ClothingVariant> _variantes;
-  bool _dirty = false;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -46,7 +46,6 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
         color: v.color,
         existencia: next < 0 ? 0 : next,
       );
-      _dirty = true;
     });
   }
 
@@ -57,7 +56,13 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
           _variantes[i].existencia - widget.item.variantes[i].existencia,
   };
 
+  /// Adding a piece and taking it back out again is not a change: nothing
+  /// to save and nothing to discard.
+  bool get _hasChanges => _stockChanges.values.any((delta) => delta != 0);
+
   Future<void> _save() async {
+    // A second tap while saving would apply the same +/- twice.
+    if (_saving) return;
     // The garment may have changed on another device since this screen
     // opened: apply only this screen's +/- on top of its latest version.
     final latest = widget.repo.getById(widget.item.id);
@@ -65,16 +70,17 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
       showErrorSnackBar(context, 'Esta prenda ya no existe en el catálogo.');
       return;
     }
+    setState(() => _saving = true);
     try {
       await widget.repo.save(latest.withStockChanges(_stockChanges));
     } catch (e) {
       if (mounted) {
+        setState(() => _saving = false);
         showErrorSnackBar(context, 'No se pudo guardar. Inténtalo de nuevo.');
       }
       return;
     }
     if (!mounted) return;
-    _dirty = false;
     Navigator.of(context).pop(true);
   }
 
@@ -98,7 +104,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
     }
 
     return UnsavedChangesGuard(
-      hasChanges: _dirty,
+      hasChanges: _hasChanges,
       message:
           'Tienes cambios de existencia sin guardar. ¿Deseas salir sin guardarlos?',
       child: Scaffold(
@@ -155,7 +161,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
             : SafeArea(
                 minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: FilledButton.icon(
-                  onPressed: _save,
+                  onPressed: _hasChanges && !_saving ? _save : null,
                   icon: const Icon(Icons.save_rounded),
                   label: const Text('Guardar'),
                 ),

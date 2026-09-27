@@ -242,3 +242,10 @@ proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de 
   caso se conserva el estado actual y el perfil se vuelve a escuchar con espera creciente,
   así un cambio de rol o una reactivación se siguen detectando sin cerrar sesión.
 - Esa lógica pasa de `FirebaseAuthService.watch` a su propia clase (`SessionWatcher`).
+
+**Ronda 8 (2026-09-27 16:10)**
+- Ajuste rápido de existencias: un doble toque en "Guardar" podía aplicar el mismo +/- dos
+  veces (y cerrar también la pantalla de atrás). Ahora el botón se desactiva mientras guarda.
+  Lo mismo en el formulario de prenda, donde el doble toque cerraba también el catálogo.
+- Sumar una pieza y volver a quitarla ya no cuenta como cambio: "Guardar" queda desactivado
+  y salir no pide confirmar descartar, porque no hay nada que guardar.
