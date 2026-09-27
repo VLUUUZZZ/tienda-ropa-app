@@ -14,6 +14,27 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-27 — sesión automática diaria de pulido
+
+Sin tareas en "Pendiente". Se revisó todo `lib/` en busca de errores reales; el
+código ya estaba muy pulido de sesiones anteriores, así que se encontraron y
+corrigieron dos detalles concretos de contraste en modo oscuro:
+
+1. El círculo de carga de los botones principales (Entrar, Crear tienda,
+   Crear cuenta) usaba el mismo color que el fondo del botón y prácticamente
+   no se veía mientras la app estaba trabajando. Ahora usa un color que
+   contrasta.
+2. El aviso "Cambios guardados" tenía un ícono blanco fijo; en modo oscuro el
+   fondo del aviso se vuelve claro y el ícono quedaba casi invisible. Ahora
+   los colores del aviso se ajustan igual que el resto de la app.
+
+También se corrigió el formato de un archivo (`new_store_screen.dart`) que
+había quedado sin pasar por `dart format`.
+
+Verificado con `flutter analyze` (0 avisos). No había pruebas automatizadas
+que correr (se retiraron por pedido explícito del usuario el 2026-09-22) ni
+se compiló el APK (herramientas de Android no disponibles en esta sesión).
+
 ### 2026-09-26 — sesión automática diaria de pulido
 
 Sin tareas en "Pendiente", así que se dedicó a pulir detalles reales encontrados
