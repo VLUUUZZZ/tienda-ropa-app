@@ -267,7 +267,7 @@ class _VariantRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final agotado = variant.existencia == 0;
+    final agotado = variant.existencia <= 0;
     final talla = variant.talla.isEmpty ? '(sin talla)' : variant.talla;
 
     return Padding(

@@ -15,13 +15,20 @@ class FirestoreCatalog implements RemoteCatalog {
 
   @override
   Stream<RemoteSnapshot> watch() {
-    return _collection.snapshots().map(
-      (snapshot) => RemoteSnapshot(
-        items: snapshot.docs.map(_parse).nonNulls.toList(),
-        ids: {for (final doc in snapshot.docs) doc.id},
-        fromServer: !snapshot.metadata.isFromCache,
-      ),
-    );
+    // Without includeMetadataChanges, a cache snapshot that already matches
+    // the server (e.g. a brand-new, still-empty store) never gets a follow-up
+    // event once the server confirms it — Firestore treats that transition as
+    // a metadata-only change and skips it by default. That follow-up is what
+    // [CatalogSync] waits for to know it can trust the server's answer.
+    return _collection
+        .snapshots(includeMetadataChanges: true)
+        .map(
+          (snapshot) => RemoteSnapshot(
+            items: snapshot.docs.map(_parse).nonNulls.toList(),
+            ids: {for (final doc in snapshot.docs) doc.id},
+            fromServer: !snapshot.metadata.isFromCache,
+          ),
+        );
   }
 
   @override
