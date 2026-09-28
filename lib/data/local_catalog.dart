@@ -83,13 +83,25 @@ class LocalCatalog {
     }
   }
 
+  /// Serializes [nextId] calls: everything before its `await` runs
+  /// synchronously, so two overlapping calls (e.g. a double-tapped "new
+  /// garment" button) would otherwise read the same counter and mint the
+  /// same id, silently overwriting one garment with the other on save.
+  Future<void> _mintQueue = Future.value();
+
   /// Mints the next human-readable id, e.g. "PRENDA-000024". Meant to be
   /// printed on a QR sticker, so it needs to be short and easy to read back
   /// if the sticker gets smudged.
   ///
   /// Skips ids already in the catalog: with sync, another device may have
   /// used numbers this device's counter hasn't reached yet.
-  Future<String> nextId() async {
+  Future<String> nextId() {
+    final result = _mintQueue.then((_) => _mintNextId());
+    _mintQueue = result.then((_) {}, onError: (_) {});
+    return result;
+  }
+
+  Future<String> _mintNextId() async {
     var next = ((_box.get(_sequenceKey) as int?) ?? 0) + 1;
     while (_box.containsKey(_formatId(next))) {
       next++;
