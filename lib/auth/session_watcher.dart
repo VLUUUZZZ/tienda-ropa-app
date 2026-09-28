@@ -17,10 +17,17 @@ import 'auth_service.dart';
 /// is re-opened with [Backoff] while the current state is kept; only a real
 /// permission denial shows as [AccessDenied].
 class SessionWatcher {
-  SessionWatcher(this._auth, this._firestore);
+  SessionWatcher(this._auth, this._firestore, {this.isProvisioning = _never});
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
+
+  /// True while this device itself is in the middle of creating a brand-new
+  /// store: its own profile document may not have reached Firestore yet, so
+  /// a missing document must not be read as "no access" during that window.
+  final bool Function() isProvisioning;
+
+  static bool _never() => false;
 
   final Backoff _backoff = Backoff(
     initial: const Duration(seconds: 3),
@@ -61,7 +68,7 @@ class SessionWatcher {
       doc,
     ) {
       _backoff.reset();
-      final state = _stateFor(user, doc);
+      final state = _stateFor(user, doc, isProvisioning());
       if (state != null) _controller.add(state);
     }, onError: (Object e) => _onProfileError(user, e));
   }
@@ -92,10 +99,13 @@ class SessionWatcher {
   static AuthState? _stateFor(
     User user,
     DocumentSnapshot<Map<String, dynamic>> doc,
+    bool isProvisioning,
   ) {
     final data = doc.data();
     if (data == null) {
-      return doc.metadata.isFromCache ? null : AccessDenied(user.email ?? '');
+      return doc.metadata.isFromCache || isProvisioning
+          ? null
+          : AccessDenied(user.email ?? '');
     }
     final profile = AppUser.fromMap(user.uid, data);
     final hasAccess = profile.activo && profile.tienda != null;
