@@ -1,9 +1,12 @@
 import 'dart:math' as math;
 
+/// One color+talla of a garment and how many pieces are in stock.
+/// Immutable: changes produce new instances, so a garment shared by the UI
+/// and the sync layer can't be edited behind either one's back.
 class ClothingVariant {
-  String talla;
-  String color;
-  int existencia;
+  final String talla;
+  final String color;
+  final int existencia;
 
   ClothingVariant({
     required this.talla,
@@ -34,9 +37,9 @@ class ClothingVariant {
 class ClothingItem {
   /// Same value that is encoded in the item's printed QR code.
   final String id;
-  String nombre;
-  double precio;
-  List<ClothingVariant> variantes;
+  final String nombre;
+  final double precio;
+  final List<ClothingVariant> variantes;
 
   ClothingItem({
     required this.id,

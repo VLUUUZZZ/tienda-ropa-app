@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 
 import '../firestore_paths.dart';
 import 'app_user.dart';
@@ -48,12 +49,19 @@ class FirestoreUserDirectory implements UserDirectory {
   }) async {
     final creatorAuth = FirebaseAuth.instanceFor(app: await _creatorApp());
     try {
-      final credential = await creatorAuth.createUserWithEmailAndPassword(
-        email: correo.trim(),
-        password: password,
-      );
+      final User account;
+      try {
+        final credential = await creatorAuth.createUserWithEmailAndPassword(
+          email: correo.trim(),
+          password: password,
+        );
+        account = credential.user!;
+      } on FirebaseAuthException catch (e) {
+        throw authExceptionFrom(e);
+      }
+
       final profile = AppUser(
-        uid: credential.user!.uid,
+        uid: account.uid,
         nombre: nombre.trim(),
         correo: correo.trim(),
         role: role,
@@ -70,14 +78,12 @@ class FirestoreUserDirectory implements UserDirectory {
         // Don't leave behind a login with no profile: nobody could ever use
         // it, and the email would be stuck as "already in use" forever.
         try {
-          await credential.user!.delete();
-        } catch (_) {
-          // Ignored: the write's own error is what gets reported below.
+          await account.delete();
+        } catch (e) {
+          debugPrint('No se pudo deshacer la cuenta ${account.uid}: $e');
         }
         rethrow;
       }
-    } on FirebaseAuthException catch (e) {
-      throw authExceptionFrom(e);
     } finally {
       await creatorAuth.signOut();
     }

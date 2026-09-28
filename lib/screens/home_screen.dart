@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../auth/app_user.dart';
 import '../auth/user_directory.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
-import '../widgets/role_badge.dart';
 import '../widgets/snackbars.dart';
+import 'home/account_menu.dart';
+import 'home/clothing_card.dart';
+import 'home/store_title.dart';
 import 'item_form_screen.dart';
 import 'quick_stock_screen.dart';
 import 'scanner_screen.dart';
@@ -43,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _searchCtrl = TextEditingController();
   late final Listenable _repoChanges = widget.repo.listenable;
   List<ClothingItem> _items = [];
+  bool _reloadScheduled = false;
 
   @override
   void initState() {
@@ -60,8 +64,15 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  /// Sync can change many garments at once, each one notifying separately:
+  /// refresh the list once per frame instead of once per garment.
   void _onRepoChanged() {
-    if (mounted) _reload();
+    if (_reloadScheduled) return;
+    _reloadScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _reloadScheduled = false;
+      if (mounted) _reload();
+    });
   }
 
   void _reload() {
@@ -152,7 +163,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _addManually() async {
-    final id = await widget.repo.generateId();
+    final String id;
+    try {
+      id = await widget.repo.generateId();
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackBar(
+          context,
+          'No se pudo crear la prenda. Inténtalo de nuevo.',
+        );
+      }
+      return;
+    }
     if (!mounted) return;
     final newItem = ClothingItem(
       id: id,
@@ -228,7 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: _StoreTitle(user: widget.user),
+        title: StoreTitle(user: widget.user),
         actions: [
           IconButton(
             icon: Icon(
@@ -240,7 +262,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: widget.onToggleTheme,
           ),
           if (widget.onSignOut case final onSignOut?)
-            _AccountMenu(
+            AccountMenu(
               user: widget.user,
               onManageUsers: _canOpenUsers
                   ? () => _openUsers(widget.users!)
@@ -293,7 +315,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
                     itemCount: _items.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) => _ClothingCard(
+                    itemBuilder: (context, index) => ClothingCard(
                       item: _items[index],
                       onTap: () => _openItem(_items[index]),
                       onQuickEdit: () => _quickEditStock(_items[index]),
@@ -321,202 +343,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-/// The store's name, and who is in with their role next to it.
-class _StoreTitle extends StatelessWidget {
-  const _StoreTitle({required this.user});
-
-  final AppUser user;
-
-  @override
-  Widget build(BuildContext context) {
-    final tienda = user.tienda;
-    if (tienda == null) return const Text('Tienda de Ropa');
-
-    final colorScheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(tienda.nombre, maxLines: 1, overflow: TextOverflow.ellipsis),
-        Row(
-          children: [
-            Flexible(
-              child: Text(
-                user.nombre,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            RoleBadge(role: user.role),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-enum _AccountAction { users, signOut }
-
-/// Who is signed in, plus the account actions their role allows.
-class _AccountMenu extends StatelessWidget {
-  const _AccountMenu({
-    required this.user,
-    required this.onManageUsers,
-    required this.onSignOut,
-  });
-
-  final AppUser user;
-  final VoidCallback? onManageUsers;
-  final VoidCallback onSignOut;
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<_AccountAction>(
-      icon: const Icon(Icons.account_circle_outlined),
-      tooltip: 'Cuenta',
-      onSelected: (action) => switch (action) {
-        _AccountAction.users => onManageUsers?.call(),
-        _AccountAction.signOut => onSignOut(),
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          enabled: false,
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(user.nombre),
-            subtitle: Text('${user.role.label} · ${user.correo}'),
-          ),
-        ),
-        const PopupMenuDivider(),
-        if (onManageUsers != null)
-          const PopupMenuItem(
-            value: _AccountAction.users,
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.group_outlined),
-              title: Text('Usuarios'),
-            ),
-          ),
-        const PopupMenuItem(
-          value: _AccountAction.signOut,
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.logout_rounded),
-            title: Text('Cerrar sesión'),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ClothingCard extends StatelessWidget {
-  final ClothingItem item;
-  final VoidCallback onTap;
-  final VoidCallback onQuickEdit;
-
-  const _ClothingCard({
-    required this.item,
-    required this.onTap,
-    required this.onQuickEdit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final sinStock = item.existenciaTotal == 0;
-    final colores = item.coloresDisponibles;
-
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: colorScheme.primaryContainer,
-                child: Icon(
-                  Icons.checkroom_rounded,
-                  color: colorScheme.onPrimaryContainer,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.nombre.isEmpty ? '(sin nombre)' : item.nombre,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '\$${item.precio.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.primary,
-                      ),
-                    ),
-                    if (colores.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        colores.join(' • '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 8),
-                    Chip(
-                      avatar: Icon(
-                        sinStock
-                            ? Icons.error_outline
-                            : Icons.inventory_2_outlined,
-                        size: 16,
-                        color: sinStock ? colorScheme.error : null,
-                      ),
-                      label: Text(
-                        sinStock ? 'AGOTADO' : '${item.existenciaTotal} piezas',
-                      ),
-                      backgroundColor: sinStock
-                          ? colorScheme.errorContainer.withValues(alpha: 0.6)
-                          : null,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.tune_rounded),
-                tooltip: 'Editar existencia rápido',
-                onPressed: onQuickEdit,
-              ),
-              Icon(Icons.chevron_right_rounded, color: colorScheme.outline),
-            ],
-          ),
-        ),
       ),
     );
   }
