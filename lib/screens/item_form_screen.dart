@@ -10,7 +10,21 @@ import 'quick_stock_screen.dart';
 
 /// What [ItemFormScreen] pops with, so the caller can tell a save apart from
 /// a delete and react accordingly (e.g. offer "undo" only after a delete).
-enum ItemFormResult { saved, deleted }
+sealed class ItemFormResult {
+  const ItemFormResult();
+}
+
+class ItemFormSaved extends ItemFormResult {
+  const ItemFormSaved();
+}
+
+/// Carries the exact garment that was removed (including any quick stock
+/// edit made earlier in this same form session), so "Deshacer" restores the
+/// version the user actually saw, not a stale copy from before it opened.
+class ItemFormDeleted extends ItemFormResult {
+  const ItemFormDeleted(this.item);
+  final ClothingItem item;
+}
 
 /// Create/edit screen for a single garment. Works both for a brand-new item
 /// (blank fields, id already assigned) and an existing one loaded from a scan
@@ -148,7 +162,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
     if (!mounted) return;
     _dirty = false;
-    Navigator.of(context).pop(ItemFormResult.saved);
+    Navigator.of(context).pop(const ItemFormSaved());
   }
 
   Future<void> _quickEditStock() async {
@@ -186,6 +200,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       ),
     );
     if (confirm != true) return;
+    // The freshest copy, including any quick stock edit made earlier in this
+    // same session: "Deshacer" should restore that, not a stale snapshot.
+    final current = widget.repo.getById(widget.item.id) ?? widget.item;
     try {
       await widget.repo.delete(widget.item.id);
     } catch (e) {
@@ -196,7 +213,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     }
     if (!mounted) return;
     _dirty = false;
-    Navigator.of(context).pop(ItemFormResult.deleted);
+    Navigator.of(context).pop(ItemFormDeleted(current));
   }
 
   void _showQr() {
