@@ -4,6 +4,7 @@ import '../../auth/app_user.dart';
 import '../../auth/auth_service.dart';
 import '../../auth/user_directory.dart';
 import '../../widgets/role_badge.dart';
+import '../../widgets/snackbars.dart';
 import 'role_selector.dart';
 import 'user_form_screen.dart';
 
@@ -56,10 +57,10 @@ class _UsersScreenState extends State<UsersScreen> {
     try {
       await users.update(updated);
     } on AuthException catch (e) {
-      if (context.mounted) _showMessage(context, e.message);
+      if (context.mounted) showErrorSnackBar(context, e.message);
     } catch (e) {
       if (context.mounted) {
-        _showMessage(context, 'No se pudo guardar. Inténtalo de nuevo.');
+        showErrorSnackBar(context, 'No se pudo guardar. Inténtalo de nuevo.');
       }
     }
   }

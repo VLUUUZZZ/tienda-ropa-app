@@ -327,3 +327,58 @@ proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de 
 - Al cerrar sesión, el catálogo se cierra después de que se van sus pantallas; si no se
   puede abrir el catálogo de la tienda se muestra "Reintentar" en vez de cargar sin fin.
 - La lista de usuarios se suscribe a Firestore una sola vez, no en cada redibujo.
+
+**Ronda 2 (2026-09-23 17:00)**
+- Alta de empleados: si falla guardar el perfil después de crear la cuenta, la cuenta se
+  deshace; antes quedaba huérfana y su correo ya no se podía volver a registrar.
+- Sincronización: cada snapshot remoto se guarda en el teléfono con una sola escritura
+  (`LocalCatalog.writeAllChanged`) en vez de una por prenda.
+- Pantalla principal: los cambios que llegan de otros teléfonos refrescan la lista una vez
+  por cuadro, no una vez por prenda.
+
+**Ronda 3 (2026-09-23 21:30)**
+- Pantalla principal dividida: `StoreTitle`, `AccountMenu` y `ClothingCard` pasan a
+  `lib/screens/home/` (home_screen.dart de 517 a ~330 líneas), sin cambios de comportamiento.
+- Formulario de prenda: cada fila de talla/color/existencia vive en
+  `lib/screens/item_form/variant_row.dart` (controladores, validación y widget); las filas
+  llevan clave propia para que al quitar una no se crucen los mensajes de validación, y
+  "AGOTADO" se actualiza también al escribir talla o color.
+- Agregar prenda muestra un mensaje si no se puede generar el código nuevo, en vez de fallar
+  en silencio.
+
+**Ronda 4 (2026-09-23 22:45)**
+- Etiqueta QR: la parte que se guarda/imprime (`_QrSticker`) siempre sale negro sobre blanco,
+  aunque la app esté en tema oscuro (antes salía con fondo oscuro y texto claro).
+- La pantalla del QR ahora se desplaza, para que no se corte en teléfonos chicos o en
+  horizontal; el error al compartir usa el mismo aviso rojo que el resto de la app.
+- Login, nueva tienda y alta de usuarios muestran un mensaje también ante errores
+  inesperados, en vez de quedarse sin respuesta (`AsyncSubmit`).
+
+**Ronda 5 (2026-09-24 08:55)**
+- La confirmación "Descartar cambios" al salir con cambios sin guardar vivía copiada en el
+  formulario de prenda y en el ajuste rápido de existencias; ahora es un solo widget
+  reutilizable (`UnsavedChangesGuard`), con el mismo comportamiento y textos.
+- Avisos de error consistentes: la combinación color/talla repetida y los errores al editar
+  usuarios usan el mismo aviso rojo que el resto de la app.
+
+**Ronda 6 (2026-09-24 09:00)**
+- El precio se interpretaba con el mismo código copiado en tres lugares del formulario
+  (guardar, vista del QR y validación); ahora hay una sola función (`_parsePrecio`), que
+  acepta coma decimal.
+- `ClothingItem` y `ClothingVariant` tienen campos finales (inmutables): una prenda que
+  comparten la UI y la sincronización ya no puede modificarse por accidente. Ningún código
+  los modificaba, así que no cambia el comportamiento.
+
+**Ronda 7 (2026-09-24 10:45)**
+- Sesión: un error pasajero al leer el perfil (red, servidor) ya no deja la pantalla
+  "Sin acceso" para siempre. Solo un permiso realmente denegado la muestra; en cualquier otro
+  caso se conserva el estado actual y el perfil se vuelve a escuchar con espera creciente,
+  así un cambio de rol o una reactivación se siguen detectando sin cerrar sesión.
+- Esa lógica pasa de `FirebaseAuthService.watch` a su propia clase (`SessionWatcher`).
+
+**Ronda 8 (2026-09-27 16:10)**
+- Ajuste rápido de existencias: un doble toque en "Guardar" podía aplicar el mismo +/- dos
+  veces (y cerrar también la pantalla de atrás). Ahora el botón se desactiva mientras guarda.
+  Lo mismo en el formulario de prenda, donde el doble toque cerraba también el catálogo.
+- Sumar una pieza y volver a quitarla ya no cuenta como cambio: "Guardar" queda desactivado
+  y salir no pide confirmar descartar, porque no hay nada que guardar.

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
 import '../widgets/snackbars.dart';
+import '../widgets/unsaved_changes_guard.dart';
 
 /// Fast +/- adjustment of existing colors and sizes, grouped by color — no
 /// need to open the full edit form just to bump a count up or down. Does not
@@ -19,7 +20,7 @@ class QuickStockScreen extends StatefulWidget {
 
 class _QuickStockScreenState extends State<QuickStockScreen> {
   late List<ClothingVariant> _variantes;
-  bool _dirty = false;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -45,31 +46,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
         color: v.color,
         existencia: next < 0 ? 0 : next,
       );
-      _dirty = true;
     });
-  }
-
-  Future<bool> _confirmDiscard() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Descartar cambios'),
-        content: const Text(
-          'Tienes cambios de existencia sin guardar. ¿Deseas salir sin guardarlos?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Seguir editando'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Descartar'),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
   }
 
   /// How much each variant moved on this screen, by [ClothingVariant.key].
@@ -79,7 +56,13 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
           _variantes[i].existencia - widget.item.variantes[i].existencia,
   };
 
+  /// Adding a piece and taking it back out again is not a change: nothing
+  /// to save and nothing to discard.
+  bool get _hasChanges => _stockChanges.values.any((delta) => delta != 0);
+
   Future<void> _save() async {
+    // A second tap while saving would apply the same +/- twice.
+    if (_saving) return;
     // The garment may have changed on another device since this screen
     // opened: apply only this screen's +/- on top of its latest version.
     final latest = widget.repo.getById(widget.item.id);
@@ -87,16 +70,17 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
       showErrorSnackBar(context, 'Esta prenda ya no existe en el catálogo.');
       return;
     }
+    setState(() => _saving = true);
     try {
       await widget.repo.save(latest.withStockChanges(_stockChanges));
     } catch (e) {
       if (mounted) {
+        setState(() => _saving = false);
         showErrorSnackBar(context, 'No se pudo guardar. Inténtalo de nuevo.');
       }
       return;
     }
     if (!mounted) return;
-    _dirty = false;
     Navigator.of(context).pop(true);
   }
 
@@ -119,17 +103,10 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
           .add(i);
     }
 
-    return PopScope(
-      canPop: !_dirty,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-        final descartar = await _confirmDiscard();
-        if (!descartar) return;
-        if (!mounted) return;
-        setState(() => _dirty = false);
-        // ignore: use_build_context_synchronously
-        Navigator.of(context).pop();
-      },
+    return UnsavedChangesGuard(
+      hasChanges: _hasChanges,
+      message:
+          'Tienes cambios de existencia sin guardar. ¿Deseas salir sin guardarlos?',
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -184,7 +161,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
             : SafeArea(
                 minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: FilledButton.icon(
-                  onPressed: _save,
+                  onPressed: _hasChanges && !_saving ? _save : null,
                   icon: const Icon(Icons.save_rounded),
                   label: const Text('Guardar'),
                 ),

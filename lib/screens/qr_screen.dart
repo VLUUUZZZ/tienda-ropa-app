@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/clothing_item.dart';
+import '../widgets/snackbars.dart';
 
 /// Shows the item's QR big enough to screenshot/print and stick on the garment.
 /// The QR only encodes the plain item id — no encryption, nothing sensitive.
@@ -46,10 +47,9 @@ class _QrScreenState extends State<QrScreen> {
       );
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudo compartir la imagen. Intenta de nuevo.'),
-          ),
+        showErrorSnackBar(
+          context,
+          'No se pudo compartir la imagen. Inténtalo de nuevo.',
         );
       }
     } finally {
@@ -64,66 +64,16 @@ class _QrScreenState extends State<QrScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Código QR de la prenda')),
       body: Center(
-        child: Padding(
+        // Scrolls so the sticker never gets cut off on small or landscape
+        // screens.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               RepaintBoundary(
                 key: _repaintKey,
-                child: Container(
-                  color: Colors.white,
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(28),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            widget.item.nombre.isEmpty
-                                ? '(sin nombre)'
-                                : widget.item.nombre,
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 24),
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: colorScheme.shadow.withValues(
-                                    alpha: 0.15,
-                                  ),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: QrImageView(
-                              data: widget.item.id,
-                              version: QrVersions.auto,
-                              size: 240,
-                              gapless: true,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          SelectableText(
-                            widget.item.id,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: colorScheme.outline,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+                child: _QrSticker(item: widget.item),
               ),
               const SizedBox(height: 18),
               Text(
@@ -146,6 +96,58 @@ class _QrScreenState extends State<QrScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The printable part: always black on white, whatever the app's theme, so
+/// every sticker looks the same and scans well once printed.
+class _QrSticker extends StatelessWidget {
+  const _QrSticker({required this.item});
+
+  final ClothingItem item;
+
+  static const Color _ink = Color(0xFF1C1B1F);
+  static const Color _mutedInk = Color(0xFF605D62);
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            item.nombre.isEmpty ? '(sin nombre)' : item.nombre,
+            style: textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: _ink,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          QrImageView(
+            data: item.id,
+            version: QrVersions.auto,
+            size: 240,
+            gapless: true,
+            backgroundColor: Colors.white,
+          ),
+          const SizedBox(height: 18),
+          SelectableText(
+            item.id,
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: _mutedInk,
+            ),
+          ),
+        ],
       ),
     );
   }
