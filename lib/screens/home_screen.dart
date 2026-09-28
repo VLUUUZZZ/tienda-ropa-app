@@ -147,8 +147,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (!mounted) return;
     _reload();
-    if (result == ItemFormResult.saved) _showSavedSnackBar();
-    if (result == ItemFormResult.deleted) _showDeletedSnackBar(item);
+    if (result is ItemFormSaved) _showSavedSnackBar();
+    if (result is ItemFormDeleted) _showDeletedSnackBar(result.item);
   }
 
   Future<void> _quickEditStock(ClothingItem item) async {
@@ -162,35 +162,45 @@ class _HomeScreenState extends State<HomeScreen> {
     if (saved == true) _showSavedSnackBar();
   }
 
+  bool _creatingNew = false;
+
   Future<void> _addManually() async {
-    final String id;
+    // A double-tap on the "+" button would otherwise open two "Nueva
+    // prenda" forms stacked on top of each other.
+    if (_creatingNew) return;
+    _creatingNew = true;
     try {
-      id = await widget.repo.generateId();
-    } catch (e) {
-      if (mounted) {
-        showErrorSnackBar(
-          context,
-          'No se pudo crear la prenda. Inténtalo de nuevo.',
-        );
+      final String id;
+      try {
+        id = await widget.repo.generateId();
+      } catch (e) {
+        if (mounted) {
+          showErrorSnackBar(
+            context,
+            'No se pudo crear la prenda. Inténtalo de nuevo.',
+          );
+        }
+        return;
       }
-      return;
+      if (!mounted) return;
+      final newItem = ClothingItem(
+        id: id,
+        nombre: '',
+        precio: 0,
+        variantes: const [],
+      );
+      final result = await Navigator.of(context).push<ItemFormResult>(
+        MaterialPageRoute(
+          builder: (_) =>
+              ItemFormScreen(repo: widget.repo, item: newItem, isNew: true),
+        ),
+      );
+      if (!mounted) return;
+      _reload();
+      if (result is ItemFormSaved) _showSavedSnackBar();
+    } finally {
+      _creatingNew = false;
     }
-    if (!mounted) return;
-    final newItem = ClothingItem(
-      id: id,
-      nombre: '',
-      precio: 0,
-      variantes: const [],
-    );
-    final result = await Navigator.of(context).push<ItemFormResult>(
-      MaterialPageRoute(
-        builder: (_) =>
-            ItemFormScreen(repo: widget.repo, item: newItem, isNew: true),
-      ),
-    );
-    if (!mounted) return;
-    _reload();
-    if (result == ItemFormResult.saved) _showSavedSnackBar();
   }
 
   Future<void> _scan() async {
@@ -240,7 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return 'No hay prendas que coincidan.';
     }
     return widget.user.canEditCatalog
-        ? 'Aún no hay prendas registradas.\nEscanéala o agrégala con el botón +.'
+        ? 'Aún no hay prendas registradas.\nAgrégala con el botón +.'
         : 'Aún no hay prendas registradas.';
   }
 
