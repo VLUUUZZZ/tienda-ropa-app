@@ -143,7 +143,7 @@ class CatalogSync {
     if (!snapshot.fromServer) return;
 
     if (_state.initialUploadDone) {
-      await _removeDeletedRemotely(remoteIds, pending);
+      await _removeDeletedRemotely(remoteIds);
     } else {
       await _uploadLocalOnlyItems(remoteIds);
     }
@@ -159,10 +159,11 @@ class CatalogSync {
     pushAllPending();
   }
 
-  Future<void> _removeDeletedRemotely(
-    Set<String> remoteIds,
-    Set<String> pending,
-  ) async {
+  Future<void> _removeDeletedRemotely(Set<String> remoteIds) async {
+    // Read fresh instead of reusing the snapshot taken at the top of
+    // _apply: a garment saved locally during that await would otherwise
+    // look neither remote nor pending, and get deleted by mistake.
+    final pending = _state.pendingIds;
     final removed = _local.ids
         .where((id) => !remoteIds.contains(id) && !pending.contains(id))
         .toList();
