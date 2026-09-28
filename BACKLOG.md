@@ -14,6 +14,47 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-28 — sesión automática diaria de pulido
+
+Sin tareas en "Pendiente". Antes de pulir, se incorporaron a esta rama los cambios
+recientes de `master` (8 rondas de mejora que se habían hecho directo ahí), resolviendo
+a mano los archivos que ambos lados habían tocado. Después se revisó `lib/` a fondo
+buscando errores reales de comportamiento, no solo de estilo:
+
+1. Un doble toque en el botón "+" podía crear dos prendas nuevas a la vez (dos
+   formularios apilados) y desperdiciar un número de código. Ahora el segundo toque
+   se ignora mientras el primero sigue en curso; también se corrigió la causa de raíz:
+   generar el siguiente código de prenda dos veces muy seguido podía repetir el mismo
+   número.
+2. Al eliminar una prenda desde el formulario justo después de haber ajustado su
+   existencia con el editor rápido (dentro de la misma visita), el botón "Deshacer"
+   restauraba la existencia de antes del ajuste, no la más reciente. Ahora "Deshacer"
+   siempre restaura la versión correcta.
+3. El mensaje de catálogo vacío invitaba a "escanear" para agregar la primera prenda,
+   pero escanear un código no registrado nunca crea una prenda (solo avisa "QR no
+   reconocido"). Se quitó esa parte confusa del mensaje.
+4. Caso muy raro de sincronización: si se guardaba una prenda nueva en el teléfono en
+   el instante exacto en que llegaba una actualización desde otro teléfono, esa prenda
+   nueva podía borrarse sola (localmente y en la nube). Corregido.
+5. Si a un administrador le quitaban el rol o lo desactivaban mientras tenía abierta la
+   pantalla de Usuarios, la pantalla seguía funcionando como si nada. Ahora se cierra
+   sola apenas cambia su rol.
+6. "Olvidé mi contraseña" con un correo que no existe mostraba "correo o contraseña
+   incorrectos", un mensaje que no tiene sentido ahí (no se pidió contraseña). Ahora
+   dice claramente que no se encontró una cuenta con ese correo.
+7. Al crear una tienda nueva, por una fracción de segundo la app podía mostrar por
+   error la pantalla de "sin acceso" mientras el perfil todavía se estaba guardando.
+   Ya no pasa.
+8. Se deshabilitó el botón de retroceder en "Iniciar nueva tienda" mientras se está
+   creando la cuenta, para que no se pueda "salir" de algo que en realidad ya se está
+   completando en segundo plano.
+9. Varios mensajes de error mencionaban directamente "Firebase" o códigos técnicos
+   sin traducir; se cambiaron por lenguaje sencillo.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/`. No había
+pruebas automatizadas que correr (se retiraron por pedido explícito del usuario el
+2026-09-22). No se compiló el APK: esta sesión no tiene el SDK de Android instalado.
+
 ### 2026-09-27 — sesión automática diaria de pulido
 
 Sin tareas en "Pendiente". Se revisó todo `lib/` en busca de errores reales; el
