@@ -105,10 +105,11 @@ class FirestoreUserDirectory implements UserDirectory {
     try {
       await action();
     } on FirebaseException catch (e) {
+      debugPrint('Firestore (usuarios): ${e.code}');
       throw AuthException(
         e.code == 'permission-denied'
             ? 'No tienes permiso para gestionar usuarios.'
-            : 'No se pudo guardar el usuario (${e.code}).',
+            : 'No se pudo guardar el usuario. Inténtalo de nuevo.',
       );
     }
   }
