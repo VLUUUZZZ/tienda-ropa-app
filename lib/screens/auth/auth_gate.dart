@@ -112,10 +112,18 @@ class _AuthGateState extends State<AuthGate> {
     await repo.close();
   }
 
+  /// True when a screen already on top (pushed for the previous user, e.g.
+  /// [UsersScreen] for an admin) may no longer belong there: a different
+  /// account signed in, or this same account's role or access changed.
   static bool _changesWhoIsIn(AuthState previous, AuthState next) {
-    final before = previous is SignedIn ? previous.user.uid : null;
-    final after = next is SignedIn ? next.user.uid : null;
-    return before != null && before != after && next is! AuthLoading;
+    if (next is AuthLoading) return false;
+    if (previous is! SignedIn) return false;
+    if (next is! SignedIn) return true;
+    final before = previous.user;
+    final after = next.user;
+    return before.uid != after.uid ||
+        before.role != after.role ||
+        before.activo != after.activo;
   }
 
   @override
