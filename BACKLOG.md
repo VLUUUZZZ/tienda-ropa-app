@@ -14,6 +14,26 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-29 — sesión automática diaria de pulido
+
+Sin tareas en "Pendiente". Se revisó a fondo, archivo por archivo, todo `lib/`
+(pantallas, autenticación, sincronización con Firebase, modelo de datos y
+widgets compartidos) buscando errores reales de comportamiento. No se
+encontró ningún bug nuevo: las rondas de pulido de días anteriores ya habían
+cubierto los casos delicados (doble toque, sincronización, roles, mensajes de
+error, contraste de colores, etc.) y el código sigue igual de sólido hoy.
+Por eso no se tocó ningún archivo de código esta sesión, para no arriesgar
+cambios sin un problema real que corregir.
+
+Verificado de nuevo con `flutter analyze` (0 avisos) y `dart format` en todo
+`lib/` (sin cambios pendientes). No hay pruebas automatizadas que correr (se
+retiraron por pedido explícito del usuario el 2026-09-22). No se compiló el
+APK: esta sesión no tiene el SDK de Android instalado.
+
+Nota: la sesión del 2026-09-28 sigue esperando revisión en el Pull Request
+#3 (`auto/mejoras-diarias` → `master`); no se abrió uno nuevo porque ya hay
+uno abierto con todo lo pendiente de revisar.
+
 ### 2026-09-28 — sesión automática diaria de pulido
 
 Sin tareas en "Pendiente". Antes de pulir, se incorporaron a esta rama los cambios
