@@ -50,62 +50,79 @@ class _UserFormScreenState extends State<UserFormScreen> with AsyncSubmit {
     if (created && mounted) Navigator.of(context).pop(true);
   }
 
+  void _blockLeaveWhileBusy(bool didPop, Object? result) {
+    if (didPop) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Espera a que termine de crear la cuenta.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Nuevo usuario')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            TextFormField(
-              controller: _nombreCtrl,
-              textCapitalization: TextCapitalization.words,
-              textInputAction: TextInputAction.next,
-              validator: CredentialValidators.required,
-              decoration: const InputDecoration(
-                labelText: 'Nombre',
-                prefixIcon: Icon(Icons.person_outline_rounded),
+    // The account is already being created by the time this could fire (not
+    // cancellable): leaving now would only make the admin think it was
+    // cancelled while it keeps going in the background.
+    return PopScope(
+      canPop: !busy,
+      onPopInvokedWithResult: _blockLeaveWhileBusy,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Nuevo usuario')),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              TextFormField(
+                controller: _nombreCtrl,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.next,
+                validator: CredentialValidators.required,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre',
+                  prefixIcon: Icon(Icons.person_outline_rounded),
+                ),
               ),
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _correoCtrl,
-              keyboardType: TextInputType.emailAddress,
-              autocorrect: false,
-              textInputAction: TextInputAction.next,
-              validator: CredentialValidators.email,
-              decoration: const InputDecoration(
-                labelText: 'Correo',
-                prefixIcon: Icon(Icons.mail_outline_rounded),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _correoCtrl,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                textInputAction: TextInputAction.next,
+                validator: CredentialValidators.email,
+                decoration: const InputDecoration(
+                  labelText: 'Correo',
+                  prefixIcon: Icon(Icons.mail_outline_rounded),
+                ),
               ),
-            ),
-            const SizedBox(height: 14),
-            PasswordField(
-              controller: _passwordCtrl,
-              label: 'Contraseña temporal',
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _create(),
-              // No es la contraseña de quien usa este teléfono: no ofrecer
-              // guardarla ni autocompletarla desde el administrador de
-              // contraseñas del dispositivo.
-              autofillHints: const [],
-            ),
-            const SizedBox(height: 20),
-            Text('Rol', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            RoleSelector(
-              value: _role,
-              onChanged: (role) => setState(() => _role = role),
-            ),
-            if (error != null) ...[
-              const SizedBox(height: 16),
-              ErrorText(error!),
+              const SizedBox(height: 14),
+              PasswordField(
+                controller: _passwordCtrl,
+                label: 'Contraseña temporal',
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _create(),
+                // No es la contraseña de quien usa este teléfono: no ofrecer
+                // guardarla ni autocompletarla desde el administrador de
+                // contraseñas del dispositivo.
+                autofillHints: const [],
+              ),
+              const SizedBox(height: 20),
+              Text('Rol', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              RoleSelector(
+                value: _role,
+                onChanged: (role) => setState(() => _role = role),
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 16),
+                ErrorText(error!),
+              ],
+              const SizedBox(height: 24),
+              BusyButton(label: 'Crear cuenta', busy: busy, onPressed: _create),
             ],
-            const SizedBox(height: 24),
-            BusyButton(label: 'Crear cuenta', busy: busy, onPressed: _create),
-          ],
+          ),
         ),
       ),
     );
