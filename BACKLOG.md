@@ -14,6 +14,29 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-09-30 — sesión automática diaria de pulido
+
+Sin tareas en "Pendiente". Se revisó a fondo, archivo por archivo, todo `lib/`
+(pantallas, autenticación, sincronización, modelo de datos, widgets) y también
+`firestore.rules` y la configuración de Android, buscando errores reales de
+comportamiento. El código sigue muy sólido gracias a las rondas anteriores;
+se encontró y corrigió un solo detalle real:
+
+1. Al dar de alta un empleado desde Cuenta → Usuarios, si el administrador
+   salía de la pantalla (botón de retroceso) justo mientras la cuenta se
+   estaba creando, la cuenta se seguía creando de todas formas en segundo
+   plano, pero el administrador no veía ninguna confirmación y podía pensar
+   que no funcionó. Ahora esa pantalla espera a que termine, igual que ya
+   pasaba en "Iniciar nueva tienda".
+
+Verificado con `flutter analyze` (0 avisos) y `dart format`. No había
+pruebas automatizadas que correr (se retiraron por pedido explícito del
+usuario el 2026-09-22). No se compiló el APK (`flutter build apk`): esta
+sesión automática no tiene el SDK de Android instalado, solo Flutter.
+
+Nota: la sesión del 2026-09-28 sigue esperando revisión en el Pull Request
+#3 (`auto/mejoras-diarias` → `master`); se sigue usando ese mismo PR.
+
 ### 2026-09-29 — sesión automática diaria de pulido
 
 Sin tareas en "Pendiente". Se revisó a fondo, archivo por archivo, todo `lib/`
