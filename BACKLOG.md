@@ -14,6 +14,29 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-10-01 — sesión automática diaria de pulido
+
+Sin tareas en "Pendiente". Se revisó a fondo, archivo por archivo, todo `lib/`
+(pantallas, autenticación, sincronización, modelo de datos, widgets) y
+`firestore.rules`, buscando errores reales de comportamiento. Se encontró y
+corrigió un detalle real:
+
+1. `SessionWatcher` (quién puede entrar y con qué rol) solo volvía a escuchar
+   el perfil del usuario cuando esa escucha fallaba con un error. Si
+   Firestore la cerraba sin avisar con un error (algo que ya se contempla en
+   la sincronización del catálogo, `CatalogSync`), la app dejaba de detectar
+   cambios de rol o de activación para el resto de esa sesión, hasta volver
+   a iniciar sesión. Ahora también se reintenta en ese caso.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/`
+(sin cambios pendientes). No hay carpeta `test/` (las pruebas automatizadas
+se retiraron por pedido explícito del usuario el 2026-09-22), así que no
+aplica `flutter test`. No se compiló el APK: esta sesión no tiene el SDK de
+Android instalado.
+
+Nota: la sesión del 2026-09-28 sigue esperando revisión en el Pull Request
+#3 (`auto/mejoras-diarias` → `master`); se sigue usando ese mismo PR.
+
 ### 2026-09-30 — sesión automática diaria de pulido
 
 Sin tareas en "Pendiente". Se revisó a fondo, archivo por archivo, todo `lib/`

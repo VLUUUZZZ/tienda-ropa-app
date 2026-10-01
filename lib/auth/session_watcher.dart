@@ -64,13 +64,18 @@ class SessionWatcher {
   }
 
   void _followProfile(User user) {
-    _profileSub = FirestorePaths.user(_firestore, user.uid).snapshots().listen((
-      doc,
-    ) {
-      _backoff.reset();
-      final state = _stateFor(user, doc, isProvisioning());
-      if (state != null) _controller.add(state);
-    }, onError: (Object e) => _onProfileError(user, e));
+    _profileSub = FirestorePaths.user(_firestore, user.uid).snapshots().listen(
+      (doc) {
+        _backoff.reset();
+        final state = _stateFor(user, doc, isProvisioning());
+        if (state != null) _controller.add(state);
+      },
+      onError: (Object e) => _onProfileError(user, e),
+      // Firestore can also close the listener without an error; without this
+      // a role change or reactivation could stop being picked up for the
+      // rest of the session.
+      onDone: () => _scheduleProfileRetry(user),
+    );
   }
 
   void _onProfileError(User user, Object error) {
@@ -78,8 +83,15 @@ class SessionWatcher {
     if (error is FirebaseException && error.code == 'permission-denied') {
       _controller.add(AccessDenied(user.email ?? ''));
     }
-    // Firestore closes a listener after an error: re-open it, or later role
-    // changes (or the connection coming back) would never be seen.
+    _scheduleProfileRetry(user);
+  }
+
+  /// Re-opens the profile listener after an error or an unexpected close, or
+  /// later role changes (or the connection coming back) would never be seen.
+  void _scheduleProfileRetry(User user) {
+    // onError and onDone can both fire for the same closed listener; only
+    // the first one needs to schedule a retry.
+    if (_retryTimer != null) return;
     _profileSub = null;
     _retryTimer = Timer(_backoff.next(), () {
       _retryTimer = null;
