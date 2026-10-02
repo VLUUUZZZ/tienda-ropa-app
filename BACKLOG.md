@@ -14,12 +14,52 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 2. Historial simple de quién ajustó qué y cuándo (útil con varios empleados en el mismo catálogo).
 3. Categorías o tipos de prenda (solo si el catálogo crece mucho).
 4. Leer códigos de barra de proveedor además del QR propio de la app.
-5. Reportes a partir de las ventas (qué se vendió más, valor total del inventario).
+5. Reportes más completos a partir del nuevo registro de ventas (qué se vendió más, por semana/mes, valor total del inventario).
 6. Sincronizar las fotos de las prendas entre teléfonos (hoy son solo locales; requiere habilitar Firebase Storage en el proyecto).
+7. Revisar con más calma, junto al dueño, el caso (raro) de dos teléfonos sin internet creando prendas distintas que puedan terminar compartiendo código — ver nota técnica en la ronda (2) del 2026-10-02.
 
 ## Completado
 
-### 2026-10-02 — sesión automática diaria de pulido
+### 2026-10-02 (2) — a pedido del dueño: bugs críticos e funciones nuevas
+
+El dueño pidió una lista priorizada de bugs y mejoras, y que se trabajara de
+una vez lo crítico y lo importante (lo demás quedó arriba, en "Pendiente").
+Se hizo todo en la misma sesión:
+
+1. **Bug crítico de sincronización**: dos empleados sin señal podían crear
+   cada uno una prenda nueva y, por mala suerte, que ambas calcularan el
+   mismo código (ej. ambas "PRENDA-000011"). Al volver a tener señal, una de
+   las dos se sobrescribía en silencio y desaparecía del catálogo sin ningún
+   aviso. Ahora, al subir una prenda nueva por primera vez, la app verifica
+   que nadie más haya tomado ya ese código; si alguien más lo tomó mientras
+   ambas estaban sin señal, esta prenda recibe un código distinto en vez de
+   perderse. Las ediciones normales a prendas que ya existían no cambiaron
+   en nada.
+2. **Registro de ventas**: ahora cada prenda tiene un botón para "Registrar
+   venta" (cuánto se vendió de cada color/talla), que descuenta la
+   existencia solo y guarda el registro. Un ícono "Ventas" en la pantalla
+   principal muestra el historial completo y el total vendido en el día.
+   Las ventas se sincronizan entre teléfonos igual que el catálogo.
+3. **Exportar catálogo a CSV**: nueva opción en el menú de la cuenta para
+   sacar el catálogo completo como un archivo que se abre en Excel/Sheets —
+   sirve de respaldo y para compartir el inventario con alguien fuera de
+   la app (por ejemplo, el contador).
+4. **Aviso de "pocas unidades"**: antes solo se avisaba "AGOTADO" al llegar
+   a 0. Ahora, con 3 piezas o menos de un color/talla, se avisa antes de
+   que se agote del todo, para reabastecer a tiempo.
+5. **Foto por prenda**: se puede tomar o elegir una foto para cada prenda
+   desde el formulario; aparece como miniatura en la tarjeta del catálogo.
+   Ojo: la foto se guarda solo en ese teléfono, no se comparte todavía con
+   los demás (ver punto 6 de "Pendiente").
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/`.
+No hay carpeta `test/` (se retiraron por pedido explícito del usuario el
+2026-09-22). No se compiló el APK: sigue sin SDK de Android en esta sesión,
+solo Flutter — la función de foto (cámara/galería) no se pudo probar
+visualmente en un teléfono real por la misma razón, aunque sigue el mismo
+patrón de permisos que ya usa el escaneo de QR.
+
+### 2026-10-02 (1) — sesión automática diaria de pulido
 
 Sin tareas en "Pendiente". Se revisó a fondo todo `lib/` (en dos partes: datos/sincronización/autenticación por un lado, pantallas/widgets por otro) buscando errores reales de comportamiento. Se encontraron y corrigieron 5 problemas reales:
 
