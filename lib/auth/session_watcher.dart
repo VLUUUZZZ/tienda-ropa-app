@@ -64,18 +64,24 @@ class SessionWatcher {
   }
 
   void _followProfile(User user) {
-    _profileSub = FirestorePaths.user(_firestore, user.uid).snapshots().listen(
-      (doc) {
-        _backoff.reset();
-        final state = _stateFor(user, doc, isProvisioning());
-        if (state != null) _controller.add(state);
-      },
-      onError: (Object e) => _onProfileError(user, e),
-      // Firestore can also close the listener without an error; without this
-      // a role change or reactivation could stop being picked up for the
-      // rest of the session.
-      onDone: () => _scheduleProfileRetry(user),
-    );
+    // includeMetadataChanges: true, same as CatalogSync's listener, so a
+    // cached "no such document" that the server later confirms still fires:
+    // otherwise that transition is metadata-only and gets skipped, leaving
+    // a nonexistent profile stuck in AuthLoading forever.
+    _profileSub = FirestorePaths.user(_firestore, user.uid)
+        .snapshots(includeMetadataChanges: true)
+        .listen(
+          (doc) {
+            _backoff.reset();
+            final state = _stateFor(user, doc, isProvisioning());
+            if (state != null) _controller.add(state);
+          },
+          onError: (Object e) => _onProfileError(user, e),
+          // Firestore can also close the listener without an error; without this
+          // a role change or reactivation could stop being picked up for the
+          // rest of the session.
+          onDone: () => _scheduleProfileRetry(user),
+        );
   }
 
   void _onProfileError(User user, Object error) {
