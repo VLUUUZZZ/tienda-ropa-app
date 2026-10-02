@@ -14,6 +14,22 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-10-02 — sesión automática diaria de pulido
+
+Sin tareas en "Pendiente". Se revisó a fondo todo `lib/` (en dos partes: datos/sincronización/autenticación por un lado, pantallas/widgets por otro) buscando errores reales de comportamiento. Se encontraron y corrigieron 5 problemas reales:
+
+1. Si el registro guardado en el teléfono de una prenda estaba dañado (muy raro, pero puede pasar), esa prenda se quedaba intentando subirse para siempre sin lograrlo, y de paso dejaba de recibir correcciones que llegaran desde otro teléfono. Ahora ese caso se resuelve igual que los demás errores de sincronización.
+2. En un caso muy puntual (una cuenta de empleado que quedó a medias por un error anterior), la pantalla de "cargando" podía quedarse así para siempre sin pasar a ningún mensaje, dejando a esa persona sin poder entrar ni ver por qué. Corregido.
+3. Al editar el rol o acceso de un empleado desde Cuenta → Usuarios, ahora aparece un mensaje de "Usuario actualizado", igual que al crear una prenda o un usuario (antes no avisaba nada y parecía que no había guardado).
+4. Si se estaba editando una prenda y, sin guardar todavía, se abría el botón de "ajuste rápido de existencia" desde esa misma pantalla, al volver se perdían en silencio los cambios de tallas/colores que se tenían a medio escribir. Ahora la app avisa que hay que guardar o descartar esos cambios antes de usar el ajuste rápido.
+5. Se podía generar e imprimir/compartir el código QR de una prenda nueva antes de guardarla por primera vez, produciendo una etiqueta con un código que el catálogo todavía no reconoce. Ahora se pide guardar la prenda primero.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/`. No hay carpeta `test/` (las pruebas automatizadas se retiraron por pedido explícito del usuario el 2026-09-22), así que no aplica `flutter test`. No se compiló el APK: esta sesión automática no tiene el SDK de Android instalado, solo Flutter.
+
+Nota para revisar con calma (no corregido hoy, por prudencia): se detectó que si dos teléfonos están sin conexión a internet al mismo tiempo y cada uno crea una prenda nueva, en un caso de muy mala suerte ambas podrían terminar con el mismo código, y al reconectarse una sobrescribiría a la otra sin aviso. Arreglarlo bien requiere cambiar cómo se fusionan los cambios al sincronizar, que es un cambio más delicado de lo que una sesión automática debe hacer sin que el dueño lo revise primero.
+
+Nota: la sesión del 2026-09-28 sigue esperando revisión en el Pull Request #3 (`auto/mejoras-diarias` → `master`); se sigue usando ese mismo PR.
+
 ### 2026-10-01 — sesión automática diaria de pulido
 
 Sin tareas en "Pendiente". Se revisó a fondo, archivo por archivo, todo `lib/`
