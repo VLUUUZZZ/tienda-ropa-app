@@ -166,6 +166,17 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   Future<void> _quickEditStock() async {
+    // The quick-stock screen reloads this garment from the repository, not
+    // from these controllers, and replaces the variant rows with whatever it
+    // saved: doing that while there are unsaved edits here would silently
+    // discard them.
+    if (_dirty) {
+      showErrorSnackBar(
+        context,
+        'Guarda o descarta los cambios antes de usar el ajuste rápido.',
+      );
+      return;
+    }
     final current = widget.repo.getById(widget.item.id);
     if (current == null) return;
     final saved = await Navigator.of(context).push<bool>(
