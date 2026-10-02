@@ -14,6 +14,12 @@ class ClothingVariant {
     required this.existencia,
   });
 
+  /// Below this and above zero, it's worth reabastecer soon — same spirit
+  /// as "AGOTADO" but before it actually runs out.
+  static const int umbralStockBajo = 3;
+
+  bool get stockBajo => existencia > 0 && existencia <= umbralStockBajo;
+
   /// What makes a variant unique within a garment: its color and talla,
   /// ignoring case and surrounding spaces.
   String get key =>
@@ -49,6 +55,10 @@ class ClothingItem {
   });
 
   int get existenciaTotal => variantes.fold(0, (sum, v) => sum + v.existencia);
+
+  /// Some color/talla is running low (but not out) and worth reabasteciendo
+  /// soon, even if the garment as a whole still has stock.
+  bool get tieneStockBajo => variantes.any((v) => v.stockBajo);
 
   /// Unique colors across all variants, in first-seen order — what the
   /// catalog card and the quick stock editor show.
