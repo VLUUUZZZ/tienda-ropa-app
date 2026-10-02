@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../auth/app_user.dart';
 import '../auth/user_directory.dart';
+import '../data/catalog_export.dart';
 import '../data/clothing_repository.dart';
 import '../data/sales_repository.dart';
 import '../models/clothing_item.dart';
@@ -198,6 +202,31 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// A CSV of the whole catalog, for a backup outside the app or to hand to
+  /// someone (a spreadsheet, the accountant, a paper inventory).
+  Future<void> _exportCatalog() async {
+    final csv = catalogToCsv(widget.repo.getAll());
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(
+              // BOM so Excel opens the accented names correctly.
+              const Utf8Encoder().convert('﻿$csv'),
+              mimeType: 'text/csv',
+              name: 'catalogo.csv',
+            ),
+          ],
+          fileNameOverrides: ['catalogo.csv'],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackBar(context, 'No se pudo exportar el catálogo.');
+      }
+    }
+  }
+
   bool _creatingNew = false;
 
   Future<void> _addManually() async {
@@ -312,14 +341,14 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: widget.isDarkMode ? 'Tema claro' : 'Tema oscuro',
             onPressed: widget.onToggleTheme,
           ),
-          if (widget.onSignOut case final onSignOut?)
-            AccountMenu(
-              user: widget.user,
-              onManageUsers: _canOpenUsers
-                  ? () => _openUsers(widget.users!)
-                  : null,
-              onSignOut: onSignOut,
-            ),
+          AccountMenu(
+            user: widget.user,
+            onManageUsers: _canOpenUsers
+                ? () => _openUsers(widget.users!)
+                : null,
+            onExport: _exportCatalog,
+            onSignOut: widget.onSignOut,
+          ),
           const SizedBox(width: 4),
         ],
       ),

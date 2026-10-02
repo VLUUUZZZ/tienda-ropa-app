@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../auth/app_user.dart';
 
-enum _AccountAction { users, signOut }
+enum _AccountAction { users, export, signOut }
 
 /// Who is signed in, plus the account actions their role allows.
 class AccountMenu extends StatelessWidget {
@@ -10,12 +10,16 @@ class AccountMenu extends StatelessWidget {
     super.key,
     required this.user,
     required this.onManageUsers,
-    required this.onSignOut,
+    required this.onExport,
+    this.onSignOut,
   });
 
   final AppUser user;
   final VoidCallback? onManageUsers;
-  final VoidCallback onSignOut;
+  final VoidCallback onExport;
+
+  /// Null when there's no session to end (local-only mode).
+  final VoidCallback? onSignOut;
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +28,8 @@ class AccountMenu extends StatelessWidget {
       tooltip: 'Cuenta',
       onSelected: (action) => switch (action) {
         _AccountAction.users => onManageUsers?.call(),
-        _AccountAction.signOut => onSignOut(),
+        _AccountAction.export => onExport(),
+        _AccountAction.signOut => onSignOut?.call(),
       },
       itemBuilder: (context) => [
         PopupMenuItem(
@@ -46,13 +51,22 @@ class AccountMenu extends StatelessWidget {
             ),
           ),
         const PopupMenuItem(
-          value: _AccountAction.signOut,
+          value: _AccountAction.export,
           child: ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.logout_rounded),
-            title: Text('Cerrar sesión'),
+            leading: Icon(Icons.ios_share_rounded),
+            title: Text('Exportar catálogo'),
           ),
         ),
+        if (onSignOut != null)
+          const PopupMenuItem(
+            value: _AccountAction.signOut,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.logout_rounded),
+              title: Text('Cerrar sesión'),
+            ),
+          ),
       ],
     );
   }
