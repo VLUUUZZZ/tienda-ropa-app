@@ -228,6 +228,15 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   void _showQr() {
+    // A label printed before the first save carries a code the catalog
+    // doesn't recognize yet, and still won't if the item is never saved.
+    if (widget.isNew) {
+      showErrorSnackBar(
+        context,
+        'Guarda la prenda antes de imprimir o compartir su código QR.',
+      );
+      return;
+    }
     // Build a live snapshot so the QR screen reflects unsaved edits too.
     final snapshot = ClothingItem(
       id: widget.item.id,
