@@ -16,6 +16,10 @@ class SyncState {
   static const String _pendingPrefix = 'pendiente:';
   static const String _pendingSeqKey = 'pendienteSeq';
 
+  /// `nuevo:<id>` -> true while [id] was minted by this device and never
+  /// confirmed to exist anywhere else yet (see [CatalogSync]).
+  static const String _mintedPrefix = 'nuevo:';
+
   final Box _box;
 
   static Future<SyncState> open(String boxName) async =>
@@ -50,4 +54,15 @@ class SyncState {
   }
 
   static String _pendingKey(String id) => '$_pendingPrefix$id';
+
+  /// Marks [id] as freshly minted by this device: its first push must
+  /// create it remotely only if no one else's device already claimed that
+  /// id while both were offline, instead of blindly overwriting it.
+  Future<void> markLocallyMinted(String id) => _box.put(_mintedKey(id), true);
+
+  bool isLocallyMinted(String id) => _box.get(_mintedKey(id)) == true;
+
+  Future<void> clearLocallyMinted(String id) => _box.delete(_mintedKey(id));
+
+  static String _mintedKey(String id) => '$_mintedPrefix$id';
 }

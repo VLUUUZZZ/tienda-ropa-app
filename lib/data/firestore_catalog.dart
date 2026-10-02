@@ -42,6 +42,18 @@ class FirestoreCatalog implements RemoteCatalog {
   }
 
   @override
+  Future<void> create(ClothingItem item) => _write(() async {
+    await _collection.firestore.runTransaction((tx) async {
+      final ref = _collection.doc(item.id);
+      if ((await tx.get(ref)).exists) throw RemoteIdTaken(item.id);
+      tx.set(ref, {
+        ...item.toMap(),
+        'actualizado': FieldValue.serverTimestamp(),
+      });
+    });
+  });
+
+  @override
   Future<void> upsert(ClothingItem item) => _write(
     () => _collection.doc(item.id).set({
       ...item.toMap(),
