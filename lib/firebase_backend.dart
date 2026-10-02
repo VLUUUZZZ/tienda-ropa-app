@@ -7,6 +7,7 @@ import 'auth/firebase_auth_service.dart';
 import 'auth/firestore_user_directory.dart';
 import 'backend.dart';
 import 'data/firestore_catalog.dart';
+import 'data/firestore_sales.dart';
 import 'firebase_options.dart';
 
 /// Initializes Firebase and wires up the [Backend] on it, or returns null
@@ -32,5 +33,6 @@ Future<Backend?> connectFirebase() async {
     auth: FirebaseAuthService(FirebaseAuth.instance, firestore),
     users: FirestoreUserDirectory(firestore, options),
     catalogFor: (tienda) => FirestoreCatalog(firestore, tienda.id),
+    salesFor: (tienda) => FirestoreSales(firestore, tienda.id),
   );
 }
