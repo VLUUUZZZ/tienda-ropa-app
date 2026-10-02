@@ -22,6 +22,7 @@ class ClothingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final sinStock = item.existenciaTotal == 0;
+    final stockBajo = !sinStock && item.tieneStockBajo;
     final colores = item.coloresDisponibles;
 
     return Card(
@@ -80,15 +81,30 @@ class ClothingCard extends StatelessWidget {
                       avatar: Icon(
                         sinStock
                             ? Icons.error_outline
+                            : stockBajo
+                            ? Icons.warning_amber_rounded
                             : Icons.inventory_2_outlined,
                         size: 16,
-                        color: sinStock ? colorScheme.error : null,
+                        color: sinStock
+                            ? colorScheme.error
+                            : stockBajo
+                            ? colorScheme.onTertiaryContainer
+                            : null,
                       ),
                       label: Text(
-                        sinStock ? 'AGOTADO' : '${item.existenciaTotal} piezas',
+                        sinStock
+                            ? 'AGOTADO'
+                            : stockBajo
+                            ? '${item.existenciaTotal} piezas · pocas'
+                            : '${item.existenciaTotal} piezas',
                       ),
+                      labelStyle: stockBajo
+                          ? TextStyle(color: colorScheme.onTertiaryContainer)
+                          : null,
                       backgroundColor: sinStock
                           ? colorScheme.errorContainer.withValues(alpha: 0.6)
+                          : stockBajo
+                          ? colorScheme.tertiaryContainer.withValues(alpha: 0.6)
                           : null,
                       visualDensity: VisualDensity.compact,
                     ),

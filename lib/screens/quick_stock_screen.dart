@@ -186,6 +186,7 @@ class _VariantRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final agotado = variant.existencia <= 0;
+    final stockBajo = variant.stockBajo;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -197,13 +198,15 @@ class _VariantRow extends StatelessWidget {
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
           ),
-          if (agotado)
+          if (agotado || stockBajo)
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: Text(
-                'AGOTADO',
+                agotado ? 'AGOTADO' : 'POCAS',
                 style: TextStyle(
-                  color: colorScheme.error,
+                  color: agotado
+                      ? colorScheme.error
+                      : colorScheme.onTertiaryContainer,
                   fontWeight: FontWeight.w700,
                   fontSize: 12,
                 ),

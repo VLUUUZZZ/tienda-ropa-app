@@ -30,6 +30,11 @@ class VariantRowControllers {
 
   bool get agotado => isUsed && existenciaValue <= 0;
 
+  bool get stockBajo =>
+      isUsed &&
+      existenciaValue > 0 &&
+      existenciaValue <= ClothingVariant.umbralStockBajo;
+
   ClothingVariant toVariant() => ClothingVariant(
     talla: talla.text.trim(),
     color: color.text.trim(),
@@ -133,8 +138,11 @@ class VariantRowFields extends StatelessWidget {
                 row.color,
                 row.existencia,
               ]),
-              builder: (context, _) =>
-                  row.agotado ? const _AgotadoLabel() : const SizedBox.shrink(),
+              builder: (context, _) => row.agotado
+                  ? const _AgotadoLabel()
+                  : row.stockBajo
+                  ? const _StockBajoLabel()
+                  : const SizedBox.shrink(),
             ),
           ],
         ),
@@ -156,6 +164,28 @@ class _AgotadoLabel extends StatelessWidget {
           'AGOTADO',
           style: TextStyle(
             color: Theme.of(context).colorScheme.error,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StockBajoLabel extends StatelessWidget {
+  const _StockBajoLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          'POCAS UNIDADES',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onTertiaryContainer,
             fontWeight: FontWeight.w700,
             fontSize: 12,
           ),
