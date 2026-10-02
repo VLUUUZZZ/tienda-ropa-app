@@ -4,6 +4,7 @@ import 'package:flutter/scheduler.dart';
 import '../auth/app_user.dart';
 import '../auth/user_directory.dart';
 import '../data/clothing_repository.dart';
+import '../data/sales_repository.dart';
 import '../models/clothing_item.dart';
 import '../widgets/snackbars.dart';
 import 'home/account_menu.dart';
@@ -11,6 +12,8 @@ import 'home/clothing_card.dart';
 import 'home/store_title.dart';
 import 'item_form_screen.dart';
 import 'quick_stock_screen.dart';
+import 'sales/register_sale_screen.dart';
+import 'sales/sales_screen.dart';
 import 'scanner_screen.dart';
 import 'users/users_screen.dart';
 
@@ -18,6 +21,7 @@ import 'users/users_screen.dart';
 /// edit form, adding and deleting; employees only adjust stock.
 class HomeScreen extends StatefulWidget {
   final ClothingRepository repo;
+  final SalesRepository salesRepo;
   final AppUser user;
   final bool isDarkMode;
   final VoidCallback onToggleTheme;
@@ -31,6 +35,7 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     required this.repo,
+    required this.salesRepo,
     required this.user,
     required this.isDarkMode,
     required this.onToggleTheme,
@@ -162,6 +167,37 @@ class _HomeScreenState extends State<HomeScreen> {
     if (saved == true) _showSavedSnackBar();
   }
 
+  Future<void> _registerSale(ClothingItem item) async {
+    final registrada = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => RegisterSaleScreen(
+          repo: widget.repo,
+          salesRepo: widget.salesRepo,
+          item: item,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    _reload();
+    if (registrada == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Venta registrada'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _openSales() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SalesScreen(salesRepo: widget.salesRepo),
+      ),
+    );
+  }
+
   bool _creatingNew = false;
 
   Future<void> _addManually() async {
@@ -263,6 +299,11 @@ class _HomeScreenState extends State<HomeScreen> {
         title: StoreTitle(user: widget.user),
         actions: [
           IconButton(
+            icon: const Icon(Icons.receipt_long_rounded),
+            tooltip: 'Ventas',
+            onPressed: _openSales,
+          ),
+          IconButton(
             icon: Icon(
               widget.isDarkMode
                   ? Icons.light_mode_outlined
@@ -329,6 +370,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       item: _items[index],
                       onTap: () => _openItem(_items[index]),
                       onQuickEdit: () => _quickEditStock(_items[index]),
+                      onSell: () => _registerSale(_items[index]),
                     ),
                   ),
           ),

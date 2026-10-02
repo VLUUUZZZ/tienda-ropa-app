@@ -8,12 +8,14 @@ class ClothingCard extends StatelessWidget {
   final ClothingItem item;
   final VoidCallback onTap;
   final VoidCallback onQuickEdit;
+  final VoidCallback onSell;
 
   const ClothingCard({
     super.key,
     required this.item,
     required this.onTap,
     required this.onQuickEdit,
+    required this.onSell,
   });
 
   @override
@@ -92,6 +94,11 @@ class ClothingCard extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.point_of_sale_rounded),
+                tooltip: 'Registrar venta',
+                onPressed: sinStock ? null : onSell,
               ),
               IconButton(
                 icon: const Icon(Icons.tune_rounded),
