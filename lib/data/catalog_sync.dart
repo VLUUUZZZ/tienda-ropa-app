@@ -81,6 +81,19 @@ class CatalogSync {
     try {
       if (item == null) {
         await _remote.delete(id);
+        await _state.clearLocallyMinted(id);
+      } else if (_state.isLocallyMinted(id)) {
+        // Never confirmed to exist anywhere else: create it atomically
+        // instead of a blind upsert, so another device that independently
+        // minted this same id while both were offline is detected instead
+        // of silently overwritten.
+        try {
+          await _remote.create(item);
+          await _state.clearLocallyMinted(id);
+        } on RemoteIdTaken {
+          await _rekey(id, item, token);
+          return;
+        }
       } else {
         await _remote.upsert(item);
       }
@@ -94,6 +107,34 @@ class CatalogSync {
       // Stays pending: retried on reconnect or on the next launch.
       debugPrint('No se sincronizó $id, se reintentará: $e');
     }
+  }
+
+  /// [id] was minted independently by another device too, while both were
+  /// offline: moves this garment to a freshly minted id instead of
+  /// colliding with the one already claimed remotely.
+  ///
+  /// Clears [id]'s pending mark (with its own token, not the caller's)
+  /// first, so the next remote snapshot restores the other device's real
+  /// item under [id] instead of it staying excluded as "ours, unconfirmed".
+  Future<void> _rekey(String id, ClothingItem item, int token) async {
+    await _state.clearLocallyMinted(id);
+    await _state.confirm(id, token);
+
+    final newId = await _local.nextId();
+    final renamed = ClothingItem(
+      id: newId,
+      nombre: item.nombre,
+      precio: item.precio,
+      variantes: item.variantes,
+    );
+    await _local.write(renamed);
+    await _local.remove(id);
+    await _state.markLocallyMinted(newId);
+    await _state.markPending(newId);
+    debugPrint(
+      'Id $id ya estaba tomado en el servidor; esta prenda pasa a $newId.',
+    );
+    push(newId);
   }
 
   void pushAllPending() => _state.pendingIds.forEach(push);
@@ -156,7 +197,12 @@ class CatalogSync {
   /// being treated as deleted remotely.
   Future<void> _uploadLocalOnlyItems(Set<String> remoteIds) async {
     for (final id in _local.ids.toList()) {
-      if (!remoteIds.contains(id)) await _state.markPending(id);
+      if (!remoteIds.contains(id)) {
+        // Same situation as a freshly minted id: never confirmed remotely,
+        // so its first push must create it instead of a blind upsert.
+        await _state.markLocallyMinted(id);
+        await _state.markPending(id);
+      }
     }
     await _state.markInitialUploadDone();
     pushAllPending();

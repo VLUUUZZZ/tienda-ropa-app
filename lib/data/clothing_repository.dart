@@ -64,8 +64,15 @@ class ClothingRepository {
     _sync = null;
   }
 
-  /// Mints the next human-readable id, e.g. "PRENDA-000024".
-  Future<String> generateId() => _local.nextId();
+  /// Mints the next human-readable id, e.g. "PRENDA-000024", and marks it as
+  /// not yet confirmed to exist anywhere else: another device minting the
+  /// same id while both are offline must not silently overwrite this one
+  /// (see [CatalogSync]).
+  Future<String> generateId() async {
+    final id = await _local.nextId();
+    await _syncState.markLocallyMinted(id);
+    return id;
+  }
 
   List<ClothingItem> getAll() => _local.readAll()
     ..sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
