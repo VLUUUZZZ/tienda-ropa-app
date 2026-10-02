@@ -400,6 +400,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       onTap: () => _openItem(_items[index]),
                       onQuickEdit: () => _quickEditStock(_items[index]),
                       onSell: () => _registerSale(_items[index]),
+                      photoPath: widget.repo.photoPathFor(_items[index].id),
                     ),
                   ),
           ),

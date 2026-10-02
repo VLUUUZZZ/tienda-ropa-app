@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../models/clothing_item.dart';
@@ -10,12 +12,17 @@ class ClothingCard extends StatelessWidget {
   final VoidCallback onQuickEdit;
   final VoidCallback onSell;
 
+  /// This phone's local photo file for [item], if it has one (see
+  /// `ClothingRepository.photoPathFor` — never synced between devices).
+  final String? photoPath;
+
   const ClothingCard({
     super.key,
     required this.item,
     required this.onTap,
     required this.onQuickEdit,
     required this.onSell,
+    this.photoPath,
   });
 
   @override
@@ -36,10 +43,18 @@ class ClothingCard extends StatelessWidget {
               CircleAvatar(
                 radius: 26,
                 backgroundColor: colorScheme.primaryContainer,
-                child: Icon(
-                  Icons.checkroom_rounded,
-                  color: colorScheme.onPrimaryContainer,
-                ),
+                backgroundImage: photoPath == null
+                    ? null
+                    : FileImage(File(photoPath!)),
+                onBackgroundImageError: photoPath == null
+                    ? null
+                    : (exception, stackTrace) {},
+                child: photoPath == null
+                    ? Icon(
+                        Icons.checkroom_rounded,
+                        color: colorScheme.onPrimaryContainer,
+                      )
+                    : null,
               ),
               const SizedBox(width: 14),
               Expanded(
