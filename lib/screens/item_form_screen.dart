@@ -4,6 +4,7 @@ import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
 import '../widgets/snackbars.dart';
 import '../widgets/unsaved_changes_guard.dart';
+import 'item_form/photo_picker.dart';
 import 'item_form/variant_row.dart';
 import 'qr_screen.dart';
 import 'quick_stock_screen.dart';
@@ -284,6 +285,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
+              ItemPhotoPicker(repo: widget.repo, itemId: widget.item.id),
+              const SizedBox(height: 16),
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
