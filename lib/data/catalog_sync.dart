@@ -66,8 +66,11 @@ class CatalogSync {
     try {
       item = _local.read(id);
     } catch (e) {
-      // Unreadable locally: better to leave the remote copy alone.
+      // Unreadable locally: better to leave the remote copy alone. Also
+      // drops the pending mark, or this id would retry forever and stay
+      // immune to remote updates and deletions (see _apply).
       debugPrint('Prenda $id ilegible, no se sube: $e');
+      unawaited(_state.confirm(id, token));
       return;
     }
 
