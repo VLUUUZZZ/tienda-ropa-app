@@ -10,7 +10,12 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Pendiente
 
-(vacío por ahora — agrega tareas aquí, una por línea)
+1. Filtro rápido en la pantalla principal para ver solo "agotado" o "stock bajo".
+2. Historial simple de quién ajustó qué y cuándo (útil con varios empleados en el mismo catálogo).
+3. Categorías o tipos de prenda (solo si el catálogo crece mucho).
+4. Leer códigos de barra de proveedor además del QR propio de la app.
+5. Reportes a partir de las ventas (qué se vendió más, valor total del inventario).
+6. Sincronizar las fotos de las prendas entre teléfonos (hoy son solo locales; requiere habilitar Firebase Storage en el proyecto).
 
 ## Completado
 
