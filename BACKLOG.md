@@ -10,15 +10,47 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Pendiente
 
-1. Filtro rápido en la pantalla principal para ver solo "agotado" o "stock bajo".
-2. Historial simple de quién ajustó qué y cuándo (útil con varios empleados en el mismo catálogo).
-3. Categorías o tipos de prenda (solo si el catálogo crece mucho).
-4. Leer códigos de barra de proveedor además del QR propio de la app.
-5. Reportes más completos a partir del nuevo registro de ventas (qué se vendió más, por semana/mes, valor total del inventario).
-6. Sincronizar las fotos de las prendas entre teléfonos (hoy son solo locales; requiere habilitar Firebase Storage en el proyecto).
-7. Revisar con más calma, junto al dueño, el caso (raro) de dos teléfonos sin internet creando prendas distintas que puedan terminar compartiendo código — ver nota técnica en la ronda (2) del 2026-10-02.
+1. Categorías o tipos de prenda (solo si el catálogo crece mucho).
+2. Sincronizar las fotos de las prendas entre teléfonos (hoy son solo locales; requiere habilitar Firebase Storage en el proyecto — pedir al dueño que lo active en la consola de Firebase antes de implementarlo).
+3. Revisar con más calma, junto al dueño, el caso (raro) de dos teléfonos sin internet creando prendas distintas que puedan terminar compartiendo código — ver nota técnica en la ronda (2) del 2026-10-02.
 
 ## Completado
+
+### 2026-10-03 — sesión automática diaria, 4 tareas de "Pendiente"
+
+Se tomaron 4 de las 7 tareas que había en "Pendiente", de arriba hacia abajo.
+Las otras 3 quedan arriba porque necesitan algo del dueño primero (activar
+Firebase Storage, o revisar con calma un caso delicado de sincronización) o
+son condicionales ("solo si el catálogo crece mucho").
+
+1. **Filtro rápido de existencia**: chips "Todos / Agotado / Stock bajo"
+   arriba del catálogo, junto a la búsqueda por nombre, usando los mismos
+   indicadores que ya mostraba cada tarjeta.
+2. **Historial de ajustes**: nueva sección "Historial de ajustes" (solo
+   para administradores, en Cuenta) que registra quién cambió cuánta
+   existencia de qué prenda y cuándo — tanto desde el ajuste rápido como
+   desde el formulario completo. Se guarda igual que las ventas (en el
+   teléfono y sincronizado entre teléfonos), nunca se edita ni se borra.
+3. **Código de barras de proveedor**: cada prenda puede guardar el código
+   de barras que el proveedor ya le puso (opcional, con botón para
+   escanearlo en el formulario). Al escanear desde la pantalla principal,
+   si el código no es el QR propio de la app, ahora también se busca entre
+   esos códigos de proveedor antes de avisar "Código no reconocido".
+4. **Reportes más completos**: la pantalla de Ventas ahora también muestra
+   el total vendido en la semana y en el mes en curso, lo más vendido (top
+   5 prendas) y el valor actual de todo el inventario (precio x existencia).
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/`.
+No hay carpeta `test/` (se retiraron por pedido explícito del usuario el
+2026-09-22). No se compiló el APK: esta sesión automática no tiene el SDK
+de Android instalado, solo Flutter.
+
+Importante: el historial de ajustes agrega una colección nueva en
+Firestore (`tiendas/{id}/ajustes`) y `firestore.rules` se actualizó para
+permitirla. Hace falta desplegar las reglas nuevas
+(`firebase deploy --only firestore:rules`, o pegarlas en la consola de
+Firebase) para que esa parte funcione en los teléfonos reales — el resto
+de lo hecho hoy no depende de eso.
 
 ### 2026-10-02 (2) — a pedido del dueño: bugs críticos e funciones nuevas
 
