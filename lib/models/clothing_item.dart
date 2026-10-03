@@ -47,11 +47,17 @@ class ClothingItem {
   final double precio;
   final List<ClothingVariant> variantes;
 
+  /// The barcode printed by the supplier on the garment itself, if any —
+  /// read with the same scanner as the app's own QR, so a known supplier
+  /// code finds the garment without printing a new label for it.
+  final String codigoProveedor;
+
   ClothingItem({
     required this.id,
     required this.nombre,
     required this.precio,
     required this.variantes,
+    this.codigoProveedor = '',
   });
 
   int get existenciaTotal => variantes.fold(0, (sum, v) => sum + v.existencia);
@@ -97,6 +103,7 @@ class ClothingItem {
     id: id,
     nombre: nombre,
     precio: precio,
+    codigoProveedor: codigoProveedor,
     variantes: [
       for (final v in variantes)
         ClothingVariant(
@@ -112,6 +119,7 @@ class ClothingItem {
     'nombre': nombre,
     'precio': precio,
     'variantes': variantes.map((v) => v.toMap()).toList(),
+    'codigoProveedor': codigoProveedor,
   };
 
   factory ClothingItem.fromMap(Map<String, dynamic> map) {
@@ -125,6 +133,7 @@ class ClothingItem {
             (v) => ClothingVariant.fromMap(Map<String, dynamic>.from(v as Map)),
           )
           .toList(),
+      codigoProveedor: map['codigoProveedor'] as String? ?? '',
     );
   }
 }

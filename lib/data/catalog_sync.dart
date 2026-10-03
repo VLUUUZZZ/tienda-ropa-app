@@ -126,6 +126,7 @@ class CatalogSync {
       nombre: item.nombre,
       precio: item.precio,
       variantes: item.variantes,
+      codigoProveedor: item.codigoProveedor,
     );
     await _local.write(renamed);
     await _local.remove(id);

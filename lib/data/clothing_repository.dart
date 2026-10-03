@@ -101,6 +101,18 @@ class ClothingRepository {
     }
   }
 
+  /// Finds the garment carrying [codigo] as its supplier barcode, so
+  /// scanning a label the supplier printed (not the app's own QR) still
+  /// finds the right garment. Null if none matches.
+  ClothingItem? getByProviderCode(String codigo) {
+    final q = codigo.trim();
+    if (q.isEmpty) return null;
+    for (final item in getAll()) {
+      if (item.codigoProveedor.trim() == q) return item;
+    }
+    return null;
+  }
+
   Future<void> save(ClothingItem item) async {
     await _local.write(item);
     await _recordChange(item.id);
