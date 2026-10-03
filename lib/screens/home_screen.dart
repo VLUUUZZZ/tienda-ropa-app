@@ -21,6 +21,9 @@ import 'sales/sales_screen.dart';
 import 'scanner_screen.dart';
 import 'users/users_screen.dart';
 
+/// Quick stock filter shown as chips above the catalog list.
+enum _StockFilter { todos, agotado, stockBajo }
+
 /// The catalog. What it offers depends on [user]'s role: admins get the full
 /// edit form, adding and deleting; employees only adjust stock.
 class HomeScreen extends StatefulWidget {
@@ -56,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final Listenable _repoChanges = widget.repo.listenable;
   List<ClothingItem> _items = [];
   bool _reloadScheduled = false;
+  _StockFilter _filter = _StockFilter.todos;
 
   @override
   void initState() {
@@ -85,7 +89,28 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _reload() {
-    setState(() => _items = widget.repo.search(_searchCtrl.text));
+    setState(() => _items = _applyFilter(widget.repo.search(_searchCtrl.text)));
+  }
+
+  void _setFilter(_StockFilter filter) {
+    if (_filter == filter) return;
+    setState(() {
+      _filter = filter;
+      _items = _applyFilter(widget.repo.search(_searchCtrl.text));
+    });
+  }
+
+  List<ClothingItem> _applyFilter(List<ClothingItem> items) {
+    switch (_filter) {
+      case _StockFilter.todos:
+        return items;
+      case _StockFilter.agotado:
+        return items.where((i) => i.existenciaTotal == 0).toList();
+      case _StockFilter.stockBajo:
+        return items
+            .where((i) => i.existenciaTotal > 0 && i.tieneStockBajo)
+            .toList();
+    }
   }
 
   void _showSavedSnackBar() {
@@ -311,7 +336,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool get _canOpenUsers => widget.users != null && widget.user.canManageUsers;
 
   String get _emptyMessage {
-    if (_searchCtrl.text.trim().isNotEmpty) {
+    if (_searchCtrl.text.trim().isNotEmpty || _filter != _StockFilter.todos) {
       return 'No hay prendas que coincidan.';
     }
     return widget.user.canEditCatalog
@@ -368,6 +393,33 @@ class _HomeScreenState extends State<HomeScreen> {
                         tooltip: 'Limpiar búsqueda',
                         onPressed: () => _searchCtrl.clear(),
                       ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  ChoiceChip(
+                    label: const Text('Todos'),
+                    selected: _filter == _StockFilter.todos,
+                    onSelected: (_) => _setFilter(_StockFilter.todos),
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('Agotado'),
+                    selected: _filter == _StockFilter.agotado,
+                    onSelected: (_) => _setFilter(_StockFilter.agotado),
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('Stock bajo'),
+                    selected: _filter == _StockFilter.stockBajo,
+                    onSelected: (_) => _setFilter(_StockFilter.stockBajo),
+                  ),
+                ],
               ),
             ),
           ),
