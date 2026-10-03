@@ -19,6 +19,13 @@ class RemoteSnapshot {
 abstract class RemoteCatalog {
   Stream<RemoteSnapshot> watch();
 
+  /// Creates [item] only if its id doesn't already exist remotely; throws
+  /// [RemoteIdTaken] if it does. Used for an id this device minted and has
+  /// never confirmed exists anywhere else, so two devices that independently
+  /// minted the same id while both offline don't silently overwrite each
+  /// other — see [CatalogSync].
+  Future<void> create(ClothingItem item);
+
   Future<void> upsert(ClothingItem item);
 
   Future<void> delete(String id);
@@ -33,4 +40,14 @@ class RemoteWriteRejected implements Exception {
 
   @override
   String toString() => 'Escritura rechazada: $reason';
+}
+
+/// [RemoteCatalog.create] found [id] already taken by another device.
+class RemoteIdTaken implements Exception {
+  const RemoteIdTaken(this.id);
+
+  final String id;
+
+  @override
+  String toString() => 'El id $id ya existe en el catálogo remoto.';
 }

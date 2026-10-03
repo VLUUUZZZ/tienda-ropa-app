@@ -4,7 +4,9 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'auth/app_user.dart';
 import 'auth/user_directory.dart';
 import 'backend.dart';
+import 'data/adjustments_repository.dart';
 import 'data/clothing_repository.dart';
+import 'data/sales_repository.dart';
 import 'data/settings_repository.dart';
 import 'firebase_backend.dart';
 import 'screens/auth/auth_gate.dart';
@@ -12,35 +14,110 @@ import 'screens/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
+  await _start();
+}
 
-  final settings = SettingsRepository();
-  await settings.init();
+/// Everything needed before the app can show its first real screen. Kept
+/// separate from [main] so a failure (e.g. corrupt local storage) can offer
+/// "Reintentar" instead of a startup crash with no way back in.
+Future<void> _start() async {
+  try {
+    await Hive.initFlutter();
 
-  // Local config only, so this never waits on the network.
-  final backend = await connectFirebase();
+    final settings = SettingsRepository();
+    await settings.init();
 
-  // Without a backend there's no login: a single local catalog. With one,
-  // each store's catalog is opened by the auth gate on sign-in.
-  final localRepo = backend == null ? await ClothingRepository.open() : null;
+    // Local config only, so this never waits on the network.
+    final backend = await connectFirebase();
 
-  runApp(
-    TiendaRopaApp(settings: settings, backend: backend, localRepo: localRepo),
-  );
+    // Without a backend there's no login: a single local catalog. With one,
+    // each store's catalog is opened by the auth gate on sign-in.
+    final localRepo = backend == null ? await ClothingRepository.open() : null;
+    final localSalesRepo = backend == null
+        ? await SalesRepository.open()
+        : null;
+    final localAdjustmentsRepo = backend == null
+        ? await AdjustmentsRepository.open()
+        : null;
+
+    runApp(
+      TiendaRopaApp(
+        settings: settings,
+        backend: backend,
+        localRepo: localRepo,
+        localSalesRepo: localSalesRepo,
+        localAdjustmentsRepo: localAdjustmentsRepo,
+      ),
+    );
+  } catch (e) {
+    debugPrint('No se pudo iniciar la app: $e');
+    runApp(_StartupFailedApp(onRetry: _start));
+  }
+}
+
+/// Shown instead of crashing to a blank screen when something needed to
+/// start the app (usually local storage) couldn't be prepared.
+class _StartupFailedApp extends StatelessWidget {
+  const _StartupFailedApp({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Tienda de Ropa',
+      debugShowCheckedModeBanner: false,
+      theme: buildAppTheme(Brightness.light),
+      darkTheme: buildAppTheme(Brightness.dark),
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'No se pudo iniciar la app',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Revisa que el teléfono tenga espacio libre e inténtalo '
+                  'de nuevo.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: onRetry,
+                  child: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class TiendaRopaApp extends StatefulWidget {
   final SettingsRepository settings;
 
-  /// Null runs the app local-only, without login, on [localRepo].
+  /// Null runs the app local-only, without login, on [localRepo],
+  /// [localSalesRepo] and [localAdjustmentsRepo].
   final Backend? backend;
   final ClothingRepository? localRepo;
+  final SalesRepository? localSalesRepo;
+  final AdjustmentsRepository? localAdjustmentsRepo;
 
   const TiendaRopaApp({
     super.key,
     required this.settings,
     this.backend,
     this.localRepo,
+    this.localSalesRepo,
+    this.localAdjustmentsRepo,
   }) : assert(
          (backend == null) != (localRepo == null),
          'Either a backend or a local catalog',
@@ -76,15 +153,23 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
       theme: buildAppTheme(Brightness.light),
       darkTheme: buildAppTheme(Brightness.dark),
       home: switch (widget.backend) {
-        null => _buildHome(AppUser.local, widget.localRepo!),
+        null => _buildHome(
+          AppUser.local,
+          widget.localRepo!,
+          widget.localSalesRepo!,
+          widget.localAdjustmentsRepo!,
+        ),
         final backend => AuthGate(
           backend: backend,
-          signedInBuilder: (_, user, repo) => _buildHome(
-            user,
-            repo,
-            onSignOut: backend.auth.signOut,
-            users: backend.users,
-          ),
+          signedInBuilder: (_, user, repo, salesRepo, adjustmentsRepo) =>
+              _buildHome(
+                user,
+                repo,
+                salesRepo,
+                adjustmentsRepo,
+                onSignOut: backend.auth.signOut,
+                users: backend.users,
+              ),
         ),
       },
     );
@@ -92,12 +177,16 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
 
   Widget _buildHome(
     AppUser user,
-    ClothingRepository repo, {
+    ClothingRepository repo,
+    SalesRepository salesRepo,
+    AdjustmentsRepository adjustmentsRepo, {
     VoidCallback? onSignOut,
     UserDirectory? users,
   }) {
     return HomeScreen(
       repo: repo,
+      salesRepo: salesRepo,
+      adjustmentsRepo: adjustmentsRepo,
       user: user,
       isDarkMode: _themeMode == ThemeMode.dark,
       onToggleTheme: _toggleTheme,

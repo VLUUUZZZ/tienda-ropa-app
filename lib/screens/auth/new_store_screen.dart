@@ -57,61 +57,87 @@ class _NewStoreScreenState extends State<NewStoreScreen> with AsyncSubmit {
     }
   }
 
+  void _blockLeaveWhileBusy(bool didPop, Object? result) {
+    if (didPop) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Espera a que termine de crear la tienda.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AuthLayout(
-      title: 'Inicia tu nueva tienda',
-      subtitle:
-          'Serás el administrador: gestionas el catálogo y registras a tus '
-          'empleados.',
-      showBack: true,
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextFormField(
-              controller: _nombreCtrl,
-              textCapitalization: TextCapitalization.words,
-              textInputAction: TextInputAction.next,
-              validator: CredentialValidators.required,
-              decoration: const InputDecoration(
-                labelText: 'Tu nombre',
-                prefixIcon: Icon(Icons.person_outline_rounded),
-              ),
+    // The account is already being created by the time this could fire (not
+    // cancellable), so leaving now would only make the user think they
+    // backed out while it keeps going and signs them in moments later.
+    return PopScope(
+      canPop: !busy,
+      onPopInvokedWithResult: _blockLeaveWhileBusy,
+      child: AuthLayout(
+        title: 'Inicia tu nueva tienda',
+        subtitle:
+            'Serás el administrador: gestionas el catálogo y registras a tus '
+            'empleados.',
+        showBack: true,
+        child: Form(
+          key: _formKey,
+          child: AutofillGroup(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  controller: _nombreCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
+                  validator: CredentialValidators.required,
+                  decoration: const InputDecoration(
+                    labelText: 'Tu nombre',
+                    prefixIcon: Icon(Icons.person_outline_rounded),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _correoCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
+                  autofillHints: const [AutofillHints.email],
+                  textInputAction: TextInputAction.next,
+                  validator: CredentialValidators.email,
+                  decoration: const InputDecoration(
+                    labelText: 'Correo',
+                    prefixIcon: Icon(Icons.mail_outline_rounded),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                PasswordField(
+                  controller: _passwordCtrl,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.newPassword],
+                ),
+                const SizedBox(height: 14),
+                PasswordField(
+                  controller: _confirmCtrl,
+                  label: 'Confirmar contraseña',
+                  validator: _validateConfirm,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _create(),
+                  autofillHints: const [AutofillHints.newPassword],
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 14),
+                  ErrorText(error!),
+                ],
+                const SizedBox(height: 20),
+                BusyButton(
+                  label: 'Crear tienda',
+                  busy: busy,
+                  onPressed: _create,
+                ),
+              ],
             ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _correoCtrl,
-              keyboardType: TextInputType.emailAddress,
-              autocorrect: false,
-              textInputAction: TextInputAction.next,
-              validator: CredentialValidators.email,
-              decoration: const InputDecoration(
-                labelText: 'Correo',
-                prefixIcon: Icon(Icons.mail_outline_rounded),
-              ),
-            ),
-            const SizedBox(height: 14),
-            PasswordField(
-              controller: _passwordCtrl,
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 14),
-            PasswordField(
-              controller: _confirmCtrl,
-              label: 'Confirmar contraseña',
-              validator: _validateConfirm,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _create(),
-            ),
-            if (error != null) ...[
-              const SizedBox(height: 14),
-              ErrorText(error!),
-            ],
-            const SizedBox(height: 20),
-            BusyButton(label: 'Crear tienda', busy: busy, onPressed: _create),
-          ],
+          ),
         ),
       ),
     );

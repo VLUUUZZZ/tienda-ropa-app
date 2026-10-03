@@ -41,9 +41,13 @@ class _LoginScreenState extends State<LoginScreen> with AsyncSubmit {
   }
 
   Future<void> _resetPassword() async {
+    if (_correoCtrl.text.trim().isEmpty) {
+      setState(() => error = 'Escribe tu correo para recuperar la contraseña.');
+      return;
+    }
     final correoError = CredentialValidators.email(_correoCtrl.text);
     if (correoError != null) {
-      setState(() => error = 'Escribe tu correo para recuperar la contraseña.');
+      setState(() => error = correoError);
       return;
     }
     final sent = await submit(

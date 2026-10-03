@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../auth/app_user.dart';
+import '../data/adjustments_repository.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
+import '../models/stock_adjustment.dart';
 import '../widgets/snackbars.dart';
 import '../widgets/unsaved_changes_guard.dart';
 
@@ -10,9 +15,17 @@ import '../widgets/unsaved_changes_guard.dart';
 /// add or remove colors/tallas; that still goes through [ItemFormScreen].
 class QuickStockScreen extends StatefulWidget {
   final ClothingRepository repo;
+  final AdjustmentsRepository adjustmentsRepo;
+  final AppUser user;
   final ClothingItem item;
 
-  const QuickStockScreen({super.key, required this.repo, required this.item});
+  const QuickStockScreen({
+    super.key,
+    required this.repo,
+    required this.adjustmentsRepo,
+    required this.user,
+    required this.item,
+  });
 
   @override
   State<QuickStockScreen> createState() => _QuickStockScreenState();
@@ -70,15 +83,36 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
       showErrorSnackBar(context, 'Esta prenda ya no existe en el catálogo.');
       return;
     }
+    final changes = _stockChanges;
     setState(() => _saving = true);
     try {
-      await widget.repo.save(latest.withStockChanges(_stockChanges));
+      await widget.repo.save(latest.withStockChanges(changes));
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
         showErrorSnackBar(context, 'No se pudo guardar. Inténtalo de nuevo.');
       }
       return;
+    }
+    // Best-effort audit trail: a failure here must never block the stock
+    // change itself, already saved above.
+    for (final v in _variantes) {
+      final delta = changes[v.key] ?? 0;
+      if (delta == 0) continue;
+      unawaited(
+        widget.adjustmentsRepo.registrar(
+          StockAdjustment(
+            id: StockAdjustment.newId(),
+            itemId: latest.id,
+            nombreItem: latest.nombre,
+            color: v.color,
+            talla: v.talla,
+            delta: delta,
+            usuarioNombre: widget.user.nombre,
+            fecha: DateTime.now(),
+          ),
+        ),
+      );
     }
     if (!mounted) return;
     Navigator.of(context).pop(true);
@@ -185,7 +219,8 @@ class _VariantRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final agotado = variant.existencia == 0;
+    final agotado = variant.existencia <= 0;
+    final stockBajo = variant.stockBajo;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -197,13 +232,15 @@ class _VariantRow extends StatelessWidget {
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
           ),
-          if (agotado)
+          if (agotado || stockBajo)
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: Text(
-                'AGOTADO',
+                agotado ? 'AGOTADO' : 'POCAS',
                 style: TextStyle(
-                  color: colorScheme.error,
+                  color: agotado
+                      ? colorScheme.error
+                      : colorScheme.onTertiaryContainer,
                   fontWeight: FontWeight.w700,
                   fontSize: 12,
                 ),

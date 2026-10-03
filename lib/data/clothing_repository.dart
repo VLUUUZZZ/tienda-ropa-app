@@ -4,6 +4,7 @@ import '../models/clothing_item.dart';
 import 'backoff.dart';
 import 'catalog_sync.dart';
 import 'local_catalog.dart';
+import 'local_photos.dart';
 import 'remote_catalog.dart';
 import 'sync_state.dart';
 
@@ -17,7 +18,7 @@ import 'sync_state.dart';
 /// Each store keeps its own data on the device, so two stores signed in on
 /// the same phone never mix their catalogs.
 class ClothingRepository {
-  ClothingRepository._(this._local, this._syncState);
+  ClothingRepository._(this._local, this._syncState, this._photos);
 
   /// Wait before re-listening to the remote after an error; doubles on each
   /// consecutive failure up to [_maxRetryDelay].
@@ -26,6 +27,7 @@ class ClothingRepository {
 
   final LocalCatalog _local;
   final SyncState _syncState;
+  final LocalPhotos _photos;
   CatalogSync? _sync;
 
   /// Opens the catalog of the store [tiendaId], or the local-only catalog
@@ -35,6 +37,7 @@ class ClothingRepository {
     return ClothingRepository._(
       await LocalCatalog.open(scoped('clothing_items')),
       await SyncState.open(scoped('catalog_sync')),
+      await LocalPhotos.open(scoped('clothing_photos')),
     );
   }
 
@@ -43,7 +46,17 @@ class ClothingRepository {
     await detachRemote();
     await _local.close();
     await _syncState.close();
+    await _photos.close();
   }
+
+  /// This garment's photo file on this phone, if it has one. Never synced to
+  /// other devices — see [LocalPhotos].
+  String? photoPathFor(String id) => _photos.pathFor(id);
+
+  Future<void> setPhotoPath(String id, String path) =>
+      _photos.setPath(id, path);
+
+  Future<void> removePhotoPath(String id) => _photos.remove(id);
 
   /// Fires whenever the catalog changes, including changes that arrive from
   /// other devices.
@@ -64,11 +77,25 @@ class ClothingRepository {
     _sync = null;
   }
 
-  /// Mints the next human-readable id, e.g. "PRENDA-000024".
-  Future<String> generateId() => _local.nextId();
+  /// Mints the next human-readable id, e.g. "PRENDA-000024", and marks it as
+  /// not yet confirmed to exist anywhere else: another device minting the
+  /// same id while both are offline must not silently overwrite this one
+  /// (see [CatalogSync]).
+  Future<String> generateId() async {
+    final id = await _local.nextId();
+    await _syncState.markLocallyMinted(id);
+    return id;
+  }
 
   List<ClothingItem> getAll() => _local.readAll()
     ..sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
+
+  /// Sum of each garment's price times its total stock — what the whole
+  /// catalog is worth right now, at selling price.
+  double get valorInventario => getAll().fold(
+    0.0,
+    (suma, item) => suma + item.precio * item.existenciaTotal,
+  );
 
   /// Null if there's no such garment, or its record is unreadable: a corrupt
   /// entry must never crash the screen that opens or scans it.
@@ -79,6 +106,18 @@ class ClothingRepository {
       debugPrint('Prenda $id ilegible: $e');
       return null;
     }
+  }
+
+  /// Finds the garment carrying [codigo] as its supplier barcode, so
+  /// scanning a label the supplier printed (not the app's own QR) still
+  /// finds the right garment. Null if none matches.
+  ClothingItem? getByProviderCode(String codigo) {
+    final q = codigo.trim();
+    if (q.isEmpty) return null;
+    for (final item in getAll()) {
+      if (item.codigoProveedor.trim() == q) return item;
+    }
+    return null;
   }
 
   Future<void> save(ClothingItem item) async {

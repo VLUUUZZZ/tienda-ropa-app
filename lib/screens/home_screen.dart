@@ -1,23 +1,37 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../auth/app_user.dart';
 import '../auth/user_directory.dart';
+import '../data/adjustments_repository.dart';
+import '../data/catalog_export.dart';
 import '../data/clothing_repository.dart';
+import '../data/sales_repository.dart';
 import '../models/clothing_item.dart';
 import '../widgets/snackbars.dart';
+import 'adjustments/adjustments_screen.dart';
 import 'home/account_menu.dart';
 import 'home/clothing_card.dart';
 import 'home/store_title.dart';
 import 'item_form_screen.dart';
 import 'quick_stock_screen.dart';
+import 'sales/register_sale_screen.dart';
+import 'sales/sales_screen.dart';
 import 'scanner_screen.dart';
 import 'users/users_screen.dart';
+
+/// Quick stock filter shown as chips above the catalog list.
+enum _StockFilter { todos, agotado, stockBajo }
 
 /// The catalog. What it offers depends on [user]'s role: admins get the full
 /// edit form, adding and deleting; employees only adjust stock.
 class HomeScreen extends StatefulWidget {
   final ClothingRepository repo;
+  final SalesRepository salesRepo;
+  final AdjustmentsRepository adjustmentsRepo;
   final AppUser user;
   final bool isDarkMode;
   final VoidCallback onToggleTheme;
@@ -31,6 +45,8 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     required this.repo,
+    required this.salesRepo,
+    required this.adjustmentsRepo,
     required this.user,
     required this.isDarkMode,
     required this.onToggleTheme,
@@ -47,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final Listenable _repoChanges = widget.repo.listenable;
   List<ClothingItem> _items = [];
   bool _reloadScheduled = false;
+  _StockFilter _filter = _StockFilter.todos;
 
   @override
   void initState() {
@@ -76,20 +93,53 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _reload() {
-    setState(() => _items = widget.repo.search(_searchCtrl.text));
+    setState(() => _items = _applyFilter(widget.repo.search(_searchCtrl.text)));
+  }
+
+  void _setFilter(_StockFilter filter) {
+    if (_filter == filter) return;
+    setState(() {
+      _filter = filter;
+      _items = _applyFilter(widget.repo.search(_searchCtrl.text));
+    });
+  }
+
+  List<ClothingItem> _applyFilter(List<ClothingItem> items) {
+    switch (_filter) {
+      case _StockFilter.todos:
+        return items;
+      case _StockFilter.agotado:
+        return items.where((i) => i.existenciaTotal == 0).toList();
+      case _StockFilter.stockBajo:
+        return items
+            .where((i) => i.existenciaTotal > 0 && i.tieneStockBajo)
+            .toList();
+    }
   }
 
   void _showSavedSnackBar() {
+    // Explicit colors instead of the default SnackBar look: the default
+    // background flips between dark (light theme) and light (dark theme),
+    // so a hardcoded white icon would turn invisible in dark mode.
+    final colorScheme = Theme.of(context).colorScheme;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Row(
           children: [
-            Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            Text('Cambios guardados'),
+            Icon(
+              Icons.check_circle_outline,
+              color: colorScheme.onInverseSurface,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Cambios guardados',
+              style: TextStyle(color: colorScheme.onInverseSurface),
+            ),
           ],
         ),
-        duration: Duration(seconds: 2),
+        backgroundColor: colorScheme.inverseSurface,
+        duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -130,53 +180,146 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final result = await Navigator.of(context).push<ItemFormResult>(
       MaterialPageRoute(
-        builder: (_) => ItemFormScreen(repo: widget.repo, item: item),
+        builder: (_) => ItemFormScreen(
+          repo: widget.repo,
+          adjustmentsRepo: widget.adjustmentsRepo,
+          user: widget.user,
+          item: item,
+        ),
       ),
     );
-    _reload();
     if (!mounted) return;
-    if (result == ItemFormResult.saved) _showSavedSnackBar();
-    if (result == ItemFormResult.deleted) _showDeletedSnackBar(item);
+    _reload();
+    if (result is ItemFormSaved) _showSavedSnackBar();
+    if (result is ItemFormDeleted) _showDeletedSnackBar(result.item);
   }
 
   Future<void> _quickEditStock(ClothingItem item) async {
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => QuickStockScreen(repo: widget.repo, item: item),
+        builder: (_) => QuickStockScreen(
+          repo: widget.repo,
+          adjustmentsRepo: widget.adjustmentsRepo,
+          user: widget.user,
+          item: item,
+        ),
       ),
     );
+    if (!mounted) return;
     _reload();
-    if (saved == true && mounted) _showSavedSnackBar();
+    if (saved == true) _showSavedSnackBar();
   }
 
-  Future<void> _addManually() async {
-    final String id;
-    try {
-      id = await widget.repo.generateId();
-    } catch (e) {
-      if (mounted) {
-        showErrorSnackBar(
-          context,
-          'No se pudo crear la prenda. Inténtalo de nuevo.',
-        );
-      }
-      return;
-    }
-    if (!mounted) return;
-    final newItem = ClothingItem(
-      id: id,
-      nombre: '',
-      precio: 0,
-      variantes: const [],
-    );
-    final result = await Navigator.of(context).push<ItemFormResult>(
+  Future<void> _registerSale(ClothingItem item) async {
+    final registrada = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) =>
-            ItemFormScreen(repo: widget.repo, item: newItem, isNew: true),
+        builder: (_) => RegisterSaleScreen(
+          repo: widget.repo,
+          salesRepo: widget.salesRepo,
+          item: item,
+        ),
       ),
     );
+    if (!mounted) return;
     _reload();
-    if (result == ItemFormResult.saved && mounted) _showSavedSnackBar();
+    if (registrada == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Venta registrada'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _openSales() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            SalesScreen(salesRepo: widget.salesRepo, repo: widget.repo),
+      ),
+    );
+  }
+
+  void _openAdjustments() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            AdjustmentsScreen(adjustmentsRepo: widget.adjustmentsRepo),
+      ),
+    );
+  }
+
+  /// A CSV of the whole catalog, for a backup outside the app or to hand to
+  /// someone (a spreadsheet, the accountant, a paper inventory).
+  Future<void> _exportCatalog() async {
+    final csv = catalogToCsv(widget.repo.getAll());
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(
+              // BOM so Excel opens the accented names correctly.
+              const Utf8Encoder().convert('﻿$csv'),
+              mimeType: 'text/csv',
+              name: 'catalogo.csv',
+            ),
+          ],
+          fileNameOverrides: ['catalogo.csv'],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackBar(context, 'No se pudo exportar el catálogo.');
+      }
+    }
+  }
+
+  bool _creatingNew = false;
+
+  Future<void> _addManually() async {
+    // A double-tap on the "+" button would otherwise open two "Nueva
+    // prenda" forms stacked on top of each other.
+    if (_creatingNew) return;
+    _creatingNew = true;
+    try {
+      final String id;
+      try {
+        id = await widget.repo.generateId();
+      } catch (e) {
+        if (mounted) {
+          showErrorSnackBar(
+            context,
+            'No se pudo crear la prenda. Inténtalo de nuevo.',
+          );
+        }
+        return;
+      }
+      if (!mounted) return;
+      final newItem = ClothingItem(
+        id: id,
+        nombre: '',
+        precio: 0,
+        variantes: const [],
+      );
+      final result = await Navigator.of(context).push<ItemFormResult>(
+        MaterialPageRoute(
+          builder: (_) => ItemFormScreen(
+            repo: widget.repo,
+            adjustmentsRepo: widget.adjustmentsRepo,
+            user: widget.user,
+            item: newItem,
+            isNew: true,
+          ),
+        ),
+      );
+      if (!mounted) return;
+      _reload();
+      if (result is ItemFormSaved) _showSavedSnackBar();
+    } finally {
+      _creatingNew = false;
+    }
   }
 
   Future<void> _scan() async {
@@ -185,7 +328,8 @@ class _HomeScreenState extends State<HomeScreen> {
     ).push<String>(MaterialPageRoute(builder: (_) => const ScannerScreen()));
     if (code == null || !mounted) return;
 
-    final existing = widget.repo.getById(code);
+    final existing =
+        widget.repo.getById(code) ?? widget.repo.getByProviderCode(code);
     if (existing == null) {
       await _showUnrecognizedQrDialog();
       return;
@@ -205,7 +349,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('QR no reconocido'),
+        title: const Text('Código no reconocido'),
         content: const Text(
           'Este código no corresponde a una prenda registrada.',
         ),
@@ -222,11 +366,11 @@ class _HomeScreenState extends State<HomeScreen> {
   bool get _canOpenUsers => widget.users != null && widget.user.canManageUsers;
 
   String get _emptyMessage {
-    if (_searchCtrl.text.trim().isNotEmpty) {
+    if (_searchCtrl.text.trim().isNotEmpty || _filter != _StockFilter.todos) {
       return 'No hay prendas que coincidan.';
     }
     return widget.user.canEditCatalog
-        ? 'Aún no hay prendas registradas.\nEscanéala o agrégala con el botón +.'
+        ? 'Aún no hay prendas registradas.\nAgrégala con el botón +.'
         : 'Aún no hay prendas registradas.';
   }
 
@@ -239,6 +383,11 @@ class _HomeScreenState extends State<HomeScreen> {
         title: StoreTitle(user: widget.user),
         actions: [
           IconButton(
+            icon: const Icon(Icons.receipt_long_rounded),
+            tooltip: 'Ventas',
+            onPressed: _openSales,
+          ),
+          IconButton(
             icon: Icon(
               widget.isDarkMode
                   ? Icons.light_mode_outlined
@@ -247,14 +396,17 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: widget.isDarkMode ? 'Tema claro' : 'Tema oscuro',
             onPressed: widget.onToggleTheme,
           ),
-          if (widget.onSignOut case final onSignOut?)
-            AccountMenu(
-              user: widget.user,
-              onManageUsers: _canOpenUsers
-                  ? () => _openUsers(widget.users!)
-                  : null,
-              onSignOut: onSignOut,
-            ),
+          AccountMenu(
+            user: widget.user,
+            onManageUsers: _canOpenUsers
+                ? () => _openUsers(widget.users!)
+                : null,
+            onExport: _exportCatalog,
+            onViewAdjustments: widget.user.canManageUsers
+                ? _openAdjustments
+                : null,
+            onSignOut: widget.onSignOut,
+          ),
           const SizedBox(width: 4),
         ],
       ),
@@ -271,8 +423,36 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? null
                     : IconButton(
                         icon: const Icon(Icons.clear_rounded),
+                        tooltip: 'Limpiar búsqueda',
                         onPressed: () => _searchCtrl.clear(),
                       ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  ChoiceChip(
+                    label: const Text('Todos'),
+                    selected: _filter == _StockFilter.todos,
+                    onSelected: (_) => _setFilter(_StockFilter.todos),
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('Agotado'),
+                    selected: _filter == _StockFilter.agotado,
+                    onSelected: (_) => _setFilter(_StockFilter.agotado),
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('Stock bajo'),
+                    selected: _filter == _StockFilter.stockBajo,
+                    onSelected: (_) => _setFilter(_StockFilter.stockBajo),
+                  ),
+                ],
               ),
             ),
           ),
@@ -304,6 +484,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       item: _items[index],
                       onTap: () => _openItem(_items[index]),
                       onQuickEdit: () => _quickEditStock(_items[index]),
+                      onSell: () => _registerSale(_items[index]),
+                      photoPath: widget.repo.photoPathFor(_items[index].id),
                     ),
                   ),
           ),

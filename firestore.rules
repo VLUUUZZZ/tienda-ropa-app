@@ -77,6 +77,36 @@ service cloud.firestore {
           && request.resource.data.variantes.size() == resource.data.variantes.size()
         );
       }
+
+      // Append-only sales log: anyone on staff can record a sale, nobody
+      // edits or removes one afterward (a mistake is corrected with a new
+      // entry, not a rewrite of history).
+      match /ventas/{ventaId} {
+        allow read: if isMemberOf(tiendaId);
+        allow create: if isMemberOf(tiendaId)
+          && request.resource.data.keys().hasOnly(
+              ['itemId', 'nombreItem', 'color', 'talla', 'cantidad', 'precioUnitario', 'fecha', 'creado'])
+          && request.resource.data.itemId is string
+          && request.resource.data.nombreItem is string
+          && request.resource.data.cantidad is int && request.resource.data.cantidad > 0
+          && request.resource.data.precioUnitario is number && request.resource.data.precioUnitario >= 0;
+        allow update, delete: if false;
+      }
+
+      // Append-only stock-adjustment history: anyone on staff can record one
+      // (quick stock edit or full form), nobody edits or removes it
+      // afterward — same reasoning as ventas above.
+      match /ajustes/{ajusteId} {
+        allow read: if isMemberOf(tiendaId);
+        allow create: if isMemberOf(tiendaId)
+          && request.resource.data.keys().hasOnly(
+              ['itemId', 'nombreItem', 'color', 'talla', 'delta', 'usuarioNombre', 'fecha', 'creado'])
+          && request.resource.data.itemId is string
+          && request.resource.data.nombreItem is string
+          && request.resource.data.usuarioNombre is string
+          && request.resource.data.delta is int && request.resource.data.delta != 0;
+        allow update, delete: if false;
+      }
     }
 
     match /usuarios/{uid} {

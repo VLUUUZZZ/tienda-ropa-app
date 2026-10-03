@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import '../../auth/app_user.dart';
 import '../../auth/auth_service.dart';
 import '../../backend.dart';
+import '../../data/adjustments_repository.dart';
 import '../../data/clothing_repository.dart';
+import '../../data/sales_repository.dart';
 import '../../widgets/auth_layout.dart';
 import 'login_screen.dart';
 
@@ -14,6 +16,8 @@ typedef SignedInBuilder =
       BuildContext context,
       AppUser user,
       ClothingRepository repo,
+      SalesRepository salesRepo,
+      AdjustmentsRepository adjustmentsRepo,
     );
 
 /// Shows a store only to a signed-in user with an active profile. While they
@@ -37,8 +41,11 @@ class _AuthGateState extends State<AuthGate> {
   late final StreamSubscription<AuthState> _subscription;
   AuthState _state = const AuthLoading();
 
-  /// The open catalog, and whose store it belongs to.
+  /// The open catalog, sales log and adjustment history, and whose store
+  /// they belong to.
   ClothingRepository? _repo;
+  SalesRepository? _salesRepo;
+  AdjustmentsRepository? _adjustmentsRepo;
   String? _repoTiendaId;
 
   /// Set when the store's catalog couldn't be opened on this device.
@@ -54,6 +61,8 @@ class _AuthGateState extends State<AuthGate> {
   void dispose() {
     unawaited(_subscription.cancel());
     unawaited(_repo?.close());
+    unawaited(_salesRepo?.close());
+    unawaited(_adjustmentsRepo?.close());
     super.dispose();
   }
 
@@ -79,28 +88,44 @@ class _AuthGateState extends State<AuthGate> {
     if (_repoTiendaId == tienda.id && !_openFailed) return;
     await _closeStore();
     _repoTiendaId = tienda.id;
-    final ClothingRepository repo;
+    ClothingRepository? repo;
+    SalesRepository? salesRepo;
+    AdjustmentsRepository? adjustmentsRepo;
     try {
       repo = await ClothingRepository.open(tiendaId: tienda.id);
+      salesRepo = await SalesRepository.open(tiendaId: tienda.id);
+      adjustmentsRepo = await AdjustmentsRepository.open(tiendaId: tienda.id);
+      if (!mounted || _repoTiendaId != tienda.id) {
+        await repo.close();
+        await salesRepo.close();
+        await adjustmentsRepo.close();
+        return;
+      }
+      await repo.attachRemote(widget.backend.catalogFor(tienda));
+      await salesRepo.attachRemote(widget.backend.salesFor(tienda));
+      await adjustmentsRepo.attachRemote(widget.backend.adjustmentsFor(tienda));
+      setState(() {
+        _repo = repo;
+        _salesRepo = salesRepo;
+        _adjustmentsRepo = adjustmentsRepo;
+        _openFailed = false;
+      });
     } catch (e) {
       debugPrint('No se pudo abrir el catálogo de ${tienda.id}: $e');
+      await repo?.close();
+      await salesRepo?.close();
+      await adjustmentsRepo?.close();
       if (mounted) setState(() => _openFailed = true);
-      return;
     }
-    if (!mounted || _repoTiendaId != tienda.id) {
-      await repo.close();
-      return;
-    }
-    await repo.attachRemote(widget.backend.catalogFor(tienda));
-    setState(() {
-      _repo = repo;
-      _openFailed = false;
-    });
   }
 
   Future<void> _closeStore() async {
     final repo = _repo;
+    final salesRepo = _salesRepo;
+    final adjustmentsRepo = _adjustmentsRepo;
     _repo = null;
+    _salesRepo = null;
+    _adjustmentsRepo = null;
     _repoTiendaId = null;
     _openFailed = false;
     if (repo == null) return;
@@ -110,12 +135,22 @@ class _AuthGateState extends State<AuthGate> {
       await WidgetsBinding.instance.endOfFrame;
     }
     await repo.close();
+    await salesRepo?.close();
+    await adjustmentsRepo?.close();
   }
 
+  /// True when a screen already on top (pushed for the previous user, e.g.
+  /// [UsersScreen] for an admin) may no longer belong there: a different
+  /// account signed in, or this same account's role or access changed.
   static bool _changesWhoIsIn(AuthState previous, AuthState next) {
-    final before = previous is SignedIn ? previous.user.uid : null;
-    final after = next is SignedIn ? next.user.uid : null;
-    return before != null && before != after && next is! AuthLoading;
+    if (next is AuthLoading) return false;
+    if (previous is! SignedIn) return false;
+    if (next is! SignedIn) return true;
+    final before = previous.user;
+    final after = next.user;
+    return before.uid != after.uid ||
+        before.role != after.role ||
+        before.activo != after.activo;
   }
 
   @override
@@ -136,7 +171,13 @@ class _AuthGateState extends State<AuthGate> {
       SignedIn() when repo == null => _LoadingScreen(onSignOut: auth.signOut),
       SignedIn(:final user) => KeyedSubtree(
         key: ValueKey(user.uid),
-        child: widget.signedInBuilder(context, user, repo!),
+        child: widget.signedInBuilder(
+          context,
+          user,
+          repo!,
+          _salesRepo!,
+          _adjustmentsRepo!,
+        ),
       ),
     };
   }

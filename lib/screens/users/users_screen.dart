@@ -56,8 +56,13 @@ class _UsersScreenState extends State<UsersScreen> {
     if (updated == null) return;
     try {
       await users.update(updated);
+      if (context.mounted) _showMessage(context, 'Usuario actualizado');
     } on AuthException catch (e) {
       if (context.mounted) showErrorSnackBar(context, e.message);
+    } catch (e) {
+      if (context.mounted) {
+        showErrorSnackBar(context, 'No se pudo guardar. Inténtalo de nuevo.');
+      }
     }
   }
 

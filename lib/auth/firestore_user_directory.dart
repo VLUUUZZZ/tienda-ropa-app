@@ -74,9 +74,9 @@ class FirestoreUserDirectory implements UserDirectory {
             profile.uid,
           ).set({...profile.toMap(), 'creado': FieldValue.serverTimestamp()}),
         );
-      } on AuthException {
-        // Without a profile the account is useless, and its email would stay
-        // taken: undo it so the admin can simply try again.
+      } catch (_) {
+        // Don't leave behind a login with no profile: nobody could ever use
+        // it, and the email would be stuck as "already in use" forever.
         try {
           await account.delete();
         } catch (e) {
@@ -105,10 +105,11 @@ class FirestoreUserDirectory implements UserDirectory {
     try {
       await action();
     } on FirebaseException catch (e) {
+      debugPrint('Firestore (usuarios): ${e.code}');
       throw AuthException(
         e.code == 'permission-denied'
             ? 'No tienes permiso para gestionar usuarios.'
-            : 'No se pudo guardar el usuario (${e.code}).',
+            : 'No se pudo guardar el usuario. Inténtalo de nuevo.',
       );
     }
   }
