@@ -327,7 +327,8 @@ class _HomeScreenState extends State<HomeScreen> {
     ).push<String>(MaterialPageRoute(builder: (_) => const ScannerScreen()));
     if (code == null || !mounted) return;
 
-    final existing = widget.repo.getById(code);
+    final existing =
+        widget.repo.getById(code) ?? widget.repo.getByProviderCode(code);
     if (existing == null) {
       await _showUnrecognizedQrDialog();
       return;
@@ -347,7 +348,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('QR no reconocido'),
+        title: const Text('Código no reconocido'),
         content: const Text(
           'Este código no corresponde a una prenda registrada.',
         ),

@@ -13,6 +13,7 @@ import 'item_form/photo_picker.dart';
 import 'item_form/variant_row.dart';
 import 'qr_screen.dart';
 import 'quick_stock_screen.dart';
+import 'scanner_screen.dart';
 
 /// What [ItemFormScreen] pops with, so the caller can tell a save apart from
 /// a delete and react accordingly (e.g. offer "undo" only after a delete).
@@ -59,6 +60,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nombreCtrl;
   late final TextEditingController _precioCtrl;
+  late final TextEditingController _codigoProveedorCtrl;
   final List<VariantRowControllers> _variantes = [];
   bool _dirty = false;
   bool _saving = false;
@@ -70,8 +72,12 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     _precioCtrl = TextEditingController(
       text: widget.item.precio == 0 ? '' : widget.item.precio.toString(),
     );
+    _codigoProveedorCtrl = TextEditingController(
+      text: widget.item.codigoProveedor,
+    );
     _nombreCtrl.addListener(_markDirty);
     _precioCtrl.addListener(_markDirty);
+    _codigoProveedorCtrl.addListener(_markDirty);
     _setVariantRows(widget.item.variantes);
   }
 
@@ -100,6 +106,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   void dispose() {
     _nombreCtrl.dispose();
     _precioCtrl.dispose();
+    _codigoProveedorCtrl.dispose();
     for (final row in _variantes) {
       row.dispose();
     }
@@ -157,6 +164,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       nombre: _nombreCtrl.text.trim(),
       precio: _parsePrecio(_precioCtrl.text) ?? 0,
       variantes: variantes,
+      codigoProveedor: _codigoProveedorCtrl.text.trim(),
     );
 
     // The freshest saved stock, in case a quick edit happened earlier in
@@ -298,6 +306,14 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     ).push(MaterialPageRoute(builder: (_) => QrScreen(item: snapshot)));
   }
 
+  Future<void> _scanProviderCode() async {
+    final code = await Navigator.of(
+      context,
+    ).push<String>(MaterialPageRoute(builder: (_) => const ScannerScreen()));
+    if (code == null || !mounted) return;
+    _codigoProveedorCtrl.text = code;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isExisting = !widget.isNew;
@@ -362,6 +378,19 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                           decimal: true,
                         ),
                         validator: _validatePrecio,
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _codigoProveedorCtrl,
+                        decoration: InputDecoration(
+                          labelText: 'Código de barras de proveedor (opcional)',
+                          prefixIcon: const Icon(Icons.barcode_reader),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.qr_code_scanner_rounded),
+                            tooltip: 'Escanear código de proveedor',
+                            onPressed: _scanProviderCode,
+                          ),
+                        ),
                       ),
                     ],
                   ),
