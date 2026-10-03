@@ -90,6 +90,13 @@ class ClothingRepository {
   List<ClothingItem> getAll() => _local.readAll()
     ..sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
 
+  /// Sum of each garment's price times its total stock — what the whole
+  /// catalog is worth right now, at selling price.
+  double get valorInventario => getAll().fold(
+    0.0,
+    (suma, item) => suma + item.precio * item.existenciaTotal,
+  );
+
   /// Null if there's no such garment, or its record is unreadable: a corrupt
   /// entry must never crash the screen that opens or scans it.
   ClothingItem? getById(String id) {

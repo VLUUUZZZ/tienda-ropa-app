@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../../data/clothing_repository.dart';
 import '../../data/sales_repository.dart';
 import '../../models/sale.dart';
 
-/// What was sold, most recent first, with the day's total up top.
+/// What was sold, most recent first, with sales totals and the catalog's
+/// current worth up top.
 class SalesScreen extends StatefulWidget {
   final SalesRepository salesRepo;
+  final ClothingRepository repo;
 
-  const SalesScreen({super.key, required this.salesRepo});
+  const SalesScreen({super.key, required this.salesRepo, required this.repo});
 
   @override
   State<SalesScreen> createState() => _SalesScreenState();
 }
 
 class _SalesScreenState extends State<SalesScreen> {
-  late final Listenable _changes = widget.salesRepo.listenable;
+  late final Listenable _changes = Listenable.merge([
+    widget.salesRepo.listenable,
+    widget.repo.listenable,
+  ]);
   List<Sale> _ventas = [];
   bool _reloadScheduled = false;
 
@@ -48,58 +54,173 @@ class _SalesScreenState extends State<SalesScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final hoy = DateTime.now();
-    final totalHoy = widget.salesRepo.totalDe(hoy);
+    final masVendidos = widget.salesRepo.masVendidos();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Ventas')),
-      body: Column(
-        children: [
-          Padding(
+      body: CustomScrollView(
+        slivers: [
+          SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Vendido hoy',
-                      style: TextStyle(fontWeight: FontWeight.w600),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _StatCard(
+                          label: 'Hoy',
+                          valor: widget.salesRepo.totalDe(hoy),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _StatCard(
+                          label: 'Esta semana',
+                          valor: widget.salesRepo.totalSemanaDe(hoy),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _StatCard(
+                          label: 'Este mes',
+                          valor: widget.salesRepo.totalMesDe(hoy),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Valor del inventario',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            '\$${widget.repo.valorInventario.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    Text(
-                      '\$${totalHoy.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 20,
-                        color: colorScheme.primary,
+                  ),
+                  if (masVendidos.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Lo más vendido',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 8),
+                            for (final item in masVendidos)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 2,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item.nombre,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${item.piezas} pieza${item.piezas == 1 ? '' : 's'}',
+                                      style: TextStyle(
+                                        color: colorScheme.outline,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
             ),
           ),
-          Expanded(
-            child: _ventas.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        'Aún no se ha registrado ninguna venta.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: colorScheme.outline),
-                      ),
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                    itemCount: _ventas.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) =>
-                        _SaleTile(venta: _ventas[index]),
+          if (_ventas.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Aún no se ha registrado ninguna venta.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: colorScheme.outline),
                   ),
-          ),
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              sliver: SliverList.separated(
+                itemCount: _ventas.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) =>
+                    _SaleTile(venta: _ventas[index]),
+              ),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final double valor;
+
+  const _StatCard({required this.label, required this.valor});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(fontSize: 12, color: colorScheme.outline),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '\$${valor.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                color: colorScheme.primary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
