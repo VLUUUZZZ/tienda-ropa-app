@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../auth/app_user.dart';
+import '../data/adjustments_repository.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
+import '../models/stock_adjustment.dart';
 import '../widgets/snackbars.dart';
 import '../widgets/unsaved_changes_guard.dart';
 import 'item_form/photo_picker.dart';
@@ -32,12 +37,16 @@ class ItemFormDeleted extends ItemFormResult {
 /// or from the catalog list.
 class ItemFormScreen extends StatefulWidget {
   final ClothingRepository repo;
+  final AdjustmentsRepository adjustmentsRepo;
+  final AppUser user;
   final ClothingItem item;
   final bool isNew;
 
   const ItemFormScreen({
     super.key,
     required this.repo,
+    required this.adjustmentsRepo,
+    required this.user,
     required this.item,
     this.isNew = false,
   });
@@ -150,6 +159,14 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       variantes: variantes,
     );
 
+    // The freshest saved stock, in case a quick edit happened earlier in
+    // this same form session: that's the real "before" for the audit log,
+    // not widget.item (loaded when the screen first opened).
+    final baseline = widget.isNew
+        ? const <ClothingVariant>[]
+        : widget.repo.getById(widget.item.id)?.variantes ??
+              widget.item.variantes;
+
     setState(() => _saving = true);
     try {
       await widget.repo.save(updated);
@@ -160,10 +177,36 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       }
       return;
     }
+    if (!widget.isNew) _logStockChanges(baseline, updated);
 
     if (!mounted) return;
     _dirty = false;
     Navigator.of(context).pop(const ItemFormSaved());
+  }
+
+  /// Best-effort audit trail for stock changes made directly in this form
+  /// (as opposed to the quick-stock editor, which logs its own). A failure
+  /// here must never block the save itself, already done above.
+  void _logStockChanges(List<ClothingVariant> before, ClothingItem updated) {
+    final baselineByKey = {for (final v in before) v.key: v.existencia};
+    for (final v in updated.variantes) {
+      final delta = v.existencia - (baselineByKey[v.key] ?? 0);
+      if (delta == 0) continue;
+      unawaited(
+        widget.adjustmentsRepo.registrar(
+          StockAdjustment(
+            id: StockAdjustment.newId(),
+            itemId: updated.id,
+            nombreItem: updated.nombre,
+            color: v.color,
+            talla: v.talla,
+            delta: delta,
+            usuarioNombre: widget.user.nombre,
+            fecha: DateTime.now(),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _quickEditStock() async {
@@ -182,7 +225,12 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     if (current == null) return;
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => QuickStockScreen(repo: widget.repo, item: current),
+        builder: (_) => QuickStockScreen(
+          repo: widget.repo,
+          adjustmentsRepo: widget.adjustmentsRepo,
+          user: widget.user,
+          item: current,
+        ),
       ),
     );
     if (saved != true || !mounted) return;

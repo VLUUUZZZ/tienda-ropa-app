@@ -4,6 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'auth/app_user.dart';
 import 'auth/user_directory.dart';
 import 'backend.dart';
+import 'data/adjustments_repository.dart';
 import 'data/clothing_repository.dart';
 import 'data/sales_repository.dart';
 import 'data/settings_repository.dart';
@@ -35,6 +36,9 @@ Future<void> _start() async {
     final localSalesRepo = backend == null
         ? await SalesRepository.open()
         : null;
+    final localAdjustmentsRepo = backend == null
+        ? await AdjustmentsRepository.open()
+        : null;
 
     runApp(
       TiendaRopaApp(
@@ -42,6 +46,7 @@ Future<void> _start() async {
         backend: backend,
         localRepo: localRepo,
         localSalesRepo: localSalesRepo,
+        localAdjustmentsRepo: localAdjustmentsRepo,
       ),
     );
   } catch (e) {
@@ -99,11 +104,12 @@ class _StartupFailedApp extends StatelessWidget {
 class TiendaRopaApp extends StatefulWidget {
   final SettingsRepository settings;
 
-  /// Null runs the app local-only, without login, on [localRepo] and
-  /// [localSalesRepo].
+  /// Null runs the app local-only, without login, on [localRepo],
+  /// [localSalesRepo] and [localAdjustmentsRepo].
   final Backend? backend;
   final ClothingRepository? localRepo;
   final SalesRepository? localSalesRepo;
+  final AdjustmentsRepository? localAdjustmentsRepo;
 
   const TiendaRopaApp({
     super.key,
@@ -111,6 +117,7 @@ class TiendaRopaApp extends StatefulWidget {
     this.backend,
     this.localRepo,
     this.localSalesRepo,
+    this.localAdjustmentsRepo,
   }) : assert(
          (backend == null) != (localRepo == null),
          'Either a backend or a local catalog',
@@ -150,16 +157,19 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
           AppUser.local,
           widget.localRepo!,
           widget.localSalesRepo!,
+          widget.localAdjustmentsRepo!,
         ),
         final backend => AuthGate(
           backend: backend,
-          signedInBuilder: (_, user, repo, salesRepo) => _buildHome(
-            user,
-            repo,
-            salesRepo,
-            onSignOut: backend.auth.signOut,
-            users: backend.users,
-          ),
+          signedInBuilder: (_, user, repo, salesRepo, adjustmentsRepo) =>
+              _buildHome(
+                user,
+                repo,
+                salesRepo,
+                adjustmentsRepo,
+                onSignOut: backend.auth.signOut,
+                users: backend.users,
+              ),
         ),
       },
     );
@@ -168,13 +178,15 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
   Widget _buildHome(
     AppUser user,
     ClothingRepository repo,
-    SalesRepository salesRepo, {
+    SalesRepository salesRepo,
+    AdjustmentsRepository adjustmentsRepo, {
     VoidCallback? onSignOut,
     UserDirectory? users,
   }) {
     return HomeScreen(
       repo: repo,
       salesRepo: salesRepo,
+      adjustmentsRepo: adjustmentsRepo,
       user: user,
       isDarkMode: _themeMode == ThemeMode.dark,
       onToggleTheme: _toggleTheme,

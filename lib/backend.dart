@@ -1,6 +1,7 @@
 import 'auth/app_user.dart';
 import 'auth/auth_service.dart';
 import 'auth/user_directory.dart';
+import 'data/remote_adjustments.dart';
 import 'data/remote_catalog.dart';
 import 'data/remote_sales.dart';
 
@@ -12,6 +13,7 @@ class Backend {
     required this.users,
     required this.catalogFor,
     required this.salesFor,
+    required this.adjustmentsFor,
   });
 
   final AuthService auth;
@@ -22,4 +24,7 @@ class Backend {
 
   /// Each store has its own sales log.
   final RemoteSales Function(Tienda tienda) salesFor;
+
+  /// Each store has its own stock-adjustment history.
+  final RemoteAdjustments Function(Tienda tienda) adjustmentsFor;
 }
