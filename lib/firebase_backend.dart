@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'auth/firebase_auth_service.dart';
 import 'auth/firestore_user_directory.dart';
 import 'backend.dart';
+import 'data/firestore_adjustments.dart';
 import 'data/firestore_catalog.dart';
 import 'data/firestore_sales.dart';
 import 'firebase_options.dart';
@@ -34,5 +35,6 @@ Future<Backend?> connectFirebase() async {
     users: FirestoreUserDirectory(firestore, options),
     catalogFor: (tienda) => FirestoreCatalog(firestore, tienda.id),
     salesFor: (tienda) => FirestoreSales(firestore, tienda.id),
+    adjustmentsFor: (tienda) => FirestoreAdjustments(firestore, tienda.id),
   );
 }

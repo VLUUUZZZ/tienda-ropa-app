@@ -6,11 +6,13 @@ import 'package:share_plus/share_plus.dart';
 
 import '../auth/app_user.dart';
 import '../auth/user_directory.dart';
+import '../data/adjustments_repository.dart';
 import '../data/catalog_export.dart';
 import '../data/clothing_repository.dart';
 import '../data/sales_repository.dart';
 import '../models/clothing_item.dart';
 import '../widgets/snackbars.dart';
+import 'adjustments/adjustments_screen.dart';
 import 'home/account_menu.dart';
 import 'home/clothing_card.dart';
 import 'home/store_title.dart';
@@ -29,6 +31,7 @@ enum _StockFilter { todos, agotado, stockBajo }
 class HomeScreen extends StatefulWidget {
   final ClothingRepository repo;
   final SalesRepository salesRepo;
+  final AdjustmentsRepository adjustmentsRepo;
   final AppUser user;
   final bool isDarkMode;
   final VoidCallback onToggleTheme;
@@ -43,6 +46,7 @@ class HomeScreen extends StatefulWidget {
     super.key,
     required this.repo,
     required this.salesRepo,
+    required this.adjustmentsRepo,
     required this.user,
     required this.isDarkMode,
     required this.onToggleTheme,
@@ -176,7 +180,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final result = await Navigator.of(context).push<ItemFormResult>(
       MaterialPageRoute(
-        builder: (_) => ItemFormScreen(repo: widget.repo, item: item),
+        builder: (_) => ItemFormScreen(
+          repo: widget.repo,
+          adjustmentsRepo: widget.adjustmentsRepo,
+          user: widget.user,
+          item: item,
+        ),
       ),
     );
     if (!mounted) return;
@@ -188,7 +197,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _quickEditStock(ClothingItem item) async {
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => QuickStockScreen(repo: widget.repo, item: item),
+        builder: (_) => QuickStockScreen(
+          repo: widget.repo,
+          adjustmentsRepo: widget.adjustmentsRepo,
+          user: widget.user,
+          item: item,
+        ),
       ),
     );
     if (!mounted) return;
@@ -223,6 +237,15 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => SalesScreen(salesRepo: widget.salesRepo),
+      ),
+    );
+  }
+
+  void _openAdjustments() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            AdjustmentsScreen(adjustmentsRepo: widget.adjustmentsRepo),
       ),
     );
   }
@@ -281,8 +304,13 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       final result = await Navigator.of(context).push<ItemFormResult>(
         MaterialPageRoute(
-          builder: (_) =>
-              ItemFormScreen(repo: widget.repo, item: newItem, isNew: true),
+          builder: (_) => ItemFormScreen(
+            repo: widget.repo,
+            adjustmentsRepo: widget.adjustmentsRepo,
+            user: widget.user,
+            item: newItem,
+            isNew: true,
+          ),
         ),
       );
       if (!mounted) return;
@@ -372,6 +400,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ? () => _openUsers(widget.users!)
                 : null,
             onExport: _exportCatalog,
+            onViewAdjustments: widget.user.canManageUsers
+                ? _openAdjustments
+                : null,
             onSignOut: widget.onSignOut,
           ),
           const SizedBox(width: 4),
