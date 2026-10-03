@@ -83,4 +83,45 @@ class SalesRepository {
             venta.fecha.day == dia.day,
       )
       .fold(0.0, (suma, venta) => suma + venta.total);
+
+  /// Total sold from the Monday of [dia]'s week through [dia], inclusive.
+  double totalSemanaDe(DateTime dia) {
+    final hoy = DateTime(dia.year, dia.month, dia.day);
+    final lunes = hoy.subtract(Duration(days: hoy.weekday - 1));
+    return _totalEntre(lunes, hoy.add(const Duration(days: 1)));
+  }
+
+  /// Total sold from the first day of [dia]'s month through [dia], inclusive.
+  double totalMesDe(DateTime dia) {
+    final primero = DateTime(dia.year, dia.month, 1);
+    final hoy = DateTime(dia.year, dia.month, dia.day);
+    return _totalEntre(primero, hoy.add(const Duration(days: 1)));
+  }
+
+  double _totalEntre(DateTime desde, DateTime hastaExclusive) => getAll()
+      .where(
+        (venta) =>
+            !venta.fecha.isBefore(desde) &&
+            venta.fecha.isBefore(hastaExclusive),
+      )
+      .fold(0.0, (suma, venta) => suma + venta.total);
+
+  /// What sold the most pieces, most recent name first in a tie, limited to
+  /// [limit] garments. Groups by [Sale.nombreItem], not [Sale.itemId]: a
+  /// garment renamed after some sales still groups with its newer name.
+  List<({String nombre, int piezas})> masVendidos({int limit = 5}) {
+    final piezasPorNombre = <String, int>{};
+    for (final venta in getAll()) {
+      final nombre = venta.nombreItem.isEmpty
+          ? '(sin nombre)'
+          : venta.nombreItem;
+      piezasPorNombre[nombre] = (piezasPorNombre[nombre] ?? 0) + venta.cantidad;
+    }
+    final entries = piezasPorNombre.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return entries
+        .take(limit)
+        .map((e) => (nombre: e.key, piezas: e.value))
+        .toList();
+  }
 }

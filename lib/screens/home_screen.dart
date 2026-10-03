@@ -236,7 +236,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openSales() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => SalesScreen(salesRepo: widget.salesRepo),
+        builder: (_) =>
+            SalesScreen(salesRepo: widget.salesRepo, repo: widget.repo),
       ),
     );
   }
