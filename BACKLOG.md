@@ -16,6 +16,29 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-10-04 — sesión automática diaria de pulido
+
+Las 3 tareas de "Pendiente" siguen bloqueadas (necesitan algo del dueño primero o son
+condicionales), igual que ayer, así que se revisó a fondo el código en busca de errores
+reales: pantallas (catálogo, formulario de prenda, ajuste rápido, ventas, historial de
+ajustes, QR, escáner, usuarios, login), la capa de datos (sincronización de catálogo,
+ventas y ajustes, almacenamiento local, fotos) y el modelo de autenticación. No se encontró
+ningún bug nuevo: las rondas anteriores ya cubrieron los casos delicados (doble toque,
+sincronización entre teléfonos, roles, mensajes de error, setState tras cerrar sesión,
+contraste de colores) y el código sigue igual de sólido hoy. Por eso no se tocó ningún
+archivo de código esta sesión, para no arriesgar cambios sin un problema real que corregir.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/` (sin cambios
+pendientes). No hay pruebas automatizadas que correr (se retiraron por pedido explícito del
+usuario el 2026-09-22). No se compiló el APK: esta sesión no tiene el SDK de Android
+instalado, solo Flutter.
+
+Nota: el Pull Request #3 (`auto/mejoras-diarias` → `master`) sigue abierto y acumulando las
+sesiones diarias desde el 2026-09-28; no se abrió uno nuevo. Para que las ventas y el
+historial de ajustes sincronicen en producción, falta desplegar las reglas de Firestore
+actualizadas (`firebase deploy --only firestore:rules`) una vez que el dueño revise y
+mergee el PR.
+
 ### 2026-10-03 — sesión automática diaria, 4 tareas de "Pendiente"
 
 Se tomaron 4 de las 7 tareas que había en "Pendiente", de arriba hacia abajo.
