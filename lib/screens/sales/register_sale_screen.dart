@@ -103,6 +103,9 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
       return;
     }
 
+    final totalPedido = _totalPiezas;
+    final totalRegistrado = ventas.fold(0, (sum, v) => sum + v.cantidad);
+
     try {
       await widget.repo.save(latest.withStockChanges(deltas));
       for (final venta in ventas) {
@@ -114,6 +117,22 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
         showErrorSnackBar(context, 'No se pudo registrar la venta.');
       }
       return;
+    }
+    if (!mounted) return;
+    // The stock may have changed (otro teléfono) entre que se abrió esta
+    // pantalla y se confirmó: avisar si se vendieron menos piezas de las
+    // pedidas, en vez de decir simplemente "Venta registrada".
+    if (totalRegistrado < totalPedido) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Solo quedaban $totalRegistrado de $totalPedido piezas: se '
+            'registró lo disponible.',
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      await Future.delayed(const Duration(seconds: 3));
     }
     if (!mounted) return;
     Navigator.of(context).pop(true);
