@@ -35,7 +35,7 @@ class ClothingVariant {
     return ClothingVariant(
       talla: map['talla'] as String? ?? '',
       color: map['color'] as String? ?? '',
-      existencia: (map['existencia'] as num?)?.toInt() ?? 0,
+      existencia: math.max(0, (map['existencia'] as num?)?.toInt() ?? 0),
     );
   }
 }
