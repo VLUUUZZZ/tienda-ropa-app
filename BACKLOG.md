@@ -16,6 +16,24 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-10-05 — sesión automática diaria de pulido
+
+Las 3 tareas de "Pendiente" siguen bloqueadas (necesitan algo del dueño primero o son
+condicionales). Se revisó a fondo el código (pantallas, capa de datos, modelo de
+autenticación) y se encontraron 2 errores reales, pequeños y ya corregidos:
+
+1. Si una prenda llegaba del servidor con una existencia inválida (negativa, por un dato
+   corrupto o editado a mano), se mostraba un número en negativo en vez de 0 — ahora se
+   corrige al leerla, igual que en el resto de la app.
+2. Al escanear un código QR o de proveedor, si la pantalla del escáner se cerraba justo en el
+   instante de leer el código, podía aparecer un error técnico en pantalla; ahora esa lectura
+   simplemente se ignora.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/` (sin cambios
+pendientes). No hay pruebas automatizadas que correr (se retiraron por pedido explícito del
+usuario el 2026-09-22). No se compiló el APK: esta sesión no tiene el SDK de Android
+instalado, solo Flutter.
+
 ### 2026-10-04 — sesión automática diaria de pulido
 
 Las 3 tareas de "Pendiente" siguen bloqueadas (necesitan algo del dueño primero o son
