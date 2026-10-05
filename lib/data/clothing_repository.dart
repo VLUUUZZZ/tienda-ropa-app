@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/clothing_item.dart';
@@ -34,11 +36,33 @@ class ClothingRepository {
   /// when null (app without backend, and data from before stores existed).
   static Future<ClothingRepository> open({String? tiendaId}) async {
     String scoped(String base) => tiendaId == null ? base : '${base}_$tiendaId';
-    return ClothingRepository._(
+    final repo = ClothingRepository._(
       await LocalCatalog.open(scoped('clothing_items')),
       await SyncState.open(scoped('catalog_sync')),
       await LocalPhotos.open(scoped('clothing_photos')),
     );
+    await repo._pruneOrphanPhotos();
+    return repo;
+  }
+
+  /// Deletes photos left behind by garments removed since the last time the
+  /// catalog was opened (deleting a garment doesn't delete its photo right
+  /// away, so "Deshacer" right after can still bring it back within the same
+  /// session). Without this, every deleted garment's photo would stay on the
+  /// phone's storage forever.
+  Future<void> _pruneOrphanPhotos() async {
+    final catalogIds = _local.ids.toSet();
+    for (final id in _photos.ids.toList()) {
+      if (catalogIds.contains(id)) continue;
+      final path = _photos.pathFor(id);
+      await _photos.remove(id);
+      if (path == null) continue;
+      try {
+        await File(path).delete();
+      } catch (e) {
+        // Already gone; nothing left to clean up.
+      }
+    }
   }
 
   /// Stops sync and releases the store's storage (e.g. on sign-out).
