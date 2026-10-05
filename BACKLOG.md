@@ -29,6 +29,23 @@ autenticación) y se encontraron 2 errores reales, pequeños y ya corregidos:
    instante de leer el código, podía aparecer un error técnico en pantalla; ahora esa lectura
    simplemente se ignora.
 
+**Ronda 2 (a pedido del dueño, "corrige y pule el código"):** revisión más profunda de la
+sincronización, la foto por prenda, las ventas y el código de proveedor. 4 errores reales
+corregidos:
+
+3. Al eliminar una prenda con foto, la foto se quedaba guardada en el teléfono para siempre
+   (un desperdicio de espacio que solo crece). Ahora se borran las fotos de prendas eliminadas
+   cada vez que se abre el catálogo (no de inmediato, para no perderla si se usa "Deshacer").
+4. Al cambiar la foto de una prenda, la miniatura en la lista y en el formulario seguían
+   mostrando la foto anterior hasta reiniciar la app. Ahora se actualiza al instante.
+5. Al registrar una venta, si la existencia había cambiado en otro teléfono justo antes de
+   confirmar, se vendían menos piezas de las pedidas sin avisarlo — solo decía "Venta
+   registrada" igual. Ahora avisa cuántas piezas se registraron realmente si fueron menos.
+6. Dos prendas distintas podían terminar con el mismo código de proveedor escaneado (por
+   error), y entonces escanear ese código desde la pantalla principal siempre encontraba la
+   primera, ocultando la segunda. Ahora se avisa al guardar si el código ya está en otra
+   prenda.
+
 Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/` (sin cambios
 pendientes). No hay pruebas automatizadas que correr (se retiraron por pedido explícito del
 usuario el 2026-09-22). No se compiló el APK: esta sesión no tiene el SDK de Android
