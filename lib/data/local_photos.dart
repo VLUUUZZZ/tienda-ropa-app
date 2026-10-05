@@ -20,6 +20,9 @@ class LocalPhotos {
   /// can refresh.
   Listenable get listenable => _box.listenable();
 
+  /// Every garment id that currently has a stored photo.
+  Iterable<String> get ids => _box.keys.cast<String>();
+
   String? pathFor(String itemId) => _box.get(itemId) as String?;
 
   Future<void> setPath(String itemId, String path) => _box.put(itemId, path);
