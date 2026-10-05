@@ -159,12 +159,24 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       return;
     }
 
+    final codigoProveedor = _codigoProveedorCtrl.text.trim();
+    if (codigoProveedor.isNotEmpty) {
+      final otherItem = widget.repo.getByProviderCode(codigoProveedor);
+      if (otherItem != null && otherItem.id != widget.item.id) {
+        showErrorSnackBar(
+          context,
+          'Ese código de proveedor ya está en "${otherItem.nombre}".',
+        );
+        return;
+      }
+    }
+
     final updated = ClothingItem(
       id: widget.item.id,
       nombre: _nombreCtrl.text.trim(),
       precio: _parsePrecio(_precioCtrl.text) ?? 0,
       variantes: variantes,
-      codigoProveedor: _codigoProveedorCtrl.text.trim(),
+      codigoProveedor: codigoProveedor,
     );
 
     // The freshest saved stock, in case a quick edit happened earlier in
