@@ -89,6 +89,10 @@ class _ItemPhotoPickerState extends State<ItemPhotoPicker> {
       final saved = File('${dir.path}/${widget.itemId}.jpg');
       await saved.writeAsBytes(await picked.readAsBytes());
       await widget.repo.setPhotoPath(widget.itemId, saved.path);
+      // The path doesn't change when replacing a photo, so the image cache
+      // (keyed by path) would otherwise keep showing the old picture here
+      // and on the catalog card until the app restarts.
+      await FileImage(saved).evict();
       if (mounted) setState(() => _path = saved.path);
     } catch (e) {
       if (mounted) showErrorSnackBar(context, 'No se pudo guardar la foto.');
