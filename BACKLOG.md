@@ -16,6 +16,28 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-10-06 — sesión automática diaria de pulido
+
+Las 3 tareas de "Pendiente" siguen bloqueadas (necesitan algo del dueño primero o son
+condicionales). Se revisó a fondo el código en busca de errores reales, inconsistencias
+de UI/UX y manejo de errores; se encontraron y corrigieron 4 detalles pequeños:
+
+1. La etiqueta roja "AGOTADO" en la tarjeta de la lista principal tenía el texto con el
+   color gris por defecto (poco legible sobre el fondo rojo claro) en vez del color
+   correcto; ahora usa el mismo color que el aviso de "pocas piezas" junto a ella.
+2. En el menú de Cuenta, un nombre o correo muy largo ya no se corta a la mitad ni se
+   envuelve mal en pantallas angostas.
+3. Si en Firestore el campo de rol de un usuario llega con un valor que la app no
+   reconoce (por ejemplo editado a mano), antes se degradaba a Empleado en silencio;
+   ahora además queda un registro para poder detectarlo.
+4. Corregido un caso raro donde, si se cerraba sesión justo cuando se descartaba un
+   cambio de existencia rechazado por el servidor, podía generarse un error interno sin
+   capturar (no visible para quien usa la app, pero quedaba ruido en los registros).
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` (sin cambios pendientes). No
+hay pruebas automatizadas que correr (se retiraron por pedido explícito del dueño el
+2026-09-22) ni se compiló el APK (sin SDK de Android en este entorno).
+
 ### 2026-10-05 — sesión automática diaria de pulido
 
 Las 3 tareas de "Pendiente" siguen bloqueadas (necesitan algo del dueño primero o son
