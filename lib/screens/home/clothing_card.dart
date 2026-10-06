@@ -113,7 +113,9 @@ class ClothingCard extends StatelessWidget {
                             ? '${item.existenciaTotal} piezas · pocas'
                             : '${item.existenciaTotal} piezas',
                       ),
-                      labelStyle: stockBajo
+                      labelStyle: sinStock
+                          ? TextStyle(color: colorScheme.onErrorContainer)
+                          : stockBajo
                           ? TextStyle(color: colorScheme.onTertiaryContainer)
                           : null,
                       backgroundColor: sinStock
