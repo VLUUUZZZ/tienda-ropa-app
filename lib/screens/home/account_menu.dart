@@ -41,8 +41,16 @@ class AccountMenu extends StatelessWidget {
           enabled: false,
           child: ListTile(
             contentPadding: EdgeInsets.zero,
-            title: Text(user.nombre),
-            subtitle: Text('${user.role.label} · ${user.correo}'),
+            title: Text(
+              user.nombre,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              '${user.role.label} · ${user.correo}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
         const PopupMenuDivider(),
