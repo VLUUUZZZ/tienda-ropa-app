@@ -102,7 +102,12 @@ class CatalogSync {
       // Retrying can't help; dropping the pending mark lets the next remote
       // snapshot restore the server's version locally.
       debugPrint('Cambio a $id rechazado, se descarta: $e');
-      await _state.confirm(id, token);
+      try {
+        await _state.confirm(id, token);
+      } catch (_) {
+        // Box may already be closed (e.g. sign-out mid-flight); nothing to
+        // do, the pending mark is harmless to leave behind in that case.
+      }
     } catch (e) {
       // Stays pending: retried on reconnect or on the next launch.
       debugPrint('No se sincronizó $id, se reintentará: $e');
