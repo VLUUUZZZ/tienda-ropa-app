@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 enum UserRole {
   admin('admin', 'Administrador'),
   empleado('empleado', 'Empleado');
@@ -8,8 +10,15 @@ enum UserRole {
   final String id;
   final String label;
 
-  static UserRole fromId(String? id) =>
-      values.firstWhere((role) => role.id == id, orElse: () => empleado);
+  static UserRole fromId(String? id) => values.firstWhere(
+    (role) => role.id == id,
+    orElse: () {
+      if (id != null) {
+        debugPrint('Rol desconocido en Firestore: "$id"; se usa Empleado.');
+      }
+      return empleado;
+    },
+  );
 }
 
 /// A store: its own catalog and its own staff, isolated from every other
