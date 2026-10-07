@@ -40,6 +40,35 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-10-07 (4), a pedido del dueño — "Robustece el código" (continuación)
+
+Cuarta ronda de la misma tarea, revisando el arranque de la app, el guardado local y las
+pantallas de edición:
+
+1. **Corregido un caso real de pérdida de datos al crear una prenda:** si justo después de
+   crear una prenda nueva se le hacía un segundo cambio muy rápido (por ejemplo, corregir
+   el nombre a los pocos segundos, antes de que el primer guardado terminara de subirse),
+   los dos guardados podían chocar entre sí al sincronizar y el segundo cambio podía
+   perderse, quedando la prenda con un código distinto y solo la versión vieja. Ahora los
+   guardados de una misma prenda siempre se suben de a uno, en orden, así que esto ya no
+   puede pasar.
+2. Al editar una prenda o hacer un ajuste rápido de existencia, salir con el botón de
+   regresar mientras se está guardando ya no ofrece "Descartar cambios" (lo cual sería
+   engañoso, porque el guardado sigue en curso de todas formas); ahora avisa que hay que
+   esperar, igual que ya pasaba en Registrar venta.
+3. Si fallaba borrar la foto de una prenda eliminada (por ejemplo, el teléfono estaba
+   ocupado en ese instante), antes la app daba por hecho que ya se había borrado y nunca
+   lo volvía a intentar, dejando el archivo ocupando espacio para siempre. Ahora se
+   reintenta en el siguiente inicio si la primera vez no se pudo.
+4. Si el contador interno usado para generar los códigos de las prendas nuevas
+   (PRENDA-000001, etc.) se corrompía por algún motivo raro, antes la app dejaba de poder
+   crear prendas nuevas por completo. Ahora, en ese caso, simplemente empieza a contar de
+   nuevo en vez de fallar.
+5. Si falla guardar la preferencia de tema claro/oscuro (muy raro), ahora queda un rastro
+   en el registro técnico en vez de fallar en silencio sin ninguna pista.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format`.
+
 ### 2026-10-07 (3), a pedido del dueño — "Robustece el código" (continuación)
 
 Más robustez encontrada revisando el código a fondo, en la misma sesión que el punto (2):
