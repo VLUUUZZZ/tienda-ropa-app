@@ -64,5 +64,15 @@ class SyncState {
 
   Future<void> clearLocallyMinted(String id) => _box.delete(_mintedKey(id));
 
+  /// Every id still marked as freshly minted (see [markLocallyMinted]),
+  /// including ones whose "new item" flow was abandoned before ever being
+  /// saved — those are never cleared otherwise and would sit in this box
+  /// forever.
+  Set<String> get mintedIds => _box.keys
+      .whereType<String>()
+      .where((key) => key.startsWith(_mintedPrefix))
+      .map((key) => key.substring(_mintedPrefix.length))
+      .toSet();
+
   static String _mintedKey(String id) => '$_mintedPrefix$id';
 }

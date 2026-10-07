@@ -42,6 +42,7 @@ class ClothingRepository {
       await LocalPhotos.open(scoped('clothing_photos')),
     );
     await repo._pruneOrphanPhotos();
+    await repo._pruneAbandonedNewIds();
     return repo;
   }
 
@@ -62,6 +63,17 @@ class ClothingRepository {
       } catch (e) {
         // Already gone; nothing left to clean up.
       }
+    }
+  }
+
+  /// Clears the "freshly minted" mark left behind by [generateId] when a new
+  /// garment's id was generated but the garment was never actually saved
+  /// (the user backed out of the form): otherwise that mark, meant to be
+  /// cleared on first sync, sits in [SyncState] forever.
+  Future<void> _pruneAbandonedNewIds() async {
+    final catalogIds = _local.ids.toSet();
+    for (final id in _syncState.mintedIds) {
+      if (!catalogIds.contains(id)) await _syncState.clearLocallyMinted(id);
     }
   }
 
@@ -145,17 +157,18 @@ class ClothingRepository {
   }
 
   Future<void> save(ClothingItem item) async {
+    // Marked pending *before* the local write (not after): otherwise a
+    // remote snapshot landing in the gap between the two could read this id
+    // as "not pending yet" and silently overwrite the value just written
+    // with the stale remote copy (see CatalogSync._apply).
+    await _syncState.markPending(item.id);
     await _local.write(item);
-    await _recordChange(item.id);
+    _sync?.push(item.id);
   }
 
   Future<void> delete(String id) async {
-    await _local.remove(id);
-    await _recordChange(id);
-  }
-
-  Future<void> _recordChange(String id) async {
     await _syncState.markPending(id);
+    await _local.remove(id);
     _sync?.push(id);
   }
 
