@@ -64,6 +64,12 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   final List<VariantRowControllers> _variantes = [];
   bool _dirty = false;
   bool _saving = false;
+  bool _deleting = false;
+
+  /// Disables the appBar's quick-edit/QR/delete actions while a save or a
+  /// delete from one of them is already in flight, so they can't run
+  /// concurrently with each other or with "Guardar".
+  bool get _busy => _saving || _deleting;
 
   @override
   void initState() {
@@ -209,23 +215,32 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   /// here must never block the save itself, already done above.
   void _logStockChanges(List<ClothingVariant> before, ClothingItem updated) {
     final baselineByKey = {for (final v in before) v.key: v.existencia};
-    for (final v in updated.variantes) {
-      final delta = v.existencia - (baselineByKey[v.key] ?? 0);
-      if (delta == 0) continue;
+    final updatedKeys = updated.variantes.map((v) => v.key).toSet();
+    void log(String color, String talla, int delta) {
+      if (delta == 0) return;
       unawaited(
         widget.adjustmentsRepo.registrar(
           StockAdjustment(
             id: StockAdjustment.newId(),
             itemId: updated.id,
             nombreItem: updated.nombre,
-            color: v.color,
-            talla: v.talla,
+            color: color,
+            talla: talla,
             delta: delta,
             usuarioNombre: widget.user.nombre,
             fecha: DateTime.now(),
           ),
         ),
       );
+    }
+
+    for (final v in updated.variantes) {
+      log(v.color, v.talla, v.existencia - (baselineByKey[v.key] ?? 0));
+    }
+    // A color/talla row removed from the form drops its stock to zero too;
+    // without this it would vanish from inventory with no trace in the log.
+    for (final v in before) {
+      if (!updatedKeys.contains(v.key)) log(v.color, v.talla, -v.existencia);
     }
   }
 
@@ -262,6 +277,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   Future<void> _delete() async {
+    if (_deleting) return;
+    setState(() => _deleting = true);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -279,7 +296,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         ],
       ),
     );
-    if (confirm != true) return;
+    if (confirm != true) {
+      if (mounted) setState(() => _deleting = false);
+      return;
+    }
     // The freshest copy, including any quick stock edit made earlier in this
     // same session: "Deshacer" should restore that, not a stale snapshot.
     final current = widget.repo.getById(widget.item.id) ?? widget.item;
@@ -287,6 +307,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       await widget.repo.delete(widget.item.id);
     } catch (e) {
       if (mounted) {
+        setState(() => _deleting = false);
         showErrorSnackBar(context, 'No se pudo eliminar. Inténtalo de nuevo.');
       }
       return;
@@ -341,18 +362,18 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               IconButton(
                 icon: const Icon(Icons.tune_rounded),
                 tooltip: 'Editar existencia rápido',
-                onPressed: _quickEditStock,
+                onPressed: _busy ? null : _quickEditStock,
               ),
             IconButton(
               icon: const Icon(Icons.qr_code),
               tooltip: 'Ver código QR',
-              onPressed: _showQr,
+              onPressed: _busy ? null : _showQr,
             ),
             if (isExisting)
               IconButton(
                 icon: const Icon(Icons.delete_outline),
                 tooltip: 'Eliminar',
-                onPressed: _delete,
+                onPressed: _busy ? null : _delete,
               ),
           ],
         ),
