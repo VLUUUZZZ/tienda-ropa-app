@@ -111,14 +111,27 @@ class SalesRepository {
   /// garment renamed after some sales still groups with its newer name.
   List<({String nombre, int piezas})> masVendidos({int limit = 5}) {
     final piezasPorNombre = <String, int>{};
+    final ultimaVentaPorNombre = <String, DateTime>{};
     for (final venta in getAll()) {
       final nombre = venta.nombreItem.isEmpty
           ? '(sin nombre)'
           : venta.nombreItem;
       piezasPorNombre[nombre] = (piezasPorNombre[nombre] ?? 0) + venta.cantidad;
+      // getAll() is most-recent-first, so the first sale seen for this name
+      // is already its most recent one.
+      ultimaVentaPorNombre.putIfAbsent(nombre, () => venta.fecha);
     }
+    // List.sort isn't guaranteed stable, so the "most recent name first in a
+    // tie" tie-break is made explicit instead of relying on map order.
     final entries = piezasPorNombre.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+      ..sort((a, b) {
+        final porPiezas = b.value.compareTo(a.value);
+        return porPiezas != 0
+            ? porPiezas
+            : ultimaVentaPorNombre[b.key]!.compareTo(
+                ultimaVentaPorNombre[a.key]!,
+              );
+      });
     return entries
         .take(limit)
         .map((e) => (nombre: e.key, piezas: e.value))
