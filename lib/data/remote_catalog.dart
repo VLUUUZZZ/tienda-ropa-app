@@ -29,6 +29,14 @@ abstract class RemoteCatalog {
   Future<void> upsert(ClothingItem item);
 
   Future<void> delete(String id);
+
+  /// Atomically applies [deltas] (see [ClothingItem.withStockChanges]) to
+  /// [id]'s stock on the server, instead of overwriting the whole document
+  /// with a locally-computed result: two devices applying a delta to the
+  /// same garment at nearly the same time (e.g. two sales) must both take
+  /// effect, not have the second one silently discard the first. Throws if
+  /// the garment doesn't exist remotely.
+  Future<ClothingItem> applyStockDelta(String id, Map<String, int> deltas);
 }
 
 /// The remote refused a write for good (e.g. the user's role doesn't allow

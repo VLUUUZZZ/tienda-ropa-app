@@ -123,7 +123,7 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
       }
 
       try {
-        await widget.repo.save(latest.withStockChanges(deltas));
+        await widget.repo.applyStockDelta(latest.id, deltas);
       } catch (e) {
         if (mounted) {
           setState(() => _saving = false);
