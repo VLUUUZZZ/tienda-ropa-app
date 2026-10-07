@@ -190,15 +190,30 @@ class ClothingRepository {
   ) async {
     final remote = _remote;
     if (remote != null) {
+      ClothingItem? updated;
       try {
-        final updated = await remote.applyStockDelta(id, deltas);
-        await _local.write(updated);
-        return updated;
+        updated = await remote.applyStockDelta(id, deltas);
       } catch (e) {
         debugPrint(
           'No se pudo aplicar el cambio de existencia de $id en el '
           'servidor, se aplica solo localmente: $e',
         );
+      }
+      if (updated != null) {
+        try {
+          await _local.write(updated);
+        } catch (e) {
+          // The server already has the correct value — losing this local
+          // write (disk error, box closed mid-flight) must never be treated
+          // as the sale/adjustment itself having failed, or a retry would
+          // apply the same delta to the server a second time. The next
+          // snapshot from CatalogSync's listener catches the local copy up.
+          debugPrint(
+            'No se pudo guardar $id localmente tras confirmarlo en el '
+            'servidor: $e',
+          );
+        }
+        return updated;
       }
     }
     final current = getById(id);
