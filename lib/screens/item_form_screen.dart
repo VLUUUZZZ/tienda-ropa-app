@@ -147,8 +147,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
   Future<void> _save() async {
     // A second tap while saving would pop this screen twice, closing the
-    // catalog behind it too.
-    if (_saving) return;
+    // catalog behind it too; _busy (not just _saving) also keeps this from
+    // racing a delete still in flight.
+    if (_busy) return;
     if (!_formKey.currentState!.validate()) return;
 
     final variantes = [
@@ -277,7 +278,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   Future<void> _delete() async {
-    if (_deleting) return;
+    if (_busy) return;
     setState(() => _deleting = true);
     final confirm = await showDialog<bool>(
       context: context,
@@ -465,7 +466,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                 ),
               const SizedBox(height: 20),
               FilledButton.icon(
-                onPressed: _saving ? null : _save,
+                onPressed: _busy ? null : _save,
                 icon: const Icon(Icons.save_rounded),
                 label: const Text('Guardar'),
               ),
