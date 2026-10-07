@@ -401,7 +401,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onManageUsers: _canOpenUsers
                 ? () => _openUsers(widget.users!)
                 : null,
-            onExport: _exportCatalog,
+            onExport: widget.user.canEditCatalog ? _exportCatalog : null,
             onViewAdjustments: widget.user.canManageUsers
                 ? _openAdjustments
                 : null,

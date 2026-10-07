@@ -10,14 +10,17 @@ class AccountMenu extends StatelessWidget {
     super.key,
     required this.user,
     required this.onManageUsers,
-    required this.onExport,
+    this.onExport,
     this.onViewAdjustments,
     this.onSignOut,
   });
 
   final AppUser user;
   final VoidCallback? onManageUsers;
-  final VoidCallback onExport;
+
+  /// Null when this role shouldn't see the store's full prices and supplier
+  /// codes (e.g. an Empleado).
+  final VoidCallback? onExport;
 
   /// Null when there's no adjustment history to audit (e.g. not an admin).
   final VoidCallback? onViewAdjustments;
@@ -33,7 +36,7 @@ class AccountMenu extends StatelessWidget {
       onSelected: (action) => switch (action) {
         _AccountAction.users => onManageUsers?.call(),
         _AccountAction.adjustments => onViewAdjustments?.call(),
-        _AccountAction.export => onExport(),
+        _AccountAction.export => onExport?.call(),
         _AccountAction.signOut => onSignOut?.call(),
       },
       itemBuilder: (context) => [
@@ -72,14 +75,15 @@ class AccountMenu extends StatelessWidget {
               title: Text('Historial de ajustes'),
             ),
           ),
-        const PopupMenuItem(
-          value: _AccountAction.export,
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.ios_share_rounded),
-            title: Text('Exportar catálogo'),
+        if (onExport != null)
+          const PopupMenuItem(
+            value: _AccountAction.export,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.ios_share_rounded),
+              title: Text('Exportar catálogo'),
+            ),
           ),
-        ),
         if (onSignOut != null)
           const PopupMenuItem(
             value: _AccountAction.signOut,
