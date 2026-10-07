@@ -13,8 +13,66 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 1. Categorías o tipos de prenda (solo si el catálogo crece mucho).
 2. Sincronizar las fotos de las prendas entre teléfonos (hoy son solo locales; requiere habilitar Firebase Storage en el proyecto — pedir al dueño que lo active en la consola de Firebase antes de implementarlo).
 3. Revisar con más calma, junto al dueño, el caso (raro) de dos teléfonos sin internet creando prendas distintas que puedan terminar compartiendo código — ver nota técnica en la ronda (2) del 2026-10-02.
+4. [encontrado el 2026-10-07, bajo riesgo] Las reglas de Firestore (`firestore.rules`, regla de
+   `update` de `prendas` para empleados) solo verifican que la cantidad de combinaciones
+   color/talla no cambie, no que sigan siendo las mismas combinaciones. En teoría, alguien
+   con una cuenta de Empleado podría usar la API de Firestore directamente (no la app) para
+   renombrar un color o talla existente sin pasar por el formulario de administrador. No es
+   algo que se pueda hacer desde la app normal, solo manipulando la base de datos a mano.
+   Corregirlo bien requeriría cambiar cómo se guardan las variantes en Firestore (de lista a
+   algo indexable por color+talla), un cambio de estructura de datos más grande que conviene
+   pensar con calma y probar contra el Firebase real, no intentarlo a ciegas.
+5. [encontrado el 2026-10-07, bajo riesgo] El código de barras de proveedor de una prenda
+   (`codigoProveedor`) solo se revisa como "ya usado por otra prenda" contra lo que hay
+   guardado en el teléfono en ese momento, no contra el servidor. Dos administradores en
+   teléfonos distintos (o uno mismo trabajando sin conexión) podrían, en teoría, asignar el
+   mismo código a dos prendas distintas sin que ninguno de los dos se entere; al escanear
+   ese código luego, solo encuentra la primera. Corregirlo de verdad requiere una estructura
+   nueva en Firestore para reservar códigos de forma atómica — se deja pendiente por el mismo
+   motivo que el punto 4.
+6. [encontrado el 2026-10-07, menor] En una venta, si dos teléfonos venden la última pieza de
+   la misma combinación color/talla casi al mismo tiempo, el número real de existencia en el
+   servidor queda correcto (nunca baja de 0, gracias a la corrección de hoy), pero el
+   historial de esa venta en particular podría registrar más piezas de las que realmente
+   había disponibles en ese instante preciso. Es una ventana de coincidencia muy angosta y de
+   bajo impacto (el dinero cobrado sigue siendo el correcto); se deja documentado en vez de
+   corregido por ahora.
 
 ## Completado
+
+### 2026-10-07 (3), a pedido del dueño — "Robustece el código" (continuación)
+
+Más robustez encontrada revisando el código a fondo, en la misma sesión que el punto (2):
+
+1. **Corregido un error en la corrección de hoy mismo:** si la venta se aplicaba bien en el
+   servidor pero fallaba al guardarse en el teléfono justo después (por ejemplo, el teléfono
+   se quedó sin espacio en ese instante), antes se volvía a aplicar el descuento de
+   existencia por segunda vez y se subía de nuevo al servidor, duplicando el descuento. Ahora
+   ese caso (muy raro) ya no duplica nada: si el servidor ya confirmó el cambio, se usa ese
+   resultado tal cual, y si guardarlo localmente falla, se reintentará solo guardarlo (no
+   recalcular) la próxima vez que llegue una actualización.
+2. **Ventas y ajustes de existencia rechazados por el servidor ya no se pierden en
+   silencio.** Antes, si el servidor rechazaba subir una venta o un ajuste (por ejemplo justo
+   después de iniciar sesión, antes de que el servidor reconozca los permisos), ese registro
+   se descartaba para siempre sin ningún aviso: quedaba solo en ese teléfono, nunca en el
+   respaldo. Ahora se reintenta en vez de descartarse — no hay forma de "recuperar" ese
+   registro desde el servidor como sí la hay para una prenda, así que perderlo en silencio
+   era peor que seguir intentando.
+3. El historial de ajustes de existencia (quién cambió qué) ahora exige, también del lado del
+   servidor, que el nombre registrado sea el de quien realmente inició sesión — antes solo se
+   verificaba en la app, así que alguien manipulando la base de datos directamente podría en
+   teoría haber firmado un ajuste con el nombre de otra persona.
+4. En editar prenda, el botón "Guardar" también se desactiva mientras se está eliminando la
+   prenda (antes solo se desactivaba mientras se estaba guardando), para que no puedan correr
+   los dos a la vez.
+5. Las fotos de prenda se guardan en una resolución más chica (antes se guardaba la foto a la
+   resolución completa de la cámara, aunque en la app nunca se muestra más grande que una
+   miniatura); ahorra espacio en el teléfono y hace que la lista cargue más rápido en
+   teléfonos de gama baja.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format`. No había pruebas automatizadas
+que correr. No se pudo probar el cambio de reglas de Firestore ni el de ventas/ajustes
+rechazados contra un proyecto de Firebase real desde esta sesión.
 
 ### 2026-10-07 (2), a pedido del dueño — "Robustece el código"
 
