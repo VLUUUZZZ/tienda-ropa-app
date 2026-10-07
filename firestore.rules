@@ -104,6 +104,10 @@ service cloud.firestore {
           && request.resource.data.itemId is string
           && request.resource.data.nombreItem is string
           && request.resource.data.usuarioNombre is string
+          // Must be the signer's own name: an append-only audit trail is
+          // only worth anything if nobody can attribute an entry to someone
+          // else.
+          && request.resource.data.usuarioNombre == profile().nombre
           && request.resource.data.delta is int && request.resource.data.delta != 0;
         allow update, delete: if false;
       }
