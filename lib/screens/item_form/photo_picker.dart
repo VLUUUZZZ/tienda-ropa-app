@@ -107,17 +107,25 @@ class _ItemPhotoPickerState extends State<ItemPhotoPicker> {
     setState(() => _busy = true);
     try {
       await widget.repo.removePhotoPath(widget.itemId);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _busy = false);
+        showErrorSnackBar(context, 'No se pudo quitar la foto.');
+      }
+      return;
+    }
+    // Best-effort: the file may already be gone, and what matters (the
+    // stored path) is already cleared above.
+    try {
       await File(path).delete();
     } catch (e) {
-      // The file may already be gone; what matters is the stored path,
-      // which is already cleared above.
-    } finally {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _path = null;
-        });
-      }
+      // Ignored.
+    }
+    if (mounted) {
+      setState(() {
+        _busy = false;
+        _path = null;
+      });
     }
   }
 
