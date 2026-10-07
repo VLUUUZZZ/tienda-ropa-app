@@ -71,7 +71,15 @@ class _ItemPhotoPickerState extends State<ItemPhotoPicker> {
   Future<void> _pick(ImageSource source) async {
     final XFile? picked;
     try {
-      picked = await ImagePicker().pickImage(source: source, imageQuality: 80);
+      // The photo is only ever shown at 120x120, so there's no reason to
+      // keep it at full camera resolution (often several MB): downsampling
+      // at pick time keeps storage and decoding cheap on low-end phones.
+      picked = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
     } catch (e) {
       if (mounted) {
         showErrorSnackBar(context, 'No se pudo abrir la cámara/galería.');
