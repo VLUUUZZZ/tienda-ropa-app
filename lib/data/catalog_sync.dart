@@ -37,6 +37,14 @@ class CatalogSync {
   Timer? _retryTimer;
   bool _running = false;
 
+  /// One push at a time per id: otherwise two pushes for the same
+  /// never-yet-confirmed new id (e.g. a garment edited again right after
+  /// being created, before the first upload round-trips) could both try to
+  /// create it, self-conflict, and have the loser rekey off a stale
+  /// snapshot — destroying the newer edit the other push just wrote
+  /// locally. See [push].
+  final Map<String, Future<void>> _pushQueue = {};
+
   void start() {
     if (_running) return;
     _running = true;
@@ -56,9 +64,19 @@ class CatalogSync {
   /// gone) and confirms it in [SyncState] once the remote acknowledges it.
   ///
   /// Not awaited on purpose: Firestore queues writes while offline and its
-  /// futures only complete once the server acknowledges them.
+  /// futures only complete once the server acknowledges them. Chained after
+  /// any push already in flight for this same id, so overlapping pushes
+  /// never run concurrently — each one reads the id's current state fresh
+  /// once its turn comes, instead of two stale snapshots racing each other.
   void push(String id) {
     if (!_running) return;
+    final previous = _pushQueue[id] ?? Future<void>.value();
+    final next = previous.then((_) => _pushOnce(id));
+    _pushQueue[id] = next.then((_) {}, onError: (_) {});
+    unawaited(next);
+  }
+
+  Future<void> _pushOnce(String id) async {
     final token = _state.pendingToken(id);
     if (token == null) return;
 
@@ -74,7 +92,7 @@ class CatalogSync {
       return;
     }
 
-    unawaited(_send(id, item, token));
+    await _send(id, item, token);
   }
 
   Future<void> _send(String id, ClothingItem? item, int token) async {
