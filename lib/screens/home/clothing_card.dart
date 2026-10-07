@@ -40,22 +40,7 @@ class ClothingCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: colorScheme.primaryContainer,
-                backgroundImage: photoPath == null
-                    ? null
-                    : FileImage(File(photoPath!)),
-                onBackgroundImageError: photoPath == null
-                    ? null
-                    : (exception, stackTrace) {},
-                child: photoPath == null
-                    ? Icon(
-                        Icons.checkroom_rounded,
-                        color: colorScheme.onPrimaryContainer,
-                      )
-                    : null,
-              ),
+              _ItemAvatar(photoPath: photoPath),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -143,6 +128,52 @@ class ClothingCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The garment's circular thumbnail, falling back to the generic clothing
+/// icon both when there's no photo and when the stored file fails to load
+/// (missing, corrupted, moved to a new phone without it).
+class _ItemAvatar extends StatefulWidget {
+  const _ItemAvatar({required this.photoPath});
+
+  final String? photoPath;
+
+  @override
+  State<_ItemAvatar> createState() => _ItemAvatarState();
+}
+
+class _ItemAvatarState extends State<_ItemAvatar> {
+  bool _failed = false;
+
+  @override
+  void didUpdateWidget(_ItemAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.photoPath != oldWidget.photoPath) _failed = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final path = widget.photoPath;
+    final showPhoto = path != null && !_failed;
+
+    return CircleAvatar(
+      radius: 26,
+      backgroundColor: colorScheme.primaryContainer,
+      backgroundImage: showPhoto ? FileImage(File(path)) : null,
+      onBackgroundImageError: showPhoto
+          ? (exception, stackTrace) {
+              if (mounted) setState(() => _failed = true);
+            }
+          : null,
+      child: showPhoto
+          ? null
+          : Icon(
+              Icons.checkroom_rounded,
+              color: colorScheme.onPrimaryContainer,
+            ),
     );
   }
 }
