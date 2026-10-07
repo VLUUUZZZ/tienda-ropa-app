@@ -20,8 +20,10 @@ import 'sync_state.dart';
 /// * New sales are pushed with [push] and stay pending in [SyncState] until
 ///   confirmed, so they survive failures and app restarts.
 /// * If the remote listener fails it is re-opened with [Backoff], and
-///   pending sales are pushed again. Writes the remote rejects for good
-///   ([RemoteWriteRejected]) are dropped.
+///   pending sales are pushed again. Unlike [CatalogSync], a rejected write
+///   stays pending instead of being dropped: there's no remote copy of a
+///   sale to fall back on, so giving up would erase it from every record but
+///   this device's.
 class SalesSync {
   SalesSync({
     required LocalSales local,
@@ -93,18 +95,14 @@ class SalesSync {
     try {
       await _remote.upload(sale);
       await _state.confirm(id, token);
-    } on RemoteWriteRejected catch (e) {
-      // Retrying can't help; dropping the pending mark lets the next remote
-      // snapshot settle this id (e.g. if some other copy of it exists).
-      debugPrint('Venta $id rechazada, se descarta: $e');
-      try {
-        await _state.confirm(id, token);
-      } catch (_) {
-        // Box may already be closed (e.g. sign-out mid-flight); nothing to
-        // do, the pending mark is harmless to leave behind in that case.
-      }
     } catch (e) {
-      // Stays pending: retried on reconnect or on the next launch.
+      // Unlike CatalogSync, there's no remote copy to fall back on if a sale
+      // was never actually uploaded — dropping the pending mark here (as a
+      // rejected catalog write safely does) would silently erase a sale from
+      // every record but this one device's local log. A permission-denied
+      // here is also often transient (token/claims not propagated yet right
+      // after sign-in) rather than permanent, so it stays pending and keeps
+      // retrying on reconnect or the next launch either way.
       debugPrint('No se sincronizó la venta $id, se reintentará: $e');
     }
   }
