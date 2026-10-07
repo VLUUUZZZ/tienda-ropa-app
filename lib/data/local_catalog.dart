@@ -102,7 +102,11 @@ class LocalCatalog {
   }
 
   Future<String> _mintNextId() async {
-    var next = ((_box.get(_sequenceKey) as int?) ?? 0) + 1;
+    // A plain `as int?` would throw instead of defaulting if this were ever
+    // somehow stored as something else, which would break minting new ids
+    // entirely until fixed by hand.
+    final stored = _box.get(_sequenceKey);
+    var next = (stored is int ? stored : 0) + 1;
     while (_box.containsKey(_formatId(next))) {
       next++;
     }
