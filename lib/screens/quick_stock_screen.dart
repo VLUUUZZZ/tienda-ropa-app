@@ -141,6 +141,8 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
       hasChanges: _hasChanges,
       message:
           'Tienes cambios de existencia sin guardar. ¿Deseas salir sin guardarlos?',
+      busy: _saving,
+      busyMessage: 'Espera a que termine de guardar.',
       child: Scaffold(
         appBar: AppBar(
           title: Text(
