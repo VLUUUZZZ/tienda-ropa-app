@@ -355,6 +355,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     return UnsavedChangesGuard(
       hasChanges: _dirty,
       message: 'Tienes cambios sin guardar. ¿Deseas salir sin guardarlos?',
+      busy: _busy,
+      busyMessage: 'Espera a que termine de guardar.',
       child: Scaffold(
         appBar: AppBar(
           title: Text(widget.isNew ? 'Nueva prenda' : 'Editar prenda'),
