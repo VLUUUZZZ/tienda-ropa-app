@@ -32,6 +32,15 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
   late List<int> _cantidades;
   bool _saving = false;
 
+  /// Set once the stock decrement has been committed, so a retry after a
+  /// failure in the sales-log step below doesn't apply it a second time.
+  bool _stockApplied = false;
+
+  /// Sales still left to register; registered ones are removed as they
+  /// succeed, so a retry only repeats what actually failed.
+  List<Sale> _ventasPendientes = const [];
+  int _totalRegistradoFinal = 0;
+
   @override
   void initState() {
     super.initState();
@@ -55,61 +64,87 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
   Future<void> _confirmar() async {
     // A second tap while saving would register the same sale twice.
     if (_saving || !_hasChanges) return;
-
-    // The garment may have changed on another device since this screen
-    // opened (including its stock): apply the sale on top of its latest
-    // version, and never sell more than what's actually left.
-    final latest = widget.repo.getById(widget.item.id);
-    if (latest == null) {
-      showErrorSnackBar(context, 'Esta prenda ya no existe en el catálogo.');
-      return;
-    }
-
     setState(() => _saving = true);
 
-    final ventas = <Sale>[];
-    final deltas = <String, int>{};
-    for (var i = 0; i < widget.item.variantes.length; i++) {
-      final pedido = _cantidades[i];
-      if (pedido <= 0) continue;
-      final variante = widget.item.variantes[i];
-      final enStock = latest.variantes.where((v) => v.key == variante.key);
-      final cantidad = pedido.clamp(
-        0,
-        enStock.isEmpty ? 0 : enStock.first.existencia,
-      );
-      if (cantidad <= 0) continue;
-      deltas[variante.key] = -cantidad;
-      ventas.add(
-        Sale(
-          id: Sale.newId(),
-          itemId: latest.id,
-          nombreItem: latest.nombre,
-          color: variante.color,
-          talla: variante.talla,
-          cantidad: cantidad,
-          precioUnitario: latest.precio,
-          fecha: DateTime.now(),
-        ),
-      );
-    }
+    if (!_stockApplied) {
+      // The garment may have changed on another device since this screen
+      // opened (including its stock): apply the sale on top of its latest
+      // version, and never sell more than what's actually left.
+      final latest = widget.repo.getById(widget.item.id);
+      if (latest == null) {
+        setState(() => _saving = false);
+        if (mounted) {
+          showErrorSnackBar(
+            context,
+            'Esta prenda ya no existe en el catálogo.',
+          );
+        }
+        return;
+      }
 
-    if (ventas.isEmpty) {
-      setState(() => _saving = false);
-      showErrorSnackBar(
-        context,
-        'Ya no queda existencia suficiente para registrar esta venta.',
-      );
-      return;
+      final ventas = <Sale>[];
+      final deltas = <String, int>{};
+      for (var i = 0; i < widget.item.variantes.length; i++) {
+        final pedido = _cantidades[i];
+        if (pedido <= 0) continue;
+        final variante = widget.item.variantes[i];
+        final enStock = latest.variantes.where((v) => v.key == variante.key);
+        final cantidad = pedido.clamp(
+          0,
+          enStock.isEmpty ? 0 : enStock.first.existencia,
+        );
+        if (cantidad <= 0) continue;
+        // Accumulated, not overwritten: two variants could in principle
+        // share the same normalized color/talla key (see
+        // ClothingItem.firstDuplicateVariant), and withStockChanges applies
+        // one delta per key to every variant that has it.
+        deltas[variante.key] = (deltas[variante.key] ?? 0) - cantidad;
+        ventas.add(
+          Sale(
+            id: Sale.newId(),
+            itemId: latest.id,
+            nombreItem: latest.nombre,
+            color: variante.color,
+            talla: variante.talla,
+            cantidad: cantidad,
+            precioUnitario: latest.precio,
+            fecha: DateTime.now(),
+          ),
+        );
+      }
+
+      if (ventas.isEmpty) {
+        setState(() => _saving = false);
+        showErrorSnackBar(
+          context,
+          'Ya no queda existencia suficiente para registrar esta venta.',
+        );
+        return;
+      }
+
+      try {
+        await widget.repo.save(latest.withStockChanges(deltas));
+      } catch (e) {
+        if (mounted) {
+          setState(() => _saving = false);
+          showErrorSnackBar(context, 'No se pudo registrar la venta.');
+        }
+        return;
+      }
+      _stockApplied = true;
+      _ventasPendientes = ventas;
+      _totalRegistradoFinal = ventas.fold(0, (sum, v) => sum + v.cantidad);
     }
 
     final totalPedido = _totalPiezas;
-    final totalRegistrado = ventas.fold(0, (sum, v) => sum + v.cantidad);
-
     try {
-      await widget.repo.save(latest.withStockChanges(deltas));
-      for (final venta in ventas) {
-        await widget.salesRepo.registrar(venta);
+      // Registered one at a time, removed from the pending list as each
+      // succeeds: a retry after a failure here only repeats what's left,
+      // instead of re-registering sales (and re-decrementing stock) already
+      // committed in an earlier attempt.
+      while (_ventasPendientes.isNotEmpty) {
+        await widget.salesRepo.registrar(_ventasPendientes.first);
+        _ventasPendientes = _ventasPendientes.skip(1).toList();
       }
     } catch (e) {
       if (mounted) {
@@ -122,11 +157,11 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
     // The stock may have changed (otro teléfono) entre que se abrió esta
     // pantalla y se confirmó: avisar si se vendieron menos piezas de las
     // pedidas, en vez de decir simplemente "Venta registrada".
-    if (totalRegistrado < totalPedido) {
+    if (_totalRegistradoFinal < totalPedido) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Solo quedaban $totalRegistrado de $totalPedido piezas: se '
+            'Solo quedaban $_totalRegistradoFinal de $totalPedido piezas: se '
             'registró lo disponible.',
           ),
           duration: const Duration(seconds: 3),
@@ -162,6 +197,8 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
     return UnsavedChangesGuard(
       hasChanges: _hasChanges,
       message: 'Tienes una venta sin confirmar. ¿Deseas salir sin registrarla?',
+      busy: _saving,
+      busyMessage: 'Espera a que termine de registrar la venta.',
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -239,7 +276,15 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
                     ],
                     FilledButton.icon(
                       onPressed: _hasChanges && !_saving ? _confirmar : null,
-                      icon: const Icon(Icons.point_of_sale_rounded),
+                      icon: _saving
+                          ? SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: colorScheme.onPrimary,
+                              ),
+                            )
+                          : const Icon(Icons.point_of_sale_rounded),
                       label: const Text('Registrar venta'),
                     ),
                   ],
