@@ -10,11 +10,79 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Pendiente
 
-1. Categorías o tipos de prenda (solo si el catálogo crece mucho).
-2. Sincronizar las fotos de las prendas entre teléfonos (hoy son solo locales; requiere habilitar Firebase Storage en el proyecto — pedir al dueño que lo active en la consola de Firebase antes de implementarlo).
-3. Revisar con más calma, junto al dueño, el caso (raro) de dos teléfonos sin internet creando prendas distintas que puedan terminar compartiendo código — ver nota técnica en la ronda (2) del 2026-10-02.
+1. [IMPORTANTE, encontrado el 2026-10-07] Si dos empleados venden piezas de la misma
+   prenda casi al mismo tiempo (dos teléfonos distintos, una venta cada uno en
+   segundos), puede perderse una de las rebajas de existencia: la venta que se guarda
+   al final sobrescribe por completo el número de existencia en el servidor, en vez de
+   solo restarle lo vendido. Las dos ventas quedan bien registradas en el historial (el
+   dinero cuadra), pero el conteo de existencia puede terminar más alto de lo que
+   realmente queda, sin ningún aviso en pantalla. Arreglarlo bien requiere cambiar cómo
+   se guarda la existencia en el servidor (una operación atómica de "restar X", no
+   "reemplazar todo el documento"), algo que conviene probar con cuidado contra el
+   Firebase real antes de subirlo. No se intentó en esta sesión automática por el riesgo
+   de tocar el flujo de ventas/existencia sin poder probarlo en este entorno (sin acceso
+   al Firebase real). Nota técnica: `FirestoreCatalog.upsert` en
+   `lib/data/firestore_catalog.dart` hace un `.set()` de todo el documento; la solución
+   es una transacción de Firestore con `FieldValue.increment` por variante.
+2. Categorías o tipos de prenda (solo si el catálogo crece mucho).
+3. Sincronizar las fotos de las prendas entre teléfonos (hoy son solo locales; requiere habilitar Firebase Storage en el proyecto — pedir al dueño que lo active en la consola de Firebase antes de implementarlo).
+4. Revisar con más calma, junto al dueño, el caso (raro) de dos teléfonos sin internet creando prendas distintas que puedan terminar compartiendo código — ver nota técnica en la ronda (2) del 2026-10-02.
 
 ## Completado
+
+### 2026-10-07 — sesión automática diaria de pulido
+
+Las tareas de "Pendiente" seguían bloqueadas (necesitan algo del dueño primero o son
+condicionales), así que la sesión se dedicó a revisar a fondo el código en busca de
+errores reales. Se encontraron y corrigieron 15 problemas; el más serio de los
+encontrados (ventas simultáneas desde dos teléfonos, ver punto 1 de "Pendiente" arriba)
+quedó documentado ahí en vez de corregirse a ciegas, por su riesgo y por no poder
+probarse contra el Firebase real desde esta sesión.
+
+1. Un empleado ya no puede exportar el catálogo completo (precios y códigos de
+   proveedor) desde el menú de Cuenta: esa opción solo aparecía para Administradores en
+   la intención original, pero por un descuido estaba visible y funcionando para
+   cualquier cuenta.
+2. En editar prenda, los botones de ajuste rápido, código QR y eliminar se desactivan
+   mientras se está guardando o eliminando, para que no puedan correr al mismo tiempo y
+   dejar la prenda en un estado contradictorio.
+3. Un doble toque rápido en "Eliminar" (pantalla de prenda) ya no abre dos diálogos de
+   confirmación a la vez.
+4. Si se quita una combinación de color/talla que tenía existencia (en vez de solo
+   poner su existencia en 0 y dejarla), ahora queda registrada en el historial de
+   ajustes como una salida de esas piezas, en vez de desaparecer sin dejar rastro.
+5. Si falla quitar una foto guardada en el teléfono, ya no se muestra "sin foto" de
+   todas formas: se avisa del error y la foto se mantiene hasta poder intentarlo de
+   nuevo.
+6. En la lista principal, si el archivo de la foto de una prenda ya no se puede abrir
+   (se movió de teléfono, se dañó), se muestra el ícono genérico de ropa en vez de un
+   círculo vacío sin explicación.
+7. Corregido un caso donde guardar o eliminar una prenda, justo cuando llega al mismo
+   tiempo una actualización desde otro teléfono, podía perder el cambio recién hecho sin
+   ningún aviso.
+8. Al registrar una venta: ya no se puede salir de la pantalla a medio camino creyendo
+   que se "descartó" cuando en realidad ya se estaba guardando; ahora se avisa que hay
+   que esperar a que termine.
+9. El botón "Registrar venta" muestra un círculo de carga mientras se guarda, igual que
+   los demás botones de guardar en la app.
+10. Si falla registrar una venta justo después de descontar la existencia, reintentar
+    ya no descuenta la existencia dos veces ni duplica las ventas ya registradas
+    correctamente en el primer intento.
+11. Vender varias tallas/colores con el mismo nombre normalizado en una sola venta ya
+    no pierde ni duplica por error la rebaja de existencia de alguna de ellas.
+12. "Más vendidos" (en los reportes de ventas) ahora desempata siempre por la venta más
+    reciente de forma consistente, como ya decía que hacía.
+13. Dar de alta dos cuentas de empleado casi al mismo tiempo ya no puede chocar entre
+    sí con un error interno confuso.
+14. La descripción del rol "Empleado" al crear un usuario ahora menciona que también
+    puede registrar ventas (antes solo decía "consultar, escanear y ajustar
+    existencias", lo cual podía confundir al dueño sobre qué puede hacer esa cuenta).
+15. Limpieza menor: una prenda nueva que se empieza a crear pero nunca se guarda ya no
+    deja un registro interno "pendiente" abandonado para siempre.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` (sin cambios pendientes). No
+hay pruebas automatizadas que correr (se retiraron por pedido explícito del dueño el
+2026-09-22) ni se compiló el APK (sin SDK de Android en este entorno).
 
 ### 2026-10-06 — sesión automática diaria de pulido
 
