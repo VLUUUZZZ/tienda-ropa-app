@@ -57,13 +57,18 @@ class ClothingRepository {
     for (final id in _photos.ids.toList()) {
       if (catalogIds.contains(id)) continue;
       final path = _photos.pathFor(id);
-      await _photos.remove(id);
-      if (path == null) continue;
-      try {
-        await File(path).delete();
-      } catch (e) {
-        // Already gone; nothing left to clean up.
+      if (path != null) {
+        final file = File(path);
+        try {
+          if (await file.exists()) await file.delete();
+        } catch (e) {
+          // Couldn't remove the file this time (permission, disk busy):
+          // leave the Hive entry in place so the next launch retries,
+          // instead of clearing it and leaking the file forever.
+          continue;
+        }
       }
+      await _photos.remove(id);
     }
   }
 
