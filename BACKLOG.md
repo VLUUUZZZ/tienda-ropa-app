@@ -10,25 +10,36 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Pendiente
 
-1. [IMPORTANTE, encontrado el 2026-10-07] Si dos empleados venden piezas de la misma
-   prenda casi al mismo tiempo (dos teléfonos distintos, una venta cada uno en
-   segundos), puede perderse una de las rebajas de existencia: la venta que se guarda
-   al final sobrescribe por completo el número de existencia en el servidor, en vez de
-   solo restarle lo vendido. Las dos ventas quedan bien registradas en el historial (el
-   dinero cuadra), pero el conteo de existencia puede terminar más alto de lo que
-   realmente queda, sin ningún aviso en pantalla. Arreglarlo bien requiere cambiar cómo
-   se guarda la existencia en el servidor (una operación atómica de "restar X", no
-   "reemplazar todo el documento"), algo que conviene probar con cuidado contra el
-   Firebase real antes de subirlo. No se intentó en esta sesión automática por el riesgo
-   de tocar el flujo de ventas/existencia sin poder probarlo en este entorno (sin acceso
-   al Firebase real). Nota técnica: `FirestoreCatalog.upsert` en
-   `lib/data/firestore_catalog.dart` hace un `.set()` de todo el documento; la solución
-   es una transacción de Firestore con `FieldValue.increment` por variante.
-2. Categorías o tipos de prenda (solo si el catálogo crece mucho).
-3. Sincronizar las fotos de las prendas entre teléfonos (hoy son solo locales; requiere habilitar Firebase Storage en el proyecto — pedir al dueño que lo active en la consola de Firebase antes de implementarlo).
-4. Revisar con más calma, junto al dueño, el caso (raro) de dos teléfonos sin internet creando prendas distintas que puedan terminar compartiendo código — ver nota técnica en la ronda (2) del 2026-10-02.
+1. Categorías o tipos de prenda (solo si el catálogo crece mucho).
+2. Sincronizar las fotos de las prendas entre teléfonos (hoy son solo locales; requiere habilitar Firebase Storage en el proyecto — pedir al dueño que lo active en la consola de Firebase antes de implementarlo).
+3. Revisar con más calma, junto al dueño, el caso (raro) de dos teléfonos sin internet creando prendas distintas que puedan terminar compartiendo código — ver nota técnica en la ronda (2) del 2026-10-02.
 
 ## Completado
+
+### 2026-10-07 (2), a pedido del dueño — "Robustece el código"
+
+Se corrigió el problema [IMPORTANTE] que había quedado documentado en "Pendiente" tras
+la ronda anterior del mismo día: si dos empleados vendían piezas de la misma prenda casi
+al mismo tiempo desde dos teléfonos distintos, una de las rebajas de existencia podía
+perderse (la venta quedaba bien registrada, pero el conteo de piezas disponibles podía
+quedar más alto de lo real).
+
+Se corrigió de la forma recomendada: ahora, cuando el teléfono tiene conexión, una venta
+o un ajuste rápido de existencia se aplica directamente en el servidor como una
+operación atómica ("réstale X a lo que haya en este momento"), en vez de que cada
+teléfono calcule el nuevo número por su cuenta y lo sobrescriba. Así, si dos ventas
+llegan casi juntas, las dos rebajas se aplican correctamente sobre el valor real, en vez
+de que la segunda borre el efecto de la primera. Si el teléfono está sin conexión, el
+cambio se guarda localmente y se sincroniza después, como ya funcionaba antes (ese caso
+sin conexión simultánea en dos teléfonos sigue siendo una posibilidad remota, igual que
+otros casos ya documentados en "Pendiente").
+
+No se tocaron las reglas de Firestore (`firestore.rules`): ya permitían este tipo de
+cambio parcial para empleados, sin necesitar ningún ajuste.
+
+Verificado con `flutter analyze` (0 avisos) y revisión manual del flujo (sin acceso a un
+proyecto de Firebase real desde esta sesión para probarlo en vivo contra el servidor;
+revísalo con una venta de prueba desde dos teléfonos cuando puedas).
 
 ### 2026-10-07 — sesión automática diaria de pulido
 
