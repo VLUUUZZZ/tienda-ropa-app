@@ -86,7 +86,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
     final changes = _stockChanges;
     setState(() => _saving = true);
     try {
-      await widget.repo.save(latest.withStockChanges(changes));
+      await widget.repo.applyStockDelta(latest.id, changes);
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);

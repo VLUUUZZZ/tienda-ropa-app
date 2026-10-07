@@ -31,6 +31,7 @@ class ClothingRepository {
   final SyncState _syncState;
   final LocalPhotos _photos;
   CatalogSync? _sync;
+  RemoteCatalog? _remote;
 
   /// Opens the catalog of the store [tiendaId], or the local-only catalog
   /// when null (app without backend, and data from before stores existed).
@@ -100,6 +101,7 @@ class ClothingRepository {
 
   Future<void> attachRemote(RemoteCatalog remote) async {
     if (_sync != null) return;
+    _remote = remote;
     _sync = CatalogSync(
       local: _local,
       state: _syncState,
@@ -111,6 +113,7 @@ class ClothingRepository {
   Future<void> detachRemote() async {
     await _sync?.stop();
     _sync = null;
+    _remote = null;
   }
 
   /// Mints the next human-readable id, e.g. "PRENDA-000024", and marks it as
@@ -164,6 +167,47 @@ class ClothingRepository {
     await _syncState.markPending(item.id);
     await _local.write(item);
     _sync?.push(item.id);
+  }
+
+  /// Applies [deltas] (see [ClothingItem.withStockChanges]) to [id]'s stock
+  /// — a sale or a quick stock adjustment, as opposed to a full edit.
+  ///
+  /// When a remote is attached and reachable, this is applied as an atomic
+  /// transaction on the server *first*, against whatever stock is actually
+  /// there at that moment, and the confirmed result becomes the new local
+  /// state. That matters because two devices applying a delta to the same
+  /// garment within moments of each other (two sales in the same store) must
+  /// both take effect — [save] alone can't guarantee that, since it always
+  /// overwrites the whole remote document with a locally-computed result,
+  /// and the second overwrite would silently discard the first device's
+  /// change. If there's no remote, or the server round-trip fails (offline,
+  /// most likely), falls back to a plain local change queued for the next
+  /// sync, same as [save] — correct as long as only one device is editing
+  /// this garment while offline.
+  Future<ClothingItem> applyStockDelta(
+    String id,
+    Map<String, int> deltas,
+  ) async {
+    final remote = _remote;
+    if (remote != null) {
+      try {
+        final updated = await remote.applyStockDelta(id, deltas);
+        await _local.write(updated);
+        return updated;
+      } catch (e) {
+        debugPrint(
+          'No se pudo aplicar el cambio de existencia de $id en el '
+          'servidor, se aplica solo localmente: $e',
+        );
+      }
+    }
+    final current = getById(id);
+    if (current == null) {
+      throw StateError('La prenda $id ya no existe en el catálogo.');
+    }
+    final updated = current.withStockChanges(deltas);
+    await save(updated);
+    return updated;
   }
 
   Future<void> delete(String id) async {
