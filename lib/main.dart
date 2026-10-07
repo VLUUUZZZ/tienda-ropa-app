@@ -141,7 +141,9 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
         ? ThemeMode.dark
         : ThemeMode.light;
     setState(() => _themeMode = next);
-    widget.settings.setDarkMode(next == ThemeMode.dark);
+    widget.settings
+        .setDarkMode(next == ThemeMode.dark)
+        .catchError((Object e) => debugPrint('No se pudo guardar el tema: $e'));
   }
 
   @override
