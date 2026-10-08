@@ -17,9 +17,18 @@ class FirebaseAuthService implements AuthService {
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
 
+  /// True while [createStore] is writing this device's own profile: read by
+  /// [SessionWatcher] so it doesn't flash "sin acceso" while that write is
+  /// still in flight.
+  bool _provisioningStore = false;
+
   /// Each listener gets its own [SessionWatcher].
   @override
-  Stream<AuthState> watch() => SessionWatcher(_auth, _firestore).states;
+  Stream<AuthState> watch() => SessionWatcher(
+    _auth,
+    _firestore,
+    isProvisioning: () => _provisioningStore,
+  ).states;
 
   @override
   Future<void> signIn({required String correo, required String password}) =>
@@ -34,8 +43,13 @@ class FirebaseAuthService implements AuthService {
   Future<void> signOut() => _auth.signOut();
 
   @override
-  Future<void> sendPasswordReset(String correo) =>
-      _guard(() => _auth.sendPasswordResetEmail(email: correo.trim()));
+  Future<void> sendPasswordReset(String correo) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: correo.trim());
+    } on FirebaseAuthException catch (e) {
+      throw passwordResetExceptionFrom(e);
+    }
+  }
 
   @override
   Future<void> createStore({
@@ -44,47 +58,52 @@ class FirebaseAuthService implements AuthService {
     required String correo,
     required String password,
   }) async {
-    final credential = await _guard(
-      () => _auth.createUserWithEmailAndPassword(
-        email: correo.trim(),
-        password: password,
-      ),
-    );
-    final user = credential.user!;
-    final tiendaRef = FirestorePaths.stores(_firestore).doc();
-    final admin = AppUser(
-      uid: user.uid,
-      nombre: nombre.trim(),
-      correo: correo.trim(),
-      role: UserRole.admin,
-      tienda: Tienda(id: tiendaRef.id, nombre: nombreTienda.trim()),
-    );
-
-    // One batch, so the rules can check the store and its owner together.
-    final batch = _firestore.batch()
-      ..set(tiendaRef, {
-        'nombre': nombreTienda.trim(),
-        'duenoUid': user.uid,
-        'creada': FieldValue.serverTimestamp(),
-      })
-      ..set(FirestorePaths.user(_firestore, user.uid), {
-        ...admin.toMap(),
-        'creado': FieldValue.serverTimestamp(),
-      });
+    _provisioningStore = true;
     try {
-      await batch.commit();
-    } catch (_) {
-      // Don't leave behind an account with no store. If even this fails,
-      // the account stays orphaned, but the message shown must still be the
-      // one below and not whatever this cleanup attempt threw.
-      try {
-        await user.delete();
-      } catch (_) {
-        // Ignored: reported below regardless of the outcome.
-      }
-      throw const AuthException(
-        'No se pudo crear la tienda. Revisa tu conexión e inténtalo de nuevo.',
+      final credential = await _guard(
+        () => _auth.createUserWithEmailAndPassword(
+          email: correo.trim(),
+          password: password,
+        ),
       );
+      final user = credential.user!;
+      final tiendaRef = FirestorePaths.stores(_firestore).doc();
+      final admin = AppUser(
+        uid: user.uid,
+        nombre: nombre.trim(),
+        correo: correo.trim(),
+        role: UserRole.admin,
+        tienda: Tienda(id: tiendaRef.id, nombre: nombreTienda.trim()),
+      );
+
+      // One batch, so the rules can check the store and its owner together.
+      final batch = _firestore.batch()
+        ..set(tiendaRef, {
+          'nombre': nombreTienda.trim(),
+          'duenoUid': user.uid,
+          'creada': FieldValue.serverTimestamp(),
+        })
+        ..set(FirestorePaths.user(_firestore, user.uid), {
+          ...admin.toMap(),
+          'creado': FieldValue.serverTimestamp(),
+        });
+      try {
+        await batch.commit();
+      } catch (_) {
+        // Don't leave behind an account with no store. If even this fails,
+        // the account stays orphaned, but the message shown must still be
+        // the one below and not whatever this cleanup attempt threw.
+        try {
+          await user.delete();
+        } catch (_) {
+          // Ignored: reported below regardless of the outcome.
+        }
+        throw const AuthException(
+          'No se pudo crear la tienda. Revisa tu conexión e inténtalo de nuevo.',
+        );
+      }
+    } finally {
+      _provisioningStore = false;
     }
   }
 

@@ -6,6 +6,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// * `usuarios/{uid}`: each user's profile, store and role.
 /// * `tiendas/{tiendaId}`: each store.
 /// * `tiendas/{tiendaId}/prendas/{prendaId}`: that store's catalog.
+/// * `tiendas/{tiendaId}/ventas/{ventaId}`: that store's sales log.
+/// * `tiendas/{tiendaId}/ajustes/{ajusteId}`: that store's stock-adjustment
+///   history.
 abstract final class FirestorePaths {
   static CollectionReference<Map<String, dynamic>> users(
     FirebaseFirestore db,
@@ -24,4 +27,14 @@ abstract final class FirestorePaths {
     FirebaseFirestore db,
     String tiendaId,
   ) => stores(db).doc(tiendaId).collection('prendas');
+
+  static CollectionReference<Map<String, dynamic>> sales(
+    FirebaseFirestore db,
+    String tiendaId,
+  ) => stores(db).doc(tiendaId).collection('ventas');
+
+  static CollectionReference<Map<String, dynamic>> adjustments(
+    FirebaseFirestore db,
+    String tiendaId,
+  ) => stores(db).doc(tiendaId).collection('ajustes');
 }

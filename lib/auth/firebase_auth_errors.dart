@@ -20,10 +20,19 @@ AuthException authExceptionFrom(FirebaseAuthException e) {
     'too-many-requests' => 'Demasiados intentos. Espera un momento.',
     'network-request-failed' => 'Sin conexión a internet.',
     'operation-not-allowed' =>
-      'El acceso con correo no está activado en Firebase.',
+      'El acceso con correo no está activado para esta tienda. Contacta al soporte.',
     'requires-recent-login' =>
       'Por seguridad, vuelve a iniciar sesión e inténtalo de nuevo.',
     _ => 'No se pudo completar la operación. Inténtalo de nuevo.',
   };
   return AuthException(message);
+}
+
+/// Same as [authExceptionFrom], but for "forgot password": that flow never
+/// involves a password, so an unknown email must not be reported as one.
+AuthException passwordResetExceptionFrom(FirebaseAuthException e) {
+  if (e.code == 'user-not-found' || e.code == 'invalid-email') {
+    return const AuthException('No encontramos una cuenta con ese correo.');
+  }
+  return authExceptionFrom(e);
 }

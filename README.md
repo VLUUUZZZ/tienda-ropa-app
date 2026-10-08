@@ -1,8 +1,8 @@
 # Tienda de Ropa
 
-App móvil para llevar el **catálogo y el inventario de una tienda de ropa** desde el
-teléfono: qué prendas hay, en qué tallas y colores, cuántas piezas quedan de cada una y
-cuánto vale lo que hay en tienda. Cada prenda lleva una **etiqueta con código QR**: al
+App móvil para llevar el **catálogo, el inventario y las ventas de una tienda de ropa**
+desde el teléfono: qué prendas hay, en qué tallas y colores, cuántas piezas quedan de cada
+una, cuánto vale lo que hay en tienda y qué se ha vendido. Cada prenda lleva una **etiqueta con código QR**: al
 escanearla, la app abre esa prenda para consultarla o ajustar su existencia en segundos.
 
 Está pensada para tiendas pequeñas o medianas donde varias personas atienden con su
@@ -15,8 +15,8 @@ la app **sigue funcionando sin internet**.
 
 | Rol | Qué puede hacer |
 |---|---|
-| **Administrador** (dueño o encargado) | Todo: crear, editar y eliminar prendas, fijar precios, imprimir etiquetas QR, ajustar existencias y dar de alta, cambiar de rol o desactivar al personal. |
-| **Empleado** (vendedor) | Consultar el catálogo, escanear etiquetas y ajustar existencias (sumar o restar piezas). No ve el valor del inventario ni puede cambiar nombres, precios o tallas. |
+| **Administrador** (dueño o encargado) | Todo: crear, editar y eliminar prendas, fijar precios, fotos y códigos de proveedor, imprimir etiquetas QR, ajustar existencias, registrar ventas, exportar el catálogo, ver el historial de ajustes y dar de alta, cambiar de rol o desactivar al personal. |
+| **Empleado** (vendedor) | Consultar el catálogo, escanear etiquetas, registrar ventas y ajustar existencias (sumar o restar piezas). No ve el valor del inventario ni puede cambiar nombres, precios o tallas. |
 
 Los permisos no son solo visuales: el servidor (reglas de Firestore) rechaza cualquier
 cambio que el rol no permita.
@@ -32,8 +32,11 @@ cambio que el rol no permita.
    etiqueta QR** o agregar la siguiente.
 3. **Etiquetar.** La etiqueta (nombre, QR y código, siempre en negro sobre blanco) se
    guarda o comparte como imagen para imprimirla y pegarla en la prenda.
-4. **Atender.** Al vender o recibir mercancía, se escanea la etiqueta (o se busca la
-   prenda) y se ajusta la existencia con los botones **− / +** de cada talla y color.
+4. **Vender y reabastecer.** Se escanea la etiqueta QR (o el código de barras que trae
+   la prenda del proveedor) o se busca la prenda. Para una venta se usa **Registrar
+   venta**: descuenta las piezas y queda en el historial de ventas con su precio. Al
+   recibir mercancía se ajusta la existencia con **− / +**; cada ajuste queda en el
+   historial con quién lo hizo y cuándo.
 5. **Dar de alta al personal.** Desde *Cuenta → Usuarios* el administrador crea las
    cuentas de sus empleados y puede cambiar su rol o desactivarlos.
 
@@ -43,12 +46,20 @@ cambio que el rol no permita.
   importar mayúsculas ni acentos); tarjeta resumen con el **valor del inventario** (solo
   administradores), número de prendas, piezas y agotadas; filtros *Todas / Poca existencia
   / Agotadas*; y la lista de prendas con precio, código, colores y estado de existencia.
+- **Ventas.** Registrar una venta (talla, color y piezas) desde la tarjeta de la prenda, y
+  la pantalla de ventas con el total del día y reportes (más vendidos).
+- **Historial de ajustes** (administradores): quién sumó o restó piezas, de qué prenda y
+  cuándo.
 - **Ajuste rápido de existencia.** Las tallas agrupadas por color con un control
   **− número +**, el total y lo que falta por guardar.
-- **Ficha de prenda.** Información (nombre y precio) y la lista de tallas y colores; desde
-  el menú se ajusta la existencia o se elimina la prenda.
-- **Escáner.** Cámara con marco de enfoque y linterna. Si el código no es de una prenda
-  de la tienda, lo dice y explica qué hacer.
+- **Ficha de prenda.** Foto (guardada solo en ese teléfono), nombre, precio, código de
+  barras del proveedor (se puede escanear) y la lista de tallas y colores; desde el menú se
+  ajusta la existencia o se elimina la prenda.
+- **Exportar catálogo** (administradores): un CSV con todas las prendas para respaldo o
+  para abrirlo en una hoja de cálculo.
+- **Escáner.** Cámara con marco de enfoque y linterna; reconoce el QR de la app y el
+  código de barras del proveedor. Si el código no es de una prenda de la tienda, lo dice y
+  explica qué hacer.
 - **Código QR.** Etiqueta lista para imprimir o compartir.
 - **Usuarios.** Personal de la tienda con su rol y estado; alta de cuentas nuevas.
 - **Inicio de sesión / tienda nueva**, con recuperación de contraseña por correo.
@@ -79,6 +90,11 @@ La app siempre dice qué pasó, con el mismo lenguaje en todas las pantallas
   abre al instante y funciona sin conexión. Cada cambio queda marcado como pendiente y se
   sube a **Firebase (Firestore)** cuando hay red; los cambios de otros teléfonos llegan en
   vivo.
+- **Ventas y ajustes atómicos:** se aplican con una transacción en el servidor, así dos
+  personas vendiendo la última pieza a la vez nunca dejan la existencia en negativo; si se
+  pudo restar menos de lo pedido, la app lo avisa.
+- **Códigos sin choques:** si dos teléfonos sin internet crean prendas con el mismo código,
+  al sincronizar la segunda recibe un código nuevo en vez de pisar a la primera.
 - **Sin pisar el trabajo de otros:** los ajustes de existencia se guardan como "+2 / −1"
   sobre la versión más reciente, no como cantidades fijas, así dos personas vendiendo al
   mismo tiempo no se borran entre sí. Lo mismo al guardar la ficha completa.
@@ -94,7 +110,9 @@ La app siempre dice qué pasó, con el mismo lenguaje en todas las pantallas
 |---|---|
 | `usuarios/{uid}` | Nombre, correo, rol (`admin` / `empleado`), activo, tienda. |
 | `tiendas/{tiendaId}` | Nombre de la tienda y su dueño. |
-| `tiendas/{tiendaId}/prendas/{PRENDA-000001}` | Nombre, precio y variantes (talla, color, existencia). El id del documento es el del QR. |
+| `tiendas/{tiendaId}/prendas/{PRENDA-000001}` | Nombre, precio, código de proveedor y variantes (talla, color, existencia). El id del documento es el del QR. |
+| `tiendas/{tiendaId}/ventas/{id}` | Cada venta: prenda, talla, color, piezas, precio y fecha. Solo se agregan, nunca se editan. |
+| `tiendas/{tiendaId}/ajustes/{id}` | Cada ajuste de existencia: prenda, talla, color, cambio, quién y cuándo. Solo se agregan. |
 
 Los permisos y la forma válida de cada prenda están en `firestore.rules`. **Hay que
 publicarlas** para que apliquen: `firebase deploy --only firestore:rules`.
@@ -110,6 +128,13 @@ publicarlas** para que apliquen: `firebase deploy --only firestore:rules`.
 | `lib/widgets/` | Piezas compartidas; `feedback/` reúne avisos, confirmaciones y pantallas de éxito. |
 | `lib/utils/` | Formato de precios y textos. |
 | `lib/app_theme.dart` | Paleta, tipografía, radios y estilos de toda la app. |
+
+## Ramas
+
+| Rama | Para qué |
+|---|---|
+| `develop` | **Preproducción**: aquí se trabaja y se prueba (incluida la sesión automática diaria). |
+| `master` | **Producción**: lo que se despliega. Solo recibe `develop` por pull request, después de probarlo. |
 
 ## Desarrollo
 

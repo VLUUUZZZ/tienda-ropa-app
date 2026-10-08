@@ -51,8 +51,10 @@ service cloud.firestore {
     // garments stay editable). Rules can't loop over the variants, so
     // each one's fields are checked by the app; here, the shape and bounds.
     function isValidPrenda(prendaId, data) {
-      return data.keys().hasOnly(['id', 'nombre', 'precio', 'variantes', 'actualizado'])
+      return data.keys().hasOnly(
+          ['id', 'nombre', 'precio', 'variantes', 'codigoProveedor', 'actualizado'])
         && data.id == prendaId
+        && (!('codigoProveedor' in data) || data.codigoProveedor is string)
         && data.nombre is string && data.nombre.size() <= 200
         && data.precio is number && data.precio >= 0 && data.precio <= 1000000
         && data.variantes is list && data.variantes.size() <= 100;
@@ -89,9 +91,49 @@ service cloud.firestore {
           // Employees: stock counts only. Name, price and the set of
           // variants stay as they are.
           && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['variantes', 'actualizado'])
+               .hasOnly(['variantes', 'actualizado', 'codigoProveedor'])
+          // The app writes the whole garment when a stock change syncs from
+          // offline: a garment saved before supplier codes existed then
+          // gains an empty codigoProveedor, which isn't a real change.
+          && (!('codigoProveedor' in request.resource.data.diff(resource.data).affectedKeys())
+              || (!('codigoProveedor' in resource.data)
+                  && request.resource.data.codigoProveedor == ''))
           && request.resource.data.variantes.size() == resource.data.variantes.size()
         ));
+      }
+
+      // Append-only sales log: anyone on staff can record a sale, nobody
+      // edits or removes one afterward (a mistake is corrected with a new
+      // entry, not a rewrite of history).
+      match /ventas/{ventaId} {
+        allow read: if isMemberOf(tiendaId);
+        allow create: if isMemberOf(tiendaId)
+          && request.resource.data.keys().hasOnly(
+              ['itemId', 'nombreItem', 'color', 'talla', 'cantidad', 'precioUnitario', 'fecha', 'creado'])
+          && request.resource.data.itemId is string
+          && request.resource.data.nombreItem is string
+          && request.resource.data.cantidad is int && request.resource.data.cantidad > 0
+          && request.resource.data.precioUnitario is number && request.resource.data.precioUnitario >= 0;
+        allow update, delete: if false;
+      }
+
+      // Append-only stock-adjustment history: anyone on staff can record one
+      // (quick stock edit or full form), nobody edits or removes it
+      // afterward — same reasoning as ventas above.
+      match /ajustes/{ajusteId} {
+        allow read: if isMemberOf(tiendaId);
+        allow create: if isMemberOf(tiendaId)
+          && request.resource.data.keys().hasOnly(
+              ['itemId', 'nombreItem', 'color', 'talla', 'delta', 'usuarioNombre', 'fecha', 'creado'])
+          && request.resource.data.itemId is string
+          && request.resource.data.nombreItem is string
+          && request.resource.data.usuarioNombre is string
+          // Must be the signer's own name: an append-only audit trail is
+          // only worth anything if nobody can attribute an entry to someone
+          // else.
+          && request.resource.data.usuarioNombre == profile().nombre
+          && request.resource.data.delta is int && request.resource.data.delta != 0;
+        allow update, delete: if false;
       }
     }
 

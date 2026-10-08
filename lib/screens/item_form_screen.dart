@@ -1,17 +1,23 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../auth/app_user.dart';
+import '../data/adjustments_repository.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
+import '../models/stock_adjustment.dart';
 import '../utils/formato.dart';
 import '../widgets/feedback/app_snackbar.dart';
 import '../widgets/feedback/confirm_dialog.dart';
 import '../widgets/unsaved_changes_guard.dart';
+import 'item_form/photo_picker.dart';
 import 'item_form/variant_row.dart';
 import 'qr_screen.dart';
 import 'quick_stock_screen.dart';
+import 'scanner_screen.dart';
 
 /// What [ItemFormScreen] pops with, so the caller can tell a save apart from
 /// a delete and react accordingly (e.g. offer "undo" only after a delete).
@@ -29,12 +35,16 @@ class ItemFormScreen extends StatefulWidget {
   final ClothingRepository repo;
   final ClothingItem item;
   final bool isNew;
+  final AdjustmentsRepository adjustmentsRepo;
+  final AppUser user;
 
   const ItemFormScreen({
     super.key,
     required this.repo,
     required this.item,
     this.isNew = false,
+    required this.adjustmentsRepo,
+    required this.user,
   });
 
   @override
@@ -48,6 +58,12 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   final List<VariantRowControllers> _variantes = [];
   bool _dirty = false;
   bool _saving = false;
+  bool _deleting = false;
+  late final TextEditingController _codigoProveedorCtrl;
+
+  /// A save or a delete is already running: every other action that could
+  /// race it (quick edit, QR, delete, save, leaving) waits.
+  bool get _busy => _saving || _deleting;
 
   /// Stock per variant as it was when the rows were filled in, by
   /// [ClothingVariant.key]. Saving applies the difference from these onto
@@ -60,7 +76,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     super.initState();
     _nombreCtrl = TextEditingController(text: widget.item.nombre);
     _precioCtrl = TextEditingController(text: _precioTexto(widget.item.precio));
+    _codigoProveedorCtrl = TextEditingController(
+      text: widget.item.codigoProveedor,
+    );
     _nombreCtrl.addListener(_markDirty);
+    _codigoProveedorCtrl.addListener(_markDirty);
     _precioCtrl.addListener(_markDirty);
     _setVariantRows(widget.item.variantes);
   }
@@ -91,6 +111,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   void dispose() {
     _nombreCtrl.dispose();
     _precioCtrl.dispose();
+    _codigoProveedorCtrl.dispose();
     for (final row in _variantes) {
       row.dispose();
     }
@@ -197,8 +218,21 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   Future<void> _save() async {
     // A second tap while saving would pop this screen twice, closing the
     // catalog behind it too.
-    if (_saving) return;
+    if (_busy) return;
     if (!_formKey.currentState!.validate()) return;
+
+    final codigoProveedor = _codigoProveedorCtrl.text.trim();
+    if (codigoProveedor.isNotEmpty) {
+      final other = widget.repo.getByProviderCode(codigoProveedor);
+      if (other != null && other.id != widget.item.id) {
+        AppSnackBar.error(
+          context,
+          'Ese código de proveedor ya lo tiene "${other.nombre}". Revisa el '
+          'código o quítalo de esa prenda primero.',
+        );
+        return;
+      }
+    }
 
     var variantes = [
       for (final row in _variantes)
@@ -214,11 +248,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       return;
     }
 
-    // Another device may have saved a garment under this same number while
-    // the form was open; taking the next free one keeps both garments.
-    var id = widget.item.id;
-    if (widget.isNew && widget.repo.exists(id)) id = widget.repo.nextId();
-
+    final id = widget.item.id;
+    // The stock this save starts from, for the adjustment history.
+    var before = const <ClothingVariant>[];
     if (!widget.isNew) {
       final latest = widget.repo.getById(id);
       if (latest == null) {
@@ -228,6 +260,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         );
         return;
       }
+      before = latest.variantes;
       variantes = _rebaseStock(variantes, latest);
     }
 
@@ -236,6 +269,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       nombre: _nombreCtrl.text.trim(),
       precio: _precio(),
       variantes: variantes,
+      codigoProveedor: codigoProveedor,
     );
 
     setState(() => _saving = true);
@@ -249,11 +283,54 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       return;
     }
 
+    if (!widget.isNew) _logStockChanges(before, updated);
     if (!mounted) return;
     _dirty = false;
     Navigator.of(
       context,
     ).pop<ItemFormResult>((outcome: ItemFormOutcome.saved, item: updated));
+  }
+
+  /// Best-effort history of the stock changes made directly in this form
+  /// (the quick-stock editor logs its own). A failure here must never block
+  /// the save itself, already done.
+  void _logStockChanges(List<ClothingVariant> before, ClothingItem updated) {
+    final beforeByKey = {for (final v in before) v.key: v.existencia};
+    final updatedKeys = updated.variantes.map((v) => v.key).toSet();
+    void log(String color, String talla, int delta) {
+      if (delta == 0) return;
+      unawaited(
+        widget.adjustmentsRepo.registrar(
+          StockAdjustment(
+            id: StockAdjustment.newId(),
+            itemId: updated.id,
+            nombreItem: updated.nombre,
+            color: color,
+            talla: talla,
+            delta: delta,
+            usuarioNombre: widget.user.nombre,
+            fecha: DateTime.now(),
+          ),
+        ),
+      );
+    }
+
+    for (final v in updated.variantes) {
+      log(v.color, v.talla, v.existencia - (beforeByKey[v.key] ?? 0));
+    }
+    // A color/talla removed from the form takes its stock with it; without
+    // this it would vanish from inventory with no trace in the history.
+    for (final v in before) {
+      if (!updatedKeys.contains(v.key)) log(v.color, v.talla, -v.existencia);
+    }
+  }
+
+  Future<void> _scanProviderCode() async {
+    final code = await Navigator.of(
+      context,
+    ).push<String>(MaterialPageRoute(builder: (_) => const ScannerScreen()));
+    if (code == null || !mounted) return;
+    _codigoProveedorCtrl.text = code;
   }
 
   Future<void> _quickEditStock() async {
@@ -277,12 +354,18 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       return;
     }
     if (_dirty) setState(() => _fillFrom(current));
-    final saved = await Navigator.of(context).push<bool>(
+    final outcome = await Navigator.of(context).push<StockSaveOutcome>(
       MaterialPageRoute(
-        builder: (_) => QuickStockScreen(repo: widget.repo, item: current),
+        builder: (_) => QuickStockScreen(
+          repo: widget.repo,
+          adjustmentsRepo: widget.adjustmentsRepo,
+          user: widget.user,
+          item: current,
+        ),
       ),
     );
-    if (saved != true || !mounted) return;
+    if (outcome == null || !mounted) return;
+    AppSnackBar.success(context, 'Existencia actualizada');
     // Reflect the updated counts in this screen's fields too.
     final refreshed = widget.repo.getById(widget.item.id);
     if (refreshed != null) {
@@ -291,6 +374,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   Future<void> _delete() async {
+    if (_busy) return;
     final nombre = _nombreCtrl.text.trim().isEmpty
         ? 'esta prenda'
         : '"${_nombreCtrl.text.trim()}"';
@@ -304,7 +388,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
           'tienda. Podrás deshacerlo durante unos segundos.',
       confirmLabel: 'Eliminar',
     );
-    if (!confirm) return;
+    if (!confirm || !mounted) return;
+    setState(() => _deleting = true);
     // What "undo" will bring back: the stored version, which may be newer
     // than the one this form opened with.
     final deleted = widget.repo.getById(widget.item.id) ?? widget.item;
@@ -312,6 +397,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       await widget.repo.delete(widget.item.id);
     } catch (e) {
       if (mounted) {
+        setState(() => _deleting = false);
         AppSnackBar.error(context, 'No se pudo eliminar. Inténtalo de nuevo.');
       }
       return;
@@ -345,6 +431,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
     return UnsavedChangesGuard(
       hasChanges: _dirty,
+      busy: _busy,
+      busyMessage: 'Espera a que termine de guardar.',
       message:
           'Los cambios que hiciste en esta prenda todavía no se han guardado.',
       child: Scaffold(
@@ -355,10 +443,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               IconButton(
                 icon: const Icon(Icons.qr_code_2_rounded),
                 tooltip: 'Ver código QR',
-                onPressed: _showQr,
+                onPressed: _busy ? null : _showQr,
               ),
             if (isExisting)
               PopupMenuButton<_FormAction>(
+                enabled: !_busy,
                 tooltip: 'Más opciones',
                 onSelected: (action) => switch (action) {
                   _FormAction.stock => _quickEditStock(),
@@ -407,13 +496,15 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                         avatar: const Icon(Icons.qr_code_rounded, size: 18),
                         label: Text(widget.item.id),
                         tooltip: 'Ver código QR',
-                        onPressed: _showQr,
+                        onPressed: _busy ? null : _showQr,
                       )
                     : Chip(
                         avatar: const Icon(Icons.qr_code_rounded, size: 18),
                         label: const Text('El código QR se genera al guardar'),
                       ),
               ),
+              const SizedBox(height: 20),
+              ItemPhotoPicker(repo: widget.repo, itemId: widget.item.id),
               const SizedBox(height: 20),
               const _SectionTitle('Información'),
               const SizedBox(height: 12),
@@ -449,6 +540,23 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                   LengthLimitingTextInputFormatter(13),
                 ],
                 validator: _validatePrecio,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _codigoProveedorCtrl,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  labelText: 'Código de barras del proveedor (opcional)',
+                  helperText:
+                      'Si la etiqueta del proveedor trae código de barras, '
+                      'escanearlo también abre esta prenda.',
+                  prefixIcon: const Icon(Icons.barcode_reader),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.qr_code_scanner_rounded),
+                    tooltip: 'Escanear código del proveedor',
+                    onPressed: _busy ? null : _scanProviderCode,
+                  ),
+                ),
               ),
               const SizedBox(height: 28),
               Row(
@@ -492,7 +600,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         bottomNavigationBar: SafeArea(
           minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
           child: FilledButton.icon(
-            onPressed: _saving ? null : _save,
+            onPressed: _busy ? null : _save,
             icon: _saving
                 ? const SizedBox(
                     width: 18,

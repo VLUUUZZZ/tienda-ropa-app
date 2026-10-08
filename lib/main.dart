@@ -8,7 +8,9 @@ import 'widgets/app_messenger.dart';
 import 'auth/app_user.dart';
 import 'auth/user_directory.dart';
 import 'backend.dart';
+import 'data/adjustments_repository.dart';
 import 'data/clothing_repository.dart';
+import 'data/sales_repository.dart';
 import 'data/settings_repository.dart';
 import 'firebase_backend.dart';
 import 'screens/auth/auth_gate.dart';
@@ -46,9 +48,21 @@ Future<void> _start() async {
     // Without a backend there's no login: a single local catalog. With one,
     // each store's catalog is opened by the auth gate on sign-in.
     final localRepo = backend == null ? await ClothingRepository.open() : null;
+    final localSalesRepo = backend == null
+        ? await SalesRepository.open()
+        : null;
+    final localAdjustmentsRepo = backend == null
+        ? await AdjustmentsRepository.open()
+        : null;
 
     runApp(
-      TiendaRopaApp(settings: settings, backend: backend, localRepo: localRepo),
+      TiendaRopaApp(
+        settings: settings,
+        backend: backend,
+        localRepo: localRepo,
+        localSalesRepo: localSalesRepo,
+        localAdjustmentsRepo: localAdjustmentsRepo,
+      ),
     );
   } catch (e, stack) {
     debugPrint('No se pudo iniciar la app: $e\n$stack');
@@ -134,15 +148,20 @@ class _StartupErrorAppState extends State<_StartupErrorApp> {
 class TiendaRopaApp extends StatefulWidget {
   final SettingsRepository settings;
 
-  /// Null runs the app local-only, without login, on [localRepo].
+  /// Null runs the app local-only, without login, on [localRepo],
+  /// [localSalesRepo] and [localAdjustmentsRepo].
   final Backend? backend;
   final ClothingRepository? localRepo;
+  final SalesRepository? localSalesRepo;
+  final AdjustmentsRepository? localAdjustmentsRepo;
 
   const TiendaRopaApp({
     super.key,
     required this.settings,
     this.backend,
     this.localRepo,
+    this.localSalesRepo,
+    this.localAdjustmentsRepo,
   }) : assert(
          (backend == null) != (localRepo == null),
          'Either a backend or a local catalog',
@@ -166,7 +185,9 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
         ? ThemeMode.dark
         : ThemeMode.light;
     setState(() => _themeMode = next);
-    widget.settings.setDarkMode(next == ThemeMode.dark);
+    widget.settings
+        .setDarkMode(next == ThemeMode.dark)
+        .catchError((Object e) => debugPrint('No se pudo guardar el tema: $e'));
   }
 
   @override
@@ -180,15 +201,23 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
       theme: buildAppTheme(Brightness.light),
       darkTheme: buildAppTheme(Brightness.dark),
       home: switch (widget.backend) {
-        null => _buildHome(AppUser.local, widget.localRepo!),
+        null => _buildHome(
+          AppUser.local,
+          widget.localRepo!,
+          widget.localSalesRepo!,
+          widget.localAdjustmentsRepo!,
+        ),
         final backend => AuthGate(
           backend: backend,
-          signedInBuilder: (_, user, repo) => _buildHome(
-            user,
-            repo,
-            onSignOut: backend.auth.signOut,
-            users: backend.users,
-          ),
+          signedInBuilder: (_, user, repo, salesRepo, adjustmentsRepo) =>
+              _buildHome(
+                user,
+                repo,
+                salesRepo,
+                adjustmentsRepo,
+                onSignOut: backend.auth.signOut,
+                users: backend.users,
+              ),
         ),
       },
     );
@@ -196,12 +225,16 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
 
   Widget _buildHome(
     AppUser user,
-    ClothingRepository repo, {
+    ClothingRepository repo,
+    SalesRepository salesRepo,
+    AdjustmentsRepository adjustmentsRepo, {
     VoidCallback? onSignOut,
     UserDirectory? users,
   }) {
     return HomeScreen(
       repo: repo,
+      salesRepo: salesRepo,
+      adjustmentsRepo: adjustmentsRepo,
       user: user,
       isDarkMode: _themeMode == ThemeMode.dark,
       onToggleTheme: _toggleTheme,

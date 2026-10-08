@@ -11,7 +11,8 @@ class RoleSelector extends StatelessWidget {
 
   static const Map<UserRole, String> _descriptions = {
     UserRole.admin: 'Todo: prendas, precios, borrar y gestionar usuarios.',
-    UserRole.empleado: 'Consultar, escanear y ajustar existencias.',
+    UserRole.empleado:
+        'Consultar, escanear, ajustar existencias y registrar ventas.',
   };
 
   @override

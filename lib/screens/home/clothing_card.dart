@@ -14,11 +14,17 @@ class ClothingCard extends StatelessWidget {
     required this.item,
     required this.onTap,
     required this.onQuickEdit,
+    required this.onSell,
+    this.photoPath,
   });
 
   final ClothingItem item;
   final VoidCallback onTap;
   final VoidCallback onQuickEdit;
+  final VoidCallback onSell;
+
+  /// This phone's local photo of the garment, if any.
+  final String? photoPath;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +40,7 @@ class ClothingCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ItemAvatar(nombre: item.nombre),
+              ItemAvatar(nombre: item.nombre, photoPath: photoPath),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -74,7 +80,10 @@ class ClothingCard extends StatelessWidget {
                     Row(
                       children: [
                         Flexible(
-                          child: StockBadge(existencia: item.existenciaTotal),
+                          child: StockBadge(
+                            existencia: item.existenciaTotal,
+                            algunaTallaBaja: item.tieneStockBajo,
+                          ),
                         ),
                         if (colores.isNotEmpty) ...[
                           const SizedBox(width: 10),
@@ -86,10 +95,19 @@ class ClothingCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              IconButton.filledTonal(
-                icon: const Icon(Icons.tune_rounded, size: 20),
-                tooltip: 'Ajustar existencia',
-                onPressed: onQuickEdit,
+              Column(
+                children: [
+                  IconButton.filledTonal(
+                    icon: const Icon(Icons.point_of_sale_rounded, size: 20),
+                    tooltip: 'Registrar venta',
+                    onPressed: item.existenciaTotal > 0 ? onSell : null,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.tune_rounded, size: 20),
+                    tooltip: 'Ajustar existencia',
+                    onPressed: onQuickEdit,
+                  ),
+                ],
               ),
             ],
           ),

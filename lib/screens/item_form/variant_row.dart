@@ -45,6 +45,11 @@ class VariantRowControllers {
 
   bool get agotado => isUsed && existenciaValue <= 0;
 
+  bool get stockBajo =>
+      isUsed &&
+      existenciaValue > 0 &&
+      existenciaValue <= ClothingVariant.umbralStockBajo;
+
   ClothingVariant toVariant() => ClothingVariant(
     talla: talla.text.trim(),
     color: color.text.trim(),
@@ -195,8 +200,11 @@ class VariantRowFields extends StatelessWidget {
                       row.color,
                       row.existencia,
                     ]),
-                    builder: (context, _) => row.agotado
-                        ? const StockBadge(existencia: 0)
+                    // Same badge as the catalog: "Agotado" or "Quedan N"
+                    // (icon + word, not color alone); nothing when there's
+                    // plenty.
+                    builder: (context, _) => row.agotado || row.stockBajo
+                        ? StockBadge(existencia: row.existenciaValue)
                         : const SizedBox.shrink(),
                   ),
                 ],

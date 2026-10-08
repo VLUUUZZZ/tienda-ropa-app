@@ -19,7 +19,7 @@ enum StockLevel {
   normal;
 
   /// At or below this many pieces in total a garment counts as running low.
-  static const int umbralPoca = 3;
+  static const int umbralPoca = ClothingVariant.umbralStockBajo;
 
   static StockLevel of(int existencia) {
     if (existencia <= 0) return agotado;
@@ -41,6 +41,12 @@ class ClothingVariant {
     required this.color,
     required this.existencia,
   });
+
+  /// Below this and above zero, it's worth reabastecer soon — same spirit
+  /// as "AGOTADO" but before it actually runs out.
+  static const int umbralStockBajo = 3;
+
+  bool get stockBajo => existencia > 0 && existencia <= umbralStockBajo;
 
   /// What makes a variant unique within a garment: its color and talla,
   /// ignoring case and surrounding spaces. Accents do count: garments saved
@@ -76,16 +82,26 @@ class ClothingItem {
   final double precio;
   final List<ClothingVariant> variantes;
 
+  /// The barcode printed by the supplier on the garment itself, if any —
+  /// read with the same scanner as the app's own QR, so a known supplier
+  /// code finds the garment without printing a new label for it.
+  final String codigoProveedor;
+
   ClothingItem({
     required this.id,
     required this.nombre,
     required this.precio,
     required this.variantes,
+    this.codigoProveedor = '',
   });
 
   int get existenciaTotal => variantes.fold(0, (sum, v) => sum + v.existencia);
 
   StockLevel get nivelExistencia => StockLevel.of(existenciaTotal);
+
+  /// Some color/talla is running low (but not out) and worth reabasteciendo
+  /// soon, even if the garment as a whole still has stock.
+  bool get tieneStockBajo => variantes.any((v) => v.stockBajo);
 
   /// What the pieces on hand are worth at the listed price.
   double get valorInventario => precio * existenciaTotal;
@@ -127,6 +143,7 @@ class ClothingItem {
     id: id,
     nombre: nombre,
     precio: precio,
+    codigoProveedor: codigoProveedor,
     variantes: [
       for (final v in variantes)
         ClothingVariant(
@@ -144,6 +161,7 @@ class ClothingItem {
     'nombre': nombre,
     'precio': precio,
     'variantes': variantes.map((v) => v.toMap()).toList(),
+    'codigoProveedor': codigoProveedor,
   };
 
   /// Reads a stored or synced record. Only a missing id is fatal
@@ -170,6 +188,7 @@ class ClothingItem {
           for (final v in rawVariantes)
             if (v is Map) ClothingVariant.fromMap(Map<String, dynamic>.from(v)),
       ],
+      codigoProveedor: _text(map['codigoProveedor']),
     );
   }
 

@@ -41,8 +41,6 @@ class LocalCatalog {
       key.length <= 255 &&
       key.codeUnits.every((c) => c < 0x80);
 
-  bool contains(String id) => isItemId(id) && _box.containsKey(id);
-
   /// Throws if the stored record is corrupt; see [readAll] for the tolerant
   /// version.
   ClothingItem? read(String id) {
@@ -68,7 +66,7 @@ class LocalCatalog {
   }
 
   /// Also moves the id counter past [item]'s number, whether the garment was
-  /// created here or arrived from another device, so [peekNextId] never
+  /// created here or arrived from another device, so [nextId] never
   /// offers a number already in use.
   Future<void> write(ClothingItem item) async {
     await _box.put(item.id, item.toMap());
@@ -109,21 +107,41 @@ class LocalCatalog {
     }
   }
 
-  int get _sequence => (_box.get(_sequenceKey) as int?) ?? 0;
+  /// Serializes [nextId] calls: everything before its `await` runs
+  /// synchronously, so two overlapping calls (e.g. a double-tapped "new
+  /// garment" button) would otherwise read the same counter and mint the
+  /// same id, silently overwriting one garment with the other on save.
+  Future<void> _mintQueue = Future.value();
 
-  /// The next human-readable id, e.g. "PRENDA-000024", without reserving it:
-  /// [write] advances the counter once a garment with that id is saved.
-  /// Meant to be printed on a QR sticker, so it needs to be short and easy to
-  /// read back if the sticker gets smudged.
+  /// Mints the next human-readable id, e.g. "PRENDA-000024". Meant to be
+  /// printed on a QR sticker, so it needs to be short and easy to read back
+  /// if the sticker gets smudged.
   ///
   /// Skips ids already in the catalog: with sync, another device may have
   /// used numbers this device's counter hasn't reached yet.
-  String peekNextId() {
-    var next = _sequence + 1;
+  Future<String> nextId() {
+    final result = _mintQueue.then((_) => _mintNextId());
+    _mintQueue = result.then((_) {}, onError: (_) {});
+    return result;
+  }
+
+  Future<String> _mintNextId() async {
+    // A plain `as int?` would throw instead of defaulting if this were ever
+    // somehow stored as something else, which would break minting new ids
+    // entirely until fixed by hand.
+    final stored = _box.get(_sequenceKey);
+    var next = (stored is int ? stored : 0) + 1;
     while (_box.containsKey(_formatId(next))) {
       next++;
     }
+    await _box.put(_sequenceKey, next);
     return _formatId(next);
+  }
+
+  /// The id counter, tolerating a corrupt stored value (see [_mintNextId]).
+  int get _sequence {
+    final stored = _box.get(_sequenceKey);
+    return stored is int ? stored : 0;
   }
 
   static String _formatId(int n) => '$_idPrefix${n.toString().padLeft(6, '0')}';

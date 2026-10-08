@@ -34,9 +34,24 @@ abstract class RemoteCatalog {
   /// there. Throws if it can't be reached or read.
   Future<ClothingItem?> fetch(String id);
 
+  /// Creates [item] only if its id doesn't already exist remotely; throws
+  /// [RemoteIdTaken] if it does. Used for an id this device minted and has
+  /// never confirmed exists anywhere else, so two devices that independently
+  /// minted the same id while both offline don't silently overwrite each
+  /// other — see [CatalogSync].
+  Future<void> create(ClothingItem item);
+
   Future<void> upsert(ClothingItem item);
 
   Future<void> delete(String id);
+
+  /// Atomically applies [deltas] (see [ClothingItem.withStockChanges]) to
+  /// [id]'s stock on the server, instead of overwriting the whole document
+  /// with a locally-computed result: two devices applying a delta to the
+  /// same garment at nearly the same time (e.g. two sales) must both take
+  /// effect, not have the second one silently discard the first. Throws if
+  /// the garment doesn't exist remotely.
+  Future<ClothingItem> applyStockDelta(String id, Map<String, int> deltas);
 }
 
 /// The remote refused a write for good (e.g. the user's role doesn't allow
@@ -48,4 +63,14 @@ class RemoteWriteRejected implements Exception {
 
   @override
   String toString() => 'Escritura rechazada: $reason';
+}
+
+/// [RemoteCatalog.create] found [id] already taken by another device.
+class RemoteIdTaken implements Exception {
+  const RemoteIdTaken(this.id);
+
+  final String id;
+
+  @override
+  String toString() => 'El id $id ya existe en el catálogo remoto.';
 }

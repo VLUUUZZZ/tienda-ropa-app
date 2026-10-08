@@ -15,7 +15,10 @@ enum CatalogFilter {
 
   bool includes(ClothingItem item) => switch (this) {
     CatalogFilter.todas => true,
-    CatalogFilter.poca => item.nivelExistencia == StockLevel.poca,
+    // Low overall, or one color/talla about to run out (worth restocking).
+    CatalogFilter.poca =>
+      item.existenciaTotal > 0 &&
+          (item.nivelExistencia == StockLevel.poca || item.tieneStockBajo),
     CatalogFilter.agotadas => item.nivelExistencia == StockLevel.agotado,
   };
 }

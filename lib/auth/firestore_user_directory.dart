@@ -22,6 +22,12 @@ class FirestoreUserDirectory implements UserDirectory {
   final FirebaseFirestore _firestore;
   final FirebaseOptions _options;
 
+  /// Caches the in-flight initialization of [_accountCreatorApp], so two
+  /// account creations started close together await the same app instead of
+  /// both calling [Firebase.initializeApp] with the same name (the second
+  /// call fails while the first is still pending).
+  Future<FirebaseApp>? _creatorAppFuture;
+
   @override
   Stream<List<AppUser>> watchStore(Tienda tienda) =>
       FirestorePaths.users(_firestore)
@@ -116,21 +122,31 @@ class FirestoreUserDirectory implements UserDirectory {
     }),
   );
 
-  Future<FirebaseApp> _creatorApp() async {
+  Future<FirebaseApp> _creatorApp() {
     for (final app in Firebase.apps) {
-      if (app.name == _accountCreatorApp) return app;
+      if (app.name == _accountCreatorApp) return Future.value(app);
     }
-    return Firebase.initializeApp(name: _accountCreatorApp, options: _options);
+    return _creatorAppFuture ??=
+        Firebase.initializeApp(
+          name: _accountCreatorApp,
+          options: _options,
+        ).catchError((Object e) {
+          // Let the next call try again instead of being stuck with this
+          // failure forever.
+          _creatorAppFuture = null;
+          throw e;
+        });
   }
 
   static Future<void> _write(Future<void> Function() action) async {
     try {
       await action();
     } on FirebaseException catch (e) {
+      debugPrint('Firestore (usuarios): ${e.code}');
       throw AuthException(
         e.code == 'permission-denied'
             ? 'No tienes permiso para gestionar usuarios.'
-            : 'No se pudo guardar el usuario (${e.code}).',
+            : 'No se pudo guardar el usuario. Inténtalo de nuevo.',
       );
     }
   }
