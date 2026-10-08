@@ -150,16 +150,23 @@ class CatalogSync {
     final pending = _state.pendingIds;
     final remoteIds = snapshot.ids.where(LocalCatalog.isItemId).toSet();
 
-    for (final item in snapshot.items) {
-      if (!LocalCatalog.isItemId(item.id) || pending.contains(item.id)) {
-        continue;
-      }
-      try {
-        await _local.writeIfChanged(item);
-      } catch (e) {
-        // One garment that can't be stored must not stop the rest, nor
-        // break the listener (which would stop sync for the session).
-        debugPrint('Prenda ${item.id} no se pudo guardar: $e');
+    final incoming = [
+      for (final item in snapshot.items)
+        if (LocalCatalog.isItemId(item.id) && !pending.contains(item.id)) item,
+    ];
+    try {
+      await _local.writeAllChanged(incoming);
+    } catch (e) {
+      // One garment that can't be stored must not stop the rest, nor break
+      // the listener (which would stop sync for the session): retry one by
+      // one and skip the ones that fail.
+      debugPrint('Escritura en lote falló, se reintenta una por una: $e');
+      for (final item in incoming) {
+        try {
+          await _local.writeAllChanged([item]);
+        } catch (e) {
+          debugPrint('Prenda ${item.id} no se pudo guardar: $e');
+        }
       }
     }
 

@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../auth/app_user.dart';
 import '../auth/user_directory.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
 import '../utils/formato.dart';
-import '../widgets/color_dot.dart';
-import '../widgets/role_badge.dart';
 import '../widgets/snackbars.dart';
 import '../widgets/stock_badge.dart';
+import 'home/account_menu.dart';
+import 'home/clothing_card.dart';
+import 'home/store_title.dart';
 import 'item_form_screen.dart';
 import 'quick_stock_screen.dart';
 import 'scanner_screen.dart';
@@ -69,8 +71,17 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  bool _reloadScheduled = false;
+
+  /// Sync can change many garments at once, each one notifying separately:
+  /// refresh the list once per frame instead of once per garment.
   void _onRepoChanged() {
-    if (mounted) _reload();
+    if (_reloadScheduled) return;
+    _reloadScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _reloadScheduled = false;
+      if (mounted) _reload();
+    });
   }
 
   void _reload() {
@@ -275,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: _StoreTitle(user: widget.user),
+        title: StoreTitle(user: widget.user),
         actions: [
           IconButton(
             icon: Icon(
@@ -287,7 +298,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: widget.onToggleTheme,
           ),
           if (widget.onSignOut case final onSignOut?)
-            _AccountMenu(
+            AccountMenu(
               user: widget.user,
               onManageUsers: _canOpenUsers
                   ? () => _openUsers(widget.users!)
@@ -334,7 +345,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 104),
                     itemCount: _items.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) => _ClothingCard(
+                    itemBuilder: (context, index) => ClothingCard(
                       item: _items[index],
                       onTap: () => _once(() => _openItem(_items[index])),
                       onQuickEdit: () =>
@@ -364,100 +375,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ],
       ),
-    );
-  }
-}
-
-/// The store's name, and who is in with their role next to it.
-class _StoreTitle extends StatelessWidget {
-  const _StoreTitle({required this.user});
-
-  final AppUser user;
-
-  @override
-  Widget build(BuildContext context) {
-    final tienda = user.tienda;
-    if (tienda == null) return const Text('Tienda de Ropa');
-
-    final colorScheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(tienda.nombre, maxLines: 1, overflow: TextOverflow.ellipsis),
-        Row(
-          children: [
-            Flexible(
-              child: Text(
-                user.nombre,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            RoleBadge(role: user.role),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-enum _AccountAction { users, signOut }
-
-/// Who is signed in, plus the account actions their role allows.
-class _AccountMenu extends StatelessWidget {
-  const _AccountMenu({
-    required this.user,
-    required this.onManageUsers,
-    required this.onSignOut,
-  });
-
-  final AppUser user;
-  final VoidCallback? onManageUsers;
-  final VoidCallback onSignOut;
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<_AccountAction>(
-      icon: const Icon(Icons.account_circle_outlined),
-      tooltip: 'Cuenta',
-      onSelected: (action) => switch (action) {
-        _AccountAction.users => onManageUsers?.call(),
-        _AccountAction.signOut => onSignOut(),
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          enabled: false,
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(user.nombre),
-            subtitle: Text('${user.role.label} · ${user.correo}'),
-          ),
-        ),
-        const PopupMenuDivider(),
-        if (onManageUsers != null)
-          const PopupMenuItem(
-            value: _AccountAction.users,
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.group_outlined),
-              title: Text('Usuarios'),
-            ),
-          ),
-        const PopupMenuItem(
-          value: _AccountAction.signOut,
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.logout_rounded),
-            title: Text('Cerrar sesión'),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -690,145 +607,6 @@ class _EmptyState extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ClothingCard extends StatelessWidget {
-  final ClothingItem item;
-  final VoidCallback onTap;
-  final VoidCallback onQuickEdit;
-
-  const _ClothingCard({
-    required this.item,
-    required this.onTap,
-    required this.onQuickEdit,
-  });
-
-  /// Up to two letters from the name, e.g. "Playera Básica" → "PB".
-  static String _initials(String nombre) {
-    final words = nombre
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((w) => w.isNotEmpty);
-    return words.take(2).map((w) => w.characters.first.toUpperCase()).join();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final colores = item.coloresDisponibles;
-    const maxColores = 4;
-    final initials = _initials(item.nombre);
-
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 14, 6, 14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: initials.isEmpty
-                    ? Icon(
-                        Icons.checkroom_rounded,
-                        color: colorScheme.onPrimaryContainer,
-                      )
-                    : Text(
-                        initials,
-                        style: textTheme.titleMedium?.copyWith(
-                          color: colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.nombre.isEmpty ? '(sin nombre)' : item.nombre,
-                      style: textTheme.titleMedium,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: formatoPrecio(item.precio),
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: colorScheme.primary,
-                            ),
-                          ),
-                          TextSpan(
-                            text: '  ·  ${item.id}',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (colores.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 4,
-                        children: [
-                          for (final color in colores.take(maxColores))
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ColorDot(nombre: color),
-                                const SizedBox(width: 4),
-                                Text(
-                                  color,
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          if (colores.length > maxColores)
-                            Text(
-                              '+${colores.length - maxColores}',
-                              style: textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                    const SizedBox(height: 10),
-                    StockBadge(existencia: item.existenciaTotal),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.tune_rounded),
-                tooltip: 'Editar existencia rápido',
-                onPressed: onQuickEdit,
-              ),
-            ],
-          ),
         ),
       ),
     );
