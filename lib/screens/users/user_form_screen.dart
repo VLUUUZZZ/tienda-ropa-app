@@ -9,8 +9,12 @@ import '../../widgets/error_text.dart';
 import '../../widgets/password_field.dart';
 import 'role_selector.dart';
 
+/// Who was just given an account, for the confirmation that follows.
+typedef NewAccount = ({String nombre, String correo, UserRole role});
+
 /// Lets an admin create an employee's (or another admin's) account in their
-/// store, with a temporary password to hand over.
+/// store, with a temporary password to hand over. Pops with [NewAccount]
+/// once the account exists.
 class UserFormScreen extends StatefulWidget {
   const UserFormScreen({super.key, required this.users, required this.tienda});
 
@@ -47,7 +51,13 @@ class _UserFormScreenState extends State<UserFormScreen> with AsyncSubmit {
         role: _role,
       ),
     );
-    if (created && mounted) Navigator.of(context).pop(true);
+    if (created && mounted) {
+      Navigator.of(context).pop<NewAccount>((
+        nombre: _nombreCtrl.text.trim(),
+        correo: _correoCtrl.text.trim(),
+        role: _role,
+      ));
+    }
   }
 
   @override

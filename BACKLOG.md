@@ -19,6 +19,31 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-10-08 — mensajes, confirmaciones y pantallas de éxito (rama `claude/como-ves-la-app-g73nn7`)
+
+Pedido del usuario: componentes de feedback y confirmación, y una descripción completa de la
+app (sin generar APK). Verificado con `flutter analyze`, `flutter build web`, 50 pruebas
+(incluye componentes de feedback) y 28 de reglas, en copia aparte; revisión de código del
+cambio con sus 10 hallazgos corregidos.
+
+- `lib/widgets/feedback/`:
+  - `AppSnackBar`: éxito, error, información y deshacer, con ícono, color y vibración. Un
+    aviso nuevo reemplaza al anterior, salvo un "Deshacer" pendiente, que nunca se corta.
+    Si la pantalla ya se cerró, el aviso sale igual (con el tema de la app).
+  - `confirmAction` / `showNotice`: diálogos estándar; acciones irreversibles en rojo.
+  - `showSuccess` / `SuccessScreen`: pantalla de éxito con animación (respeta "reducir
+    movimiento"), resumen de lo creado y siguientes pasos.
+- Confirmaciones: eliminar prenda (nombrándola), quitar una talla guardada que aún tiene
+  piezas, descartar cambios, ajustar existencia con cambios sin guardar (ahora ofrece
+  descartarlos en vez de mostrar un error), cerrar sesión, desactivar/reactivar o cambiar
+  el rol de alguien (explicando cada consecuencia).
+- Pantallas de éxito: prenda creada (imprimir etiqueta QR / agregar otra), tienda creada
+  (bienvenida), cuenta de empleado creada (listo / crear otra).
+- Todos los avisos y diálogos sueltos se pasaron a estos componentes (se eliminó
+  `widgets/snackbars.dart`).
+- `README.md` reescrito con la descripción completa de la app: para quién es, cómo se usa,
+  pantallas, mensajes, cómo funciona por dentro, datos y estructura del código.
+
 ### 2026-10-08 — revisión completa y corrección de errores (rama `claude/como-ves-la-app-g73nn7`)
 
 Dos revisiones de código a fondo (cambios de la rama, y sesión/usuarios/sincronización).

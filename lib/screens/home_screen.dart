@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart';
 
 import '../auth/app_user.dart';
 import '../auth/user_directory.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
-import '../widgets/snackbars.dart';
+import '../widgets/feedback/app_snackbar.dart';
+import '../widgets/feedback/confirm_dialog.dart';
+import '../widgets/feedback/success_screen.dart';
+import '../widgets/item_summary.dart';
 import 'home/account_menu.dart';
 import 'home/catalog_filters.dart';
 import 'home/catalog_hero.dart';
@@ -117,52 +119,30 @@ class _HomeScreenState extends State<HomeScreen> {
     _reload();
   }
 
-  void _showSavedSnackBar() {
-    HapticFeedback.lightImpact();
-    final colorScheme = Theme.of(context).colorScheme;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              Icons.check_circle_rounded,
-              color: colorScheme.inversePrimary,
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            const Text('Cambios guardados'),
-          ],
-        ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
+  void _showSavedSnackBar() =>
+      AppSnackBar.success(context, 'Cambios guardados');
 
-  void _showDeletedSnackBar(ClothingItem item) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${item.nombre.isEmpty ? 'Prenda' : item.nombre} eliminada',
-        ),
-        duration: const Duration(seconds: 4),
-        action: SnackBarAction(
-          label: 'Deshacer',
-          onPressed: () => _restore(item),
-        ),
-      ),
-    );
-  }
+  void _showDeletedSnackBar(ClothingItem item) => AppSnackBar.undo(
+    context,
+    '${item.nombre.isEmpty ? 'Prenda' : item.nombre} eliminada',
+    onUndo: () => _restore(item),
+  );
 
   Future<void> _restore(ClothingItem item) async {
     try {
       await widget.repo.save(item);
     } catch (e) {
       if (mounted) {
-        showErrorSnackBar(context, 'No se pudo restaurar la prenda.');
+        AppSnackBar.error(context, 'No se pudo restaurar la prenda.');
       }
       return;
     }
-    if (mounted) _reload();
+    if (!mounted) return;
+    _reload();
+    AppSnackBar.success(
+      context,
+      '${item.nombre.isEmpty ? 'Prenda' : item.nombre} restaurada',
+    );
   }
 
   /// Admins get the full form; employees go straight to stock adjustment,
@@ -214,27 +194,42 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     _reload();
     if (result case (outcome: ItemFormOutcome.saved, :final item)) {
-      _showCreatedSnackBar(item);
+      await _celebrateCreated(item);
     }
   }
 
-  /// After adding a garment, the next step is usually printing its label.
-  void _showCreatedSnackBar(ClothingItem item) {
-    HapticFeedback.lightImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${item.nombre.isEmpty ? 'Prenda' : item.nombre} agregada · ${item.id}',
-        ),
-        duration: const Duration(seconds: 6),
-        action: SnackBarAction(
-          label: 'Ver QR',
-          onPressed: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => QrScreen(item: item))),
-        ),
+  /// A new garment is a finished process: say so, and offer the usual next
+  /// steps (printing its label, or adding the next one).
+  Future<void> _celebrateCreated(ClothingItem item) async {
+    final next = await showSuccess<_AfterCreate>(
+      context,
+      title: 'Prenda agregada',
+      message:
+          'Ya está en el catálogo con el código ${item.id}. Imprime su '
+          'etiqueta QR y pégala en la prenda para encontrarla al escanear.',
+      detail: ItemSummary(item: item),
+      primary: const SuccessAction(
+        label: 'Imprimir etiqueta QR',
+        icon: Icons.qr_code_2_rounded,
+        value: _AfterCreate.qr,
+      ),
+      secondary: const SuccessAction(
+        label: 'Agregar otra prenda',
+        icon: Icons.add_rounded,
+        value: _AfterCreate.another,
       ),
     );
+    if (!mounted) return;
+    switch (next) {
+      case _AfterCreate.qr:
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => QrScreen(item: item)));
+      case _AfterCreate.another:
+        await _addManually();
+      case null:
+        break;
+    }
   }
 
   Future<void> _scan() async {
@@ -274,22 +269,26 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _showUnrecognizedQrDialog() {
-    return showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('QR no reconocido'),
-        content: const Text(
-          'Este código no corresponde a una prenda registrada.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
+  Future<void> _showUnrecognizedQrDialog() => showNotice(
+    context,
+    icon: Icons.qr_code_scanner_rounded,
+    title: 'QR no reconocido',
+    message:
+        'Este código no corresponde a ninguna prenda de esta tienda. Si la '
+        'prenda es nueva, agrégala primero e imprime su etiqueta desde la app.',
+  );
+
+  Future<void> _confirmSignOut(VoidCallback signOut) async {
+    final confirmed = await confirmAction(
+      context,
+      icon: Icons.logout_rounded,
+      title: '¿Cerrar sesión?',
+      message:
+          'Para volver a entrar necesitarás tu correo y contraseña. Lo que ya '
+          'guardaste se conserva y se sincroniza al entrar de nuevo.',
+      confirmLabel: 'Cerrar sesión',
     );
+    if (confirmed) signOut();
   }
 
   bool get _canOpenUsers => widget.users != null && widget.user.canManageUsers;
@@ -354,7 +353,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     onManageUsers: _canOpenUsers
                         ? () => _openUsers(widget.users!)
                         : null,
-                    onSignOut: onSignOut,
+                    onSignOut: () => _confirmSignOut(onSignOut),
                   ),
                 const SizedBox(width: 12),
               ],
@@ -452,3 +451,5 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+enum _AfterCreate { qr, another }

@@ -6,7 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/clothing_item.dart';
-import '../widgets/snackbars.dart';
+import '../widgets/feedback/app_snackbar.dart';
 
 /// Shows the item's QR big enough to screenshot/print and stick on the garment.
 /// The QR only encodes the plain item id — no encryption, nothing sensitive.
@@ -47,7 +47,7 @@ class _QrScreenState extends State<QrScreen> {
       );
     } catch (_) {
       if (mounted) {
-        showErrorSnackBar(
+        AppSnackBar.error(
           context,
           'No se pudo compartir la imagen. Inténtalo de nuevo.',
         );

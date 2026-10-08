@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../auth/auth_service.dart';
 import '../../auth/credential_validators.dart';
 import '../../widgets/async_submit.dart';
+import '../../widgets/feedback/app_snackbar.dart';
 import '../../widgets/auth_layout.dart';
 import '../../widgets/busy_button.dart';
 import '../../widgets/error_text.dart';
@@ -54,11 +55,10 @@ class _LoginScreenState extends State<LoginScreen> with AsyncSubmit {
       () => widget.auth.sendPasswordReset(_correoCtrl.text),
     );
     if (sent && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Te enviamos un correo a ${_correoCtrl.text.trim()}.'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      AppSnackBar.info(
+        context,
+        'Te enviamos un correo a ${_correoCtrl.text.trim()} para crear una '
+        'contraseña nueva.',
       );
     }
   }

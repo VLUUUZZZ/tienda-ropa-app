@@ -6,7 +6,7 @@ import '../models/clothing_item.dart';
 import '../utils/formato.dart';
 import '../widgets/color_dot.dart';
 import '../widgets/item_avatar.dart';
-import '../widgets/snackbars.dart';
+import '../widgets/feedback/app_snackbar.dart';
 import '../widgets/unsaved_changes_guard.dart';
 
 /// Fast +/- adjustment of existing colors and sizes, grouped by color — no
@@ -71,7 +71,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
     // opened: apply only this screen's +/- on top of its latest version.
     final latest = widget.repo.getById(widget.item.id);
     if (latest == null) {
-      showErrorSnackBar(context, 'Esta prenda ya no existe en el catálogo.');
+      AppSnackBar.error(context, 'Esta prenda ya no existe en el catálogo.');
       return;
     }
     setState(() => _saving = true);
@@ -80,7 +80,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        showErrorSnackBar(context, 'No se pudo guardar. Inténtalo de nuevo.');
+        AppSnackBar.error(context, 'No se pudo guardar. Inténtalo de nuevo.');
       }
       return;
     }
@@ -112,7 +112,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
     return UnsavedChangesGuard(
       hasChanges: _hasChanges,
       message:
-          'Tienes cambios de existencia sin guardar. ¿Deseas salir sin guardarlos?',
+          'Los ajustes de existencia que hiciste todavía no se han guardado.',
       child: Scaffold(
         appBar: AppBar(title: const Text('Ajustar existencia')),
         body: _variantes.isEmpty

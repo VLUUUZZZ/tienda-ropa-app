@@ -4,6 +4,7 @@ import '../../auth/auth_service.dart';
 import '../../auth/credential_validators.dart';
 import '../../widgets/async_submit.dart';
 import '../../widgets/auth_layout.dart';
+import '../../widgets/feedback/success_screen.dart';
 import '../../widgets/busy_button.dart';
 import '../../widgets/error_text.dart';
 import '../../widgets/password_field.dart';
@@ -51,10 +52,26 @@ class _NewStoreScreenState extends State<NewStoreScreen> with AsyncSubmit {
         password: _passwordCtrl.text,
       ),
     );
-    // Signed in now: back to the root, where the auth gate shows the store.
-    if (created && mounted) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
+    if (!created || !mounted) return;
+    // Signed in now: the auth gate (at the root) is showing the new store.
+    // The welcome goes on top of it, replacing this form, so closing it
+    // lands straight in the catalog.
+    final nombreTienda = 'Tienda de ${_nombreCtrl.text.trim()}';
+    final navigator = Navigator.of(context);
+    navigator.popUntil((route) => route.isFirst);
+    await showSuccess<void>(
+      navigator.context,
+      title: '¡Tu tienda está lista!',
+      message:
+          '$nombreTienda ya está creada y tú eres su administrador. Empieza '
+          'agregando tus prendas; después podrás dar de alta a tu personal '
+          'desde Cuenta → Usuarios.',
+      primary: const SuccessAction(
+        label: 'Empezar',
+        icon: Icons.storefront_outlined,
+        value: null,
+      ),
+    );
   }
 
   @override

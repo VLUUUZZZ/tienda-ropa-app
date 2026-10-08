@@ -174,6 +174,7 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
     return MaterialApp(
       title: 'Tienda de Ropa',
       scaffoldMessengerKey: appMessengerKey,
+      navigatorKey: appNavigatorKey,
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
       theme: buildAppTheme(Brightness.light),
