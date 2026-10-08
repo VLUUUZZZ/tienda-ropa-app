@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../auth/app_user.dart';
 import '../../auth/auth_service.dart';
 import '../../auth/user_directory.dart';
+import '../../utils/texto.dart';
 import '../../widgets/role_badge.dart';
 import '../../widgets/snackbars.dart';
 import 'role_selector.dart';
@@ -91,7 +92,7 @@ class _UsersScreenState extends State<UsersScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
             itemCount: list.length,
             separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (context, index) {
@@ -123,25 +124,56 @@ class _UserTile extends StatelessWidget {
     return Card(
       child: ListTile(
         onTap: onTap,
+        contentPadding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
         leading: CircleAvatar(
-          backgroundColor: user.isAdmin
+          radius: 22,
+          backgroundColor: user.activo
               ? colorScheme.primaryContainer
-              : colorScheme.secondaryContainer,
-          child: Icon(
-            user.isAdmin
-                ? Icons.admin_panel_settings_outlined
-                : Icons.badge_outlined,
+              : colorScheme.surfaceContainerHighest,
+          foregroundColor: user.activo
+              ? colorScheme.onPrimaryContainer
+              : colorScheme.onSurfaceVariant,
+          child: Text(
+            iniciales(user.nombre).isEmpty ? '?' : iniciales(user.nombre),
+            style: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
-        title: Text(isSelf ? '${user.nombre} (tú)' : user.nombre),
-        subtitle: Text(user.correo),
+        title: Text(
+          isSelf ? '${user.nombre} (tú)' : user.nombre,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          user.correo,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             RoleBadge(role: user.role),
-            if (!user.activo)
-              Text('Desactivado', style: TextStyle(color: colorScheme.error)),
+            if (!user.activo) ...[
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text(
+                  'Desactivado',
+                  style: TextStyle(
+                    color: colorScheme.onErrorContainer,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -168,7 +200,7 @@ class _EditUserSheetState extends State<_EditUserSheet> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -188,12 +220,15 @@ class _EditUserSheetState extends State<_EditUserSheet> {
               value: _activo,
               onChanged: (value) => setState(() => _activo = value),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             FilledButton(
-              onPressed: () => Navigator.of(
-                context,
-              ).pop(widget.user.copyWith(role: _role, activo: _activo)),
-              child: const Text('Guardar'),
+              onPressed:
+                  _role == widget.user.role && _activo == widget.user.activo
+                  ? null
+                  : () => Navigator.of(
+                      context,
+                    ).pop(widget.user.copyWith(role: _role, activo: _activo)),
+              child: const Text('Guardar cambios'),
             ),
           ],
         ),

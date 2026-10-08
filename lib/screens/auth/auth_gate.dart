@@ -75,23 +75,35 @@ class _AuthGateState extends State<AuthGate> {
     }
   }
 
+  /// Bumped by every open and close, so an open that finishes after a newer
+  /// one started (sign out and back in while storage was still opening)
+  /// knows it's stale and closes what it opened instead of keeping it.
+  int _generation = 0;
+
   Future<void> _openStore(Tienda tienda) async {
     if (_repoTiendaId == tienda.id && !_openFailed) return;
     await _closeStore();
+    final generation = ++_generation;
     _repoTiendaId = tienda.id;
     final ClothingRepository repo;
     try {
       repo = await ClothingRepository.open(tiendaId: tienda.id);
+      if (generation != _generation || !mounted) {
+        await repo.close();
+        return;
+      }
+      await repo.attachRemote(widget.backend.catalogFor(tienda));
     } catch (e) {
       debugPrint('No se pudo abrir el catálogo de ${tienda.id}: $e');
-      if (mounted) setState(() => _openFailed = true);
+      if (mounted && generation == _generation) {
+        setState(() => _openFailed = true);
+      }
       return;
     }
-    if (!mounted || _repoTiendaId != tienda.id) {
+    if (generation != _generation || !mounted) {
       await repo.close();
       return;
     }
-    await repo.attachRemote(widget.backend.catalogFor(tienda));
     setState(() {
       _repo = repo;
       _openFailed = false;
@@ -99,6 +111,7 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _closeStore() async {
+    _generation++;
     final repo = _repo;
     _repo = null;
     _repoTiendaId = null;
@@ -112,10 +125,18 @@ class _AuthGateState extends State<AuthGate> {
     await repo.close();
   }
 
+  /// Screens opened by one user, or under one role, must not stay on top
+  /// for another: they were built with what that user could do (an admin's
+  /// edit form left open after being made employee would let them edit
+  /// until the server refuses).
   static bool _changesWhoIsIn(AuthState previous, AuthState next) {
-    final before = previous is SignedIn ? previous.user.uid : null;
-    final after = next is SignedIn ? next.user.uid : null;
-    return before != null && before != after && next is! AuthLoading;
+    if (previous is! SignedIn || next is AuthLoading) return false;
+    if (next is! SignedIn) return true;
+    final before = previous.user;
+    final after = next.user;
+    return before.uid != after.uid ||
+        before.role != after.role ||
+        before.tienda?.id != after.tienda?.id;
   }
 
   @override

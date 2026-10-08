@@ -100,9 +100,20 @@ class FirestoreUserDirectory implements UserDirectory {
     }
   }
 
+  /// Only role and active state change here (the rules forbid moving a
+  /// user to another store). A profile without a name (e.g. made by hand in
+  /// the console) would fail the rules' validation, so it gets one from its
+  /// email instead of the change being refused as "no permission".
   @override
   Future<void> update(AppUser user) => _write(
-    () => FirestorePaths.user(_firestore, user.uid).update(user.toMap()),
+    () => FirestorePaths.user(_firestore, user.uid).update({
+      'rol': user.role.id,
+      'activo': user.activo,
+      if (user.nombre.trim().isEmpty)
+        'nombre': user.correo.split('@').first.isNotEmpty
+            ? user.correo.split('@').first
+            : 'Sin nombre',
+    }),
   );
 
   Future<FirebaseApp> _creatorApp() async {

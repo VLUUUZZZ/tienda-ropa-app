@@ -46,6 +46,7 @@ class CatalogSync {
 
   Future<void> stop() async {
     _running = false;
+    _inFlight.clear();
     _retryTimer?.cancel();
     _retryTimer = null;
     await _subscription?.cancel();
@@ -61,6 +62,9 @@ class CatalogSync {
     if (!_running) return;
     final token = _state.pendingToken(id);
     if (token == null) return;
+    // Already on its way (start, first upload and every re-listen all push
+    // what's pending): sending it again would only duplicate writes.
+    if (_inFlight[id] == token) return;
 
     final ClothingItem? item;
     try {
@@ -71,28 +75,43 @@ class CatalogSync {
       return;
     }
 
+    _inFlight[id] = token;
     unawaited(_send(id, item, token));
   }
 
+  /// The change (by its pending token) currently being sent for each id.
+  final Map<String, int> _inFlight = {};
+
   Future<void> _send(String id, ClothingItem? item, int token) async {
+    var rejected = false;
     try {
       if (item == null) {
         await _remote.delete(id);
       } else {
         await _remote.upsert(item);
       }
-      await _state.confirm(id, token);
     } on RemoteWriteRejected catch (e) {
-      // Retrying can't help: drop the change and put the server's version
-      // back. Waiting for the next snapshot isn't enough, because the one
-      // that reverts the rejected write can arrive while the change is
-      // still marked pending, and be skipped.
       debugPrint('Cambio a $id rechazado, se descarta: $e');
-      await _state.confirm(id, token);
-      await _restoreFromRemote(id);
+      rejected = true;
     } catch (e) {
       // Stays pending: retried on reconnect or on the next launch.
       debugPrint('No se sincronizó $id, se reintentará: $e');
+      if (_inFlight[id] == token) _inFlight.remove(id);
+      return;
+    }
+    if (_inFlight[id] == token) _inFlight.remove(id);
+
+    // Bookkeeping can fail too (e.g. storage closed by signing out while
+    // the write was in flight); it must not escape as an unhandled error.
+    try {
+      await _state.confirm(id, token);
+      // Retrying a rejected write can't help: drop it and put the server's
+      // version back. Waiting for the next snapshot isn't enough, because
+      // the one that reverts it can arrive while it's still marked pending,
+      // and be skipped.
+      if (rejected) await _restoreFromRemote(id);
+    } catch (e) {
+      debugPrint('No se pudo registrar el resultado de $id: $e');
     }
   }
 
@@ -185,7 +204,11 @@ class CatalogSync {
   /// being treated as deleted remotely.
   Future<void> _uploadLocalOnlyItems(Set<String> remoteIds) async {
     for (final id in _local.ids.toList()) {
-      if (!remoteIds.contains(id)) await _state.markPending(id);
+      // Already pending ones keep their token: a new one would make the
+      // change look different from the one already on its way, and send it
+      // twice.
+      if (remoteIds.contains(id) || _state.pendingToken(id) != null) continue;
+      await _state.markPending(id);
     }
     await _state.markInitialUploadDone();
     pushAllPending();
