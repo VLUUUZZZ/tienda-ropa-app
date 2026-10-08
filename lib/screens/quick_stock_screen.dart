@@ -85,8 +85,9 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
     }
     final changes = _stockChanges;
     setState(() => _saving = true);
+    final ClothingItem applied;
     try {
-      await widget.repo.applyStockDelta(latest.id, changes);
+      applied = await widget.repo.applyStockDelta(latest.id, changes);
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
@@ -94,11 +95,20 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
       }
       return;
     }
+    // What the server actually applied, not what was requested: a decrease
+    // never takes stock below zero, so if someone else sold or adjusted the
+    // same variant in between, less may have been subtracted than this
+    // screen's +/- asked for. The audit trail must reflect the real change.
+    final latestByKey = {for (final v in latest.variantes) v.key: v.existencia};
+    final appliedByKey = {for (final v in applied.variantes) v.key: v.existencia};
+    var clamped = false;
     // Best-effort audit trail: a failure here must never block the stock
     // change itself, already saved above.
     for (final v in _variantes) {
-      final delta = changes[v.key] ?? 0;
-      if (delta == 0) continue;
+      final requested = changes[v.key] ?? 0;
+      if (requested == 0) continue;
+      final real = (appliedByKey[v.key] ?? 0) - (latestByKey[v.key] ?? 0);
+      if (real != requested) clamped = true;
       unawaited(
         widget.adjustmentsRepo.registrar(
           StockAdjustment(
@@ -107,12 +117,24 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
             nombreItem: latest.nombre,
             color: v.color,
             talla: v.talla,
-            delta: delta,
+            delta: real,
             usuarioNombre: widget.user.nombre,
             fecha: DateTime.now(),
           ),
         ),
       );
+    }
+    if (!mounted) return;
+    if (clamped) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Ya no quedaba tanta existencia: se restó solo lo disponible.',
+          ),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      await Future.delayed(const Duration(seconds: 3));
     }
     if (!mounted) return;
     Navigator.of(context).pop(true);
