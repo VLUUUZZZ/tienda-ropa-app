@@ -45,6 +45,26 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-10-08 — pulido de interfaz y microinteracciones
+
+- **Estado de sincronización siempre visible** (pequeño, bajo el buscador): "Sincronizado",
+  "Sincronizando…", "Conectando…" o "Sin conexión · N pendientes". Al tocarlo explica el estado,
+  cuántas prendas/ventas/ajustes faltan por enviar, la última sincronización y avisos (reintento
+  de conexión, o un cambio que el servidor no aceptó). Solo observa la sincronización; su lógica no
+  cambió.
+- **Botón principal con progreso**: Guardar → Guardando… → ✓ Guardado (formulario de prenda,
+  ajustar existencia, registrar venta). Entrar / crear tienda / crear cuenta dicen qué están haciendo.
+- **Catálogo animado con suavidad**: las prendas nuevas entran y las eliminadas se desvanecen
+  cerrando el hueco (con "Deshacer" regresan). Respeta "quitar animaciones" del teléfono.
+- **Escáner**: al leer, el marco se vuelve un ✓ ("¡Código leído!") y vibra; un código
+  desconocido vibra distinto y dice "Código no reconocido".
+- **Existencia**: "12 disponibles", "2 disponibles" con aviso, "AGOTADO", cada una con su
+  icono y descripción para lectores de pantalla.
+- **Confirmaciones uniformes**: título con la acción ("Eliminar prenda") y "¿Seguro que…?" en el
+  texto; eliminar dice cuántas tallas/colores y piezas se van. Vibración al confirmar.
+- **Mensajes**: "Etiqueta QR lista", "Catálogo exportado"; un mismo mensaje no se repite encima
+  de sí mismo. Usuarios muestra siluetas mientras carga. Transiciones entre pantallas más ágiles.
+
 ### 2026-10-08 — auditoría de usabilidad de todas las pantallas
 
 Meta: que un empleado nuevo pueda usar la app sin que nadie le explique. Sin funciones nuevas

@@ -5,6 +5,7 @@ import '../../auth/auth_service.dart';
 import '../../auth/user_directory.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/role_badge.dart';
+import '../../widgets/skeleton.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/feedback/app_snackbar.dart';
 import '../../widgets/feedback/confirm_dialog.dart';
@@ -121,11 +122,12 @@ class _UsersScreenState extends State<UsersScreen> {
     if (consequences.isEmpty) return Future.value(true);
 
     final pierdeAcceso = before.activo && !after.activo;
+    final cambiaRol = after.role != before.role;
     final title = pierdeAcceso
-        ? '¿Desactivar a ${before.nombre}?'
-        : after.role != before.role
-        ? '¿Cambiar a ${before.nombre} a ${after.role.label.toLowerCase()}?'
-        : '¿Reactivar a ${before.nombre}?';
+        ? 'Desactivar a ${before.nombre}'
+        : cambiaRol
+        ? 'Cambiar a ${before.nombre} a ${after.role.label.toLowerCase()}'
+        : 'Reactivar a ${before.nombre}';
     return confirmAction(
       context,
       icon: pierdeAcceso
@@ -133,8 +135,14 @@ class _UsersScreenState extends State<UsersScreen> {
           : Icons.admin_panel_settings_outlined,
       destructive: pierdeAcceso,
       title: title,
-      message: consequences.join('\n\n'),
-      confirmLabel: pierdeAcceso ? 'Desactivar' : 'Confirmar',
+      message:
+          '¿Seguro que quieres hacer este cambio?\n\n'
+          '${consequences.join('\n\n')}',
+      confirmLabel: pierdeAcceso
+          ? 'Desactivar'
+          : cambiaRol
+          ? 'Cambiar rol'
+          : 'Reactivar',
     );
   }
 
@@ -166,16 +174,7 @@ class _UsersScreenState extends State<UsersScreen> {
           }
           final list = snapshot.data;
           if (list == null) {
-            return const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Cargando el personal…'),
-                ],
-              ),
-            );
+            return const SkeletonList(label: 'Cargando el personal…');
           }
           return ListView.separated(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),

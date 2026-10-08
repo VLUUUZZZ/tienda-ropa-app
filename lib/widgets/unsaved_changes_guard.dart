@@ -33,8 +33,8 @@ class UnsavedChangesGuard extends StatelessWidget {
       context,
       icon: Icons.edit_off_outlined,
       destructive: true,
-      title: '¿Descartar cambios?',
-      message: message,
+      title: 'Descartar cambios',
+      message: '¿Seguro que quieres salir? $message',
       confirmLabel: 'Descartar',
       cancelLabel: 'Seguir editando',
     );

@@ -19,9 +19,10 @@ import '../utils/formato.dart';
 import '../widgets/feedback/app_snackbar.dart';
 import '../widgets/feedback/confirm_dialog.dart';
 import '../widgets/feedback/success_screen.dart';
+import '../widgets/animated_presence.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/item_summary.dart';
-import '../widgets/sync_status_banner.dart';
+import '../widgets/sync_status_indicator.dart';
 import 'home/account_menu.dart';
 import 'home/catalog_filters.dart';
 import 'home/catalog_hero.dart';
@@ -76,10 +77,11 @@ class _HomeScreenState extends State<HomeScreen> {
     widget.adjustmentsRepo.syncListenable,
   ]);
 
-  int _pendingChanges() =>
-      widget.repo.pendingChanges +
-      widget.salesRepo.pendingChanges +
-      widget.adjustmentsRepo.pendingChanges;
+  PendingChanges _pendingChanges() => (
+    prendas: widget.repo.pendingChanges,
+    ventas: widget.salesRepo.pendingChanges,
+    ajustes: widget.adjustmentsRepo.pendingChanges,
+  );
 
   /// The whole catalog, for the summary and the filter counts.
   List<ClothingItem> _all = [];
@@ -117,14 +119,42 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  /// Ids in the catalog as of the last reload; null before the first one
+  /// (nothing animates in on opening the screen).
+  Set<String>? _knownIds;
+
+  /// Garments that just arrived (added here or synced from another phone),
+  /// shown with a short entrance.
+  Set<String> _arriving = const {};
+
+  /// Garments just deleted here, kept in the list while they fade out so
+  /// the gap closes smoothly instead of jumping.
+  final Map<String, ClothingItem> _leaving = {};
+
   void _reload() {
     setState(() {
       _all = widget.repo.getAll();
-      _items = widget.repo
+      final ids = {for (final item in _all) item.id};
+      _arriving = _knownIds == null ? const {} : ids.difference(_knownIds!);
+      _knownIds = ids;
+      // Brought back meanwhile ("Deshacer"): it simply stays.
+      _leaving.removeWhere((id, _) => ids.contains(id));
+
+      final previous = _items;
+      final items = widget.repo
           .search(_searchCtrl.text, _all)
           .where(_filtro.includes)
           .toList();
+      for (final gone in _leaving.values) {
+        final at = previous.indexWhere((item) => item.id == gone.id);
+        if (at >= 0) items.insert(at.clamp(0, items.length), gone);
+      }
+      _items = items;
     });
+  }
+
+  void _forgetLeaving(String id) {
+    if (_leaving.remove(id) != null && mounted) _reload();
   }
 
   /// True while a screen opened from here is up, so a double tap on a card
@@ -191,6 +221,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (!mounted) return;
+    if (result case (outcome: ItemFormOutcome.deleted, :final item)) {
+      _leaving[item.id] = item;
+    }
     _reload();
     switch (result) {
       case (outcome: ItemFormOutcome.saved, :final item):
@@ -292,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _exportCatalog() async {
     final csv = catalogToCsv(widget.repo.getAll());
     try {
-      await SharePlus.instance.share(
+      final result = await SharePlus.instance.share(
         ShareParams(
           files: [
             XFile.fromData(
@@ -305,6 +338,9 @@ class _HomeScreenState extends State<HomeScreen> {
           fileNameOverrides: ['catalogo.csv'],
         ),
       );
+      if (mounted && result.status == ShareResultStatus.success) {
+        AppSnackBar.success(context, 'Catálogo exportado');
+      }
     } catch (e) {
       if (mounted) {
         AppSnackBar.error(context, 'No se pudo exportar el catálogo.');
@@ -438,7 +474,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final add = await confirmAction(
       context,
       icon: Icons.help_outline_rounded,
-      title: 'Esta prenda no está en el catálogo',
+      title: 'Código no reconocido',
       message:
           'El código "$code" no es de ninguna prenda de esta tienda. '
           '${canAdd ? 'Si es una prenda nueva, agrégala y el código quedará guardado en su ficha para la próxima vez.' : 'Revisa que sea la etiqueta correcta, o busca la prenda por su nombre. Si es nueva, pide a un administrador que la agregue.'}',
@@ -468,10 +504,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final confirmed = await confirmAction(
       context,
       icon: Icons.logout_rounded,
-      title: '¿Cerrar sesión?',
+      title: 'Cerrar sesión',
       message:
-          'Para volver a entrar necesitarás tu correo y contraseña. Lo que ya '
-          'guardaste se conserva y se sincroniza al entrar de nuevo.',
+          '¿Seguro que quieres cerrar sesión? Para volver a entrar '
+          'necesitarás tu correo y contraseña. Lo que ya guardaste se '
+          'conserva y se sincroniza al entrar de nuevo.',
       confirmLabel: 'Cerrar sesión',
     );
     if (confirmed) signOut();
@@ -485,12 +522,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (busqueda.isNotEmpty) {
       return EmptyState(
         icon: Icons.search_off_rounded,
-        title: 'Sin resultados',
+        title: 'No encontramos prendas',
         message: filtrando
             ? 'Ninguna prenda de "${_filtro.label}" coincide con "$busqueda". '
                   'Prueba buscando en todas las prendas.'
-            : 'Ninguna prenda coincide con "$busqueda". Prueba con otra '
-                  'palabra, el código, un color o una talla.',
+            : 'Nada coincide con "$busqueda". Prueba con otro nombre, '
+                  'talla o color, o con el código de la etiqueta.',
         actionLabel: filtrando ? 'Buscar en todas' : 'Borrar búsqueda',
         actionIcon: filtrando ? Icons.filter_alt_off_rounded : Icons.close,
         onAction: filtrando
@@ -513,10 +550,11 @@ class _HomeScreenState extends State<HomeScreen> {
       icon: Icons.checkroom_rounded,
       title: 'Tu catálogo está vacío',
       message: canAdd
-          ? 'Agrega tu primera prenda; después imprime su código QR y '
-                'pégalo en la etiqueta.'
+          ? 'Agrega tu primera prenda para comenzar. Después imprime su '
+                'código QR y pégalo en la etiqueta.'
           : 'Cuando un administrador agregue prendas aparecerán aquí.',
       actionLabel: canAdd ? 'Agregar prenda' : null,
+      actionIcon: Icons.add_rounded,
       onAction: canAdd ? () => _once(_addManually) : null,
     );
   }
@@ -583,15 +621,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: SyncStatusBanner(
-                  changes: _syncChanges,
-                  pending: _pendingChanges,
+            if (widget.repo.syncHealth case final health?)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: SyncStatusIndicator(
+                      health: health,
+                      changes: _syncChanges,
+                      pending: _pendingChanges,
+                    ),
+                  ),
                 ),
               ),
-            ),
             if (hasCatalog) ...[
               SliverToBoxAdapter(
                 child: Padding(
@@ -621,18 +664,26 @@ class _HomeScreenState extends State<HomeScreen> {
             else
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
-                sliver: SliverList.separated(
+                sliver: SliverList.builder(
                   itemCount: _items.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final item = _items[index];
-                    return ClothingCard(
+                    return AnimatedPresence(
                       key: ValueKey(item.id),
-                      item: item,
-                      onTap: () => _once(() => _openItem(item)),
-                      onQuickEdit: () => _once(() => _quickEditStock(item)),
-                      onSell: () => _once(() => _registerSale(item)),
-                      photoPath: widget.repo.photoPathFor(item.id),
+                      animateIn: _arriving.contains(item.id),
+                      leaving: _leaving.containsKey(item.id),
+                      onGone: () => _forgetLeaving(item.id),
+                      // Spacing inside, so it closes along with the card.
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: ClothingCard(
+                          item: item,
+                          onTap: () => _once(() => _openItem(item)),
+                          onQuickEdit: () => _once(() => _quickEditStock(item)),
+                          onSell: () => _once(() => _registerSale(item)),
+                          photoPath: widget.repo.photoPathFor(item.id),
+                        ),
+                      ),
                     );
                   },
                 ),

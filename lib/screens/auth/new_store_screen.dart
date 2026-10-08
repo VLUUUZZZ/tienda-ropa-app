@@ -151,6 +151,7 @@ class _NewStoreScreenState extends State<NewStoreScreen> with AsyncSubmit {
                 const SizedBox(height: 20),
                 BusyButton(
                   label: 'Crear tienda',
+                  busyLabel: 'Creando tienda…',
                   busy: busy,
                   onPressed: _create,
                 ),

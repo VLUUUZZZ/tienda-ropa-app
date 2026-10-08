@@ -7,6 +7,7 @@ import 'backoff.dart';
 import 'local_catalog.dart';
 import 'local_photos.dart';
 import 'remote_catalog.dart';
+import 'sync_health.dart';
 import 'sync_state.dart';
 
 /// Keeps a [LocalCatalog] and a [RemoteCatalog] in step, in both directions:
@@ -29,7 +30,17 @@ class CatalogSync {
        _state = state,
        _remote = remote,
        _backoff = backoff,
-       _photos = photos;
+       _photos = photos,
+       health = ValueNotifier(SyncHealth(lastSync: state.lastSync));
+
+  /// How sync is doing, for the screens. Observed only: setting it never
+  /// changes what sync does.
+  final ValueNotifier<SyncHealth> health;
+
+  /// Without internet at launch Firestore answers from its cache and then
+  /// goes quiet, so "still connecting" turns into "offline" after this.
+  static const Duration _connectTimeout = Duration(seconds: 6);
+  Timer? _connectTimer;
 
   final LocalCatalog _local;
   final SyncState _state;
@@ -52,12 +63,21 @@ class CatalogSync {
   void start() {
     if (_running) return;
     _running = true;
+    _connectTimer = Timer(_connectTimeout, () {
+      if (health.value.connection == SyncConnection.connecting) {
+        health.value = health.value.copyWith(
+          connection: SyncConnection.offline,
+        );
+      }
+    });
     _listen();
     pushAllPending();
   }
 
   Future<void> stop() async {
     _running = false;
+    _connectTimer?.cancel();
+    _connectTimer = null;
     _retryTimer?.cancel();
     _retryTimer = null;
     await _subscription?.cancel();
@@ -120,7 +140,12 @@ class CatalogSync {
         await _remote.upsert(item);
       }
       await _state.confirm(id, token);
+      // The server acknowledged it: reachable and up to date for this one.
+      _noteServerContact();
     } on RemoteWriteRejected catch (e) {
+      if (_running) {
+        health.value = health.value.copyWith(lastRejection: DateTime.now());
+      }
       // Retrying can't help: drop the change and put the server's version
       // back. Waiting for the next snapshot isn't enough, because the one
       // that reverts the rejected write can arrive while the change is
@@ -200,11 +225,23 @@ class CatalogSync {
     // asyncMap applies snapshots one at a time, in order.
     _subscription = _remote
         .watch()
-        .asyncMap(_apply)
+        .asyncMap((snapshot) async {
+          await _apply(snapshot);
+          return snapshot.fromServer;
+        })
         .listen(
-          (_) => _backoff.reset(),
+          (fromServer) {
+            _backoff.reset();
+            _noteSnapshot(fromServer: fromServer);
+          },
           onError: (Object e) {
             debugPrint('Error de sincronización: $e');
+            if (_running) {
+              health.value = health.value.copyWith(
+                connection: SyncConnection.offline,
+                retrying: true,
+              );
+            }
             _scheduleRelisten();
           },
           // Firestore closes the listener after an error (network, rules...),
@@ -212,6 +249,33 @@ class CatalogSync {
           onDone: _scheduleRelisten,
           cancelOnError: true,
         );
+  }
+
+  /// A snapshot from the server means it's reachable and in sync; one from
+  /// the cache, after having been online, means the connection dropped.
+  void _noteSnapshot({required bool fromServer}) {
+    if (!_running) return;
+    if (fromServer) {
+      _noteServerContact();
+    } else if (health.value.connection == SyncConnection.online) {
+      health.value = health.value.copyWith(connection: SyncConnection.offline);
+    }
+  }
+
+  void _noteServerContact() {
+    if (!_running) return;
+    final now = DateTime.now();
+    health.value = health.value.copyWith(
+      connection: SyncConnection.online,
+      lastSync: now,
+      retrying: false,
+    );
+    // Best effort: only shown to the person, never used by sync itself.
+    try {
+      unawaited(_state.setLastSync(now).catchError((_) {}));
+    } catch (_) {
+      // Storage closed meanwhile (sign-out mid-flight).
+    }
   }
 
   void _scheduleRelisten() {

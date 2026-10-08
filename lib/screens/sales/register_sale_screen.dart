@@ -10,6 +10,7 @@ import '../../widgets/color_dot.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/feedback/app_snackbar.dart';
 import '../../widgets/item_avatar.dart';
+import '../../widgets/progress_button.dart';
 import '../../widgets/unsaved_changes_guard.dart';
 
 /// Registers a sale of one or more variants of [item] in one visit: how many
@@ -40,6 +41,9 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
   /// being sold in this visit, starting at zero.
   late List<int> _cantidades;
   bool _saving = false;
+
+  /// Registered: the button shows its check for a moment before closing.
+  bool _saved = false;
 
   /// Set once the stock decrement has been committed, so a retry after a
   /// failure in the sales-log step below doesn't apply it a second time.
@@ -175,6 +179,9 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
       return;
     }
     if (!mounted) return;
+    setState(() => _saved = true);
+    await Future<void>.delayed(ProgressButton.doneHold);
+    if (!mounted) return;
     // The stock may have changed (otro teléfono) entre que se abrió esta
     // pantalla y se confirmó: avisar si se vendieron menos piezas de las
     // pedidas, en vez de decir simplemente "Venta registrada".
@@ -210,7 +217,7 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
 
     return UnsavedChangesGuard(
       hasChanges: _hasChanges,
-      message: 'Tienes una venta sin confirmar. ¿Deseas salir sin registrarla?',
+      message: 'Tienes una venta sin confirmar; si sales, no se registrará.',
       busy: _saving,
       busyMessage: 'Espera a que termine de registrar la venta.',
       child: Scaffold(
@@ -333,24 +340,19 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
                       ),
                       const SizedBox(height: 10),
                     ],
-                    FilledButton.icon(
-                      onPressed: _hasChanges && !_saving ? _confirmar : null,
-                      icon: _saving
-                          ? SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: colorScheme.onPrimary,
-                              ),
-                            )
-                          : const Icon(Icons.point_of_sale_rounded),
-                      label: Text(
-                        _saving
-                            ? 'Registrando…'
-                            : _hasChanges
-                            ? 'Registrar venta'
-                            : 'Elige con + cuántas piezas se venden',
-                      ),
+                    ProgressButton(
+                      state: _saved
+                          ? ProgressState.done
+                          : _saving
+                          ? ProgressState.busy
+                          : ProgressState.idle,
+                      icon: Icons.point_of_sale_rounded,
+                      onPressed: _hasChanges ? _confirmar : null,
+                      label: _hasChanges
+                          ? 'Registrar venta'
+                          : 'Elige con + cuántas piezas se venden',
+                      busyLabel: 'Registrando…',
+                      doneLabel: 'Venta registrada',
                     ),
                   ],
                 ),
@@ -439,11 +441,19 @@ class _SaleVariantRow extends StatelessWidget {
                     label:
                         'Vendiendo ${formatoPiezas(cantidad)} de $descripcion',
                     excludeSemantics: true,
-                    child: Text(
-                      '$cantidad',
-                      textAlign: TextAlign.center,
-                      style: textTheme.titleLarge?.copyWith(
-                        fontFeatures: const [FontFeature.tabularFigures()],
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 150),
+                      transitionBuilder: (child, animation) => FadeTransition(
+                        opacity: animation,
+                        child: ScaleTransition(scale: animation, child: child),
+                      ),
+                      child: Text(
+                        '$cantidad',
+                        key: ValueKey(cantidad),
+                        textAlign: TextAlign.center,
+                        style: textTheme.titleLarge?.copyWith(
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       ),
                     ),
                   ),

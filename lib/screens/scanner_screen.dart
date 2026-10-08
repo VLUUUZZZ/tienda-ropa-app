@@ -26,7 +26,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
   final _controller = MobileScannerController();
   bool _handled = false;
 
-  void _onDetect(BarcodeCapture capture) {
+  /// A code was just read: the frame shows a check for a moment.
+  bool _found = false;
+
+  Future<void> _onDetect(BarcodeCapture capture) async {
     if (_handled) return;
     final barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
@@ -38,6 +41,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
     // Felt even with the phone's sound off: the code was read, it can be
     // lowered now.
     HapticFeedback.mediumImpact();
+    // Seen, not only felt: a brief check in the frame before moving on.
+    setState(() => _found = true);
+    await Future<void>.delayed(const Duration(milliseconds: 280));
+    if (!mounted) return;
     Navigator.of(context).pop(value);
   }
 
@@ -104,7 +111,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
             valueListenable: _controller,
             builder: (context, state, _) => state.error != null
                 ? const SizedBox.shrink()
-                : IgnorePointer(child: _ScanFrame(hint: widget.hint)),
+                : IgnorePointer(
+                    child: _ScanFrame(hint: widget.hint, found: _found),
+                  ),
           ),
           Positioned(
             left: 24,
@@ -129,9 +138,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
 /// Darkens everything but a rounded square in the middle, outlines its
 /// corners, and says what to do.
 class _ScanFrame extends StatelessWidget {
-  const _ScanFrame({required this.hint});
+  const _ScanFrame({required this.hint, required this.found});
 
   final String hint;
+
+  /// A code was read: the corners turn the app's color, a check appears and
+  /// the hint says so.
+  final bool found;
 
   @override
   Widget build(BuildContext context) {
@@ -146,11 +159,43 @@ class _ScanFrame extends StatelessWidget {
           width: side,
           height: side,
         );
+        final accent = Theme.of(context).colorScheme.primary;
         return Stack(
           children: [
             Positioned.fill(
-              child: CustomPaint(painter: _ScanFramePainter(window)),
+              child: TweenAnimationBuilder<Color?>(
+                tween: ColorTween(end: found ? accent : Colors.white),
+                duration: const Duration(milliseconds: 160),
+                builder: (context, color, _) => CustomPaint(
+                  painter: _ScanFramePainter(window, color ?? Colors.white),
+                ),
+              ),
             ),
+            if (found)
+              Positioned.fromRect(
+                rect: window,
+                child: Center(
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.3, end: 1),
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutBack,
+                    builder: (context, scale, child) =>
+                        Transform.scale(scale: scale, child: child),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: accent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.check_rounded,
+                        size: 44,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               left: 24,
               right: 24,
@@ -166,7 +211,7 @@ class _ScanFrame extends StatelessWidget {
                     borderRadius: BorderRadius.circular(100),
                   ),
                   child: Text(
-                    hint,
+                    found ? '¡Código leído!' : hint,
                     textAlign: TextAlign.center,
                     style: Theme.of(
                       context,
@@ -183,9 +228,10 @@ class _ScanFrame extends StatelessWidget {
 }
 
 class _ScanFramePainter extends CustomPainter {
-  _ScanFramePainter(this.window);
+  _ScanFramePainter(this.window, this.color);
 
   final Rect window;
+  final Color color;
 
   static const double _radius = 28;
   static const double _corner = 36;
@@ -206,7 +252,7 @@ class _ScanFramePainter extends CustomPainter {
     );
 
     final stroke = Paint()
-      ..color = Colors.white
+      ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = 5
       ..strokeCap = StrokeCap.round;
@@ -232,7 +278,8 @@ class _ScanFramePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_ScanFramePainter old) => old.window != window;
+  bool shouldRepaint(_ScanFramePainter old) =>
+      old.window != window || old.color != color;
 }
 
 class _ScannerError extends StatelessWidget {

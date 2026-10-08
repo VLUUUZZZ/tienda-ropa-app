@@ -9,6 +9,7 @@ import 'catalog_sync.dart';
 import 'local_catalog.dart';
 import 'local_photos.dart';
 import 'remote_catalog.dart';
+import 'sync_health.dart';
 import 'sync_state.dart';
 
 /// The store's catalog as the screens see it: clothing items keyed by the id
@@ -112,6 +113,10 @@ class ClothingRepository {
 
   /// Fires when [pendingChanges] may have changed.
   Listenable get syncListenable => _syncState.listenable;
+
+  /// Connection and last sync, as observed by the catalog's sync; null
+  /// without a backend (local-only app), where there's nothing to show.
+  ValueListenable<SyncHealth>? get syncHealth => _sync?.health;
 
   Future<void> attachRemote(RemoteCatalog remote) async {
     if (_sync != null) return;

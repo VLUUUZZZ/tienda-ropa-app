@@ -32,6 +32,18 @@ class SyncState {
   /// can show whether everything reached the server.
   Listenable get listenable => _box.listenable();
 
+  static const String _lastSyncKey = 'ultimaSincronizacion';
+
+  /// Last time the server confirmed data or a change, kept across restarts
+  /// so it can be shown even before reconnecting.
+  DateTime? get lastSync {
+    final stored = _box.get(_lastSyncKey);
+    return stored is int ? DateTime.fromMillisecondsSinceEpoch(stored) : null;
+  }
+
+  Future<void> setLastSync(DateTime when) =>
+      _box.put(_lastSyncKey, when.millisecondsSinceEpoch);
+
   bool get initialUploadDone => _box.get(_initialUploadKey) == true;
 
   Future<void> markInitialUploadDone() => _box.put(_initialUploadKey, true);
