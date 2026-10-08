@@ -49,6 +49,14 @@ class AdjustmentsRepository {
   /// other devices.
   Listenable get listenable => _local.listenable;
 
+  /// Changes made on this phone that the server hasn't confirmed yet
+  /// (offline, or still on their way). Always zero without a backend, where
+  /// there's nothing to send them to.
+  int get pendingChanges => _sync == null ? 0 : _syncState.pendingIds.length;
+
+  /// Fires when [pendingChanges] may have changed.
+  Listenable get syncListenable => _syncState.listenable;
+
   Future<void> attachRemote(RemoteAdjustments remote) async {
     if (_sync != null) return;
     _sync = AdjustmentsSync(

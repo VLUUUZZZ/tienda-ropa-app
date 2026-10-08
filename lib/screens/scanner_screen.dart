@@ -1,10 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-/// Scans a QR code and pops with the raw text it contains (the item's id).
-/// Does not look anything up itself — the caller decides what to do with it.
+/// Scans a QR code or barcode and pops with the raw text it contains (the
+/// item's id, or a supplier's code). Does not look anything up itself — the
+/// caller decides what to do with it. A label that won't read can be typed
+/// in instead.
 class ScannerScreen extends StatefulWidget {
-  const ScannerScreen({super.key});
+  const ScannerScreen({
+    super.key,
+    this.title = 'Escanear prenda',
+    this.hint = 'Apunta al código QR o de barras de la etiqueta',
+  });
+
+  final String title;
+
+  /// What to aim at, shown under the frame.
+  final String hint;
 
   @override
   State<ScannerScreen> createState() => _ScannerScreenState();
@@ -23,7 +35,21 @@ class _ScannerScreenState extends State<ScannerScreen> {
     if (value == null || value.isEmpty) return;
     _handled = true;
     if (!mounted) return;
+    // Felt even with the phone's sound off: the code was read, it can be
+    // lowered now.
+    HapticFeedback.mediumImpact();
     Navigator.of(context).pop(value);
+  }
+
+  /// For a label that's torn, wrinkled or too faded to read.
+  Future<void> _typeCode() async {
+    final code = await showDialog<String>(
+      context: context,
+      builder: (_) => const _TypeCodeDialog(),
+    );
+    if (code == null || code.isEmpty || !mounted || _handled) return;
+    _handled = true;
+    Navigator.of(context).pop(code);
   }
 
   @override
@@ -40,7 +66,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
-        title: const Text('Escanear prenda'),
+        title: Text(widget.title),
         titleTextStyle: Theme.of(
           context,
         ).textTheme.titleLarge?.copyWith(color: Colors.white),
@@ -78,7 +104,21 @@ class _ScannerScreenState extends State<ScannerScreen> {
             valueListenable: _controller,
             builder: (context, state, _) => state.error != null
                 ? const SizedBox.shrink()
-                : const IgnorePointer(child: _ScanFrame()),
+                : IgnorePointer(child: _ScanFrame(hint: widget.hint)),
+          ),
+          Positioned(
+            left: 24,
+            right: 24,
+            bottom: 24,
+            child: SafeArea(
+              child: Center(
+                child: FilledButton.tonalIcon(
+                  onPressed: _typeCode,
+                  icon: const Icon(Icons.keyboard_rounded),
+                  label: const Text('¿No lee? Escribir el código'),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -89,7 +129,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
 /// Darkens everything but a rounded square in the middle, outlines its
 /// corners, and says what to do.
 class _ScanFrame extends StatelessWidget {
-  const _ScanFrame();
+  const _ScanFrame({required this.hint});
+
+  final String hint;
 
   @override
   Widget build(BuildContext context) {
@@ -124,7 +166,7 @@ class _ScanFrame extends StatelessWidget {
                     borderRadius: BorderRadius.circular(100),
                   ),
                   child: Text(
-                    'Apunta al código QR de la etiqueta',
+                    hint,
                     textAlign: TextAlign.center,
                     style: Theme.of(
                       context,
@@ -245,6 +287,67 @@ class _ScannerError extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Asks for the code printed under the QR (e.g. PRENDA-000012) or the
+/// supplier's barcode number.
+class _TypeCodeDialog extends StatefulWidget {
+  const _TypeCodeDialog();
+
+  @override
+  State<_TypeCodeDialog> createState() => _TypeCodeDialogState();
+}
+
+class _TypeCodeDialogState extends State<_TypeCodeDialog> {
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final code = _ctrl.text.trim();
+    if (code.isEmpty) return;
+    Navigator.pop(context, code);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      icon: const Icon(Icons.keyboard_rounded),
+      title: const Text('Escribe el código'),
+      content: TextField(
+        controller: _ctrl,
+        autofocus: true,
+        textCapitalization: TextCapitalization.characters,
+        textInputAction: TextInputAction.search,
+        onSubmitted: (_) => _submit(),
+        decoration: const InputDecoration(
+          labelText: 'Código',
+          hintText: 'Ej. PRENDA-000012',
+          helperText:
+              'Está impreso debajo del QR, o son los números del código de '
+              'barras.',
+          helperMaxLines: 2,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        ListenableBuilder(
+          listenable: _ctrl,
+          builder: (context, _) => FilledButton(
+            onPressed: _ctrl.text.trim().isEmpty ? null : _submit,
+            child: const Text('Buscar'),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -170,16 +170,23 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
   String? _validateNombre(String? value) {
     final nombre = value?.trim() ?? '';
-    if (nombre.isEmpty) return 'Requerido';
-    return nombre.length > _nombreMax ? 'Máximo $_nombreMax caracteres' : null;
+    if (nombre.isEmpty) return 'Escribe el nombre de la prenda';
+    return nombre.length > _nombreMax
+        ? 'Usa como máximo $_nombreMax caracteres'
+        : null;
   }
 
   static String? _validatePrecio(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Requerido';
+    if (value == null || value.trim().isEmpty) {
+      return 'Escribe el precio de venta, por ejemplo 199.50';
+    }
     final precio = leerPrecio(value);
-    if (precio == null || precio < 0) return 'Precio inválido';
+    if (precio == null || precio < 0) {
+      return 'Escribe solo el número, por ejemplo 199.50';
+    }
+    if (precio == 0) return 'El precio debe ser mayor a \$0';
     if (precio > Limites.precioMax) {
-      return 'Máximo ${formatoPrecio(Limites.precioMax)}';
+      return 'El precio no puede pasar de ${formatoPrecio(Limites.precioMax)}';
     }
     return null;
   }
@@ -219,7 +226,14 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     // A second tap while saving would pop this screen twice, closing the
     // catalog behind it too.
     if (_busy) return;
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      // The field with the problem may be scrolled out of sight.
+      AppSnackBar.error(
+        context,
+        'Falta algo por llenar o corregir: revisa los campos marcados en rojo.',
+      );
+      return;
+    }
 
     final codigoProveedor = _codigoProveedorCtrl.text.trim();
     if (codigoProveedor.isNotEmpty) {
@@ -243,7 +257,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     if (duplicate != null) {
       AppSnackBar.error(
         context,
-        'La combinación ${duplicate.color} / ${duplicate.talla} ya está registrada.',
+        '${duplicate.color} / ${duplicate.talla} aparece dos veces. Deja una '
+        'sola fila por cada color y talla, con todas sus piezas.',
       );
       return;
     }
@@ -326,11 +341,17 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   Future<void> _scanProviderCode() async {
-    final code = await Navigator.of(
-      context,
-    ).push<String>(MaterialPageRoute(builder: (_) => const ScannerScreen()));
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => const ScannerScreen(
+          title: 'Código del proveedor',
+          hint: 'Apunta al código de barras de la etiqueta del proveedor',
+        ),
+      ),
+    );
     if (code == null || !mounted) return;
     _codigoProveedorCtrl.text = code;
+    AppSnackBar.success(context, 'Código del proveedor leído: $code');
   }
 
   Future<void> _quickEditStock() async {
@@ -507,6 +528,13 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               ItemPhotoPicker(repo: widget.repo, itemId: widget.item.id),
               const SizedBox(height: 20),
               const _SectionTitle('Información'),
+              const SizedBox(height: 4),
+              Text(
+                'Los campos con * son obligatorios.',
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _nombreCtrl,
@@ -517,7 +545,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                 textCapitalization: TextCapitalization.sentences,
                 textInputAction: TextInputAction.next,
                 decoration: const InputDecoration(
-                  labelText: 'Nombre de la prenda',
+                  labelText: 'Nombre de la prenda *',
                   hintText: 'Ej. Playera básica',
                   prefixIcon: Icon(Icons.checkroom_rounded),
                 ),
@@ -527,8 +555,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               TextFormField(
                 controller: _precioCtrl,
                 decoration: const InputDecoration(
-                  labelText: 'Precio',
+                  labelText: 'Precio *',
                   hintText: '0.00',
+                  helperText: 'Precio de venta de cada pieza.',
                   prefixIcon: Icon(Icons.sell_outlined),
                   prefixText: '\$ ',
                 ),
@@ -546,10 +575,12 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                 controller: _codigoProveedorCtrl,
                 textInputAction: TextInputAction.done,
                 decoration: InputDecoration(
-                  labelText: 'Código de barras del proveedor (opcional)',
+                  labelText: 'Código del proveedor',
                   helperText:
-                      'Si la etiqueta del proveedor trae código de barras, '
-                      'escanearlo también abre esta prenda.',
+                      'Opcional. Si la etiqueta del proveedor trae código de '
+                      'barras, tócalo a la derecha para leerlo: así, '
+                      'escanearlo también abrirá esta prenda.',
+                  helperMaxLines: 3,
                   prefixIcon: const Icon(Icons.barcode_reader),
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.qr_code_scanner_rounded),
@@ -559,31 +590,19 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                 ),
               ),
               const SizedBox(height: 28),
-              Row(
-                children: [
-                  Expanded(
-                    child: _SectionTitle(
-                      'Tallas y colores',
-                      trailing: usadas == 0
-                          ? null
-                          : (usadas == 1
-                                ? '1 combinación'
-                                : '$usadas combinaciones'),
-                    ),
-                  ),
-                  FilledButton.tonalIcon(
-                    onPressed: _variantes.length < Limites.variantes
-                        ? _addVariantRow
-                        : null,
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('Agregar'),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(0, 40),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      textStyle: textTheme.labelLarge,
-                    ),
-                  ),
-                ],
+              _SectionTitle(
+                'Tallas y colores',
+                trailing: usadas == 0
+                    ? null
+                    : (usadas == 1 ? '1 combinación' : '$usadas combinaciones'),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Una fila por cada color y talla que tengas, con cuántas '
+                'piezas hay. Ej.: Negro · M · 4 piezas.',
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 12),
               for (final (index, row) in _variantes.indexed)
@@ -594,13 +613,27 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                       ? () => _removeVariantRow(index)
                       : null,
                 ),
+              // After the rows, where the next one will appear.
+              OutlinedButton.icon(
+                onPressed: _variantes.length < Limites.variantes
+                    ? _addVariantRow
+                    : null,
+                icon: const Icon(Icons.add_rounded),
+                label: Text(
+                  _variantes.length < Limites.variantes
+                      ? 'Agregar otro color o talla'
+                      : 'Llegaste al máximo de ${Limites.variantes} filas',
+                ),
+              ),
             ],
           ),
         ),
         bottomNavigationBar: SafeArea(
           minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
           child: FilledButton.icon(
-            onPressed: _busy ? null : _save,
+            // An existing garment with nothing changed has nothing to save:
+            // the disabled button itself says so.
+            onPressed: _busy || (isExisting && !_dirty) ? null : _save,
             icon: _saving
                 ? const SizedBox(
                     width: 18,
@@ -608,7 +641,15 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.check_rounded),
-            label: Text(widget.isNew ? 'Guardar prenda' : 'Guardar cambios'),
+            label: Text(
+              widget.isNew
+                  ? 'Guardar prenda'
+                  : _saving
+                  ? 'Guardando…'
+                  : _dirty
+                  ? 'Guardar cambios'
+                  : 'Sin cambios por guardar',
+            ),
           ),
         ),
       ),

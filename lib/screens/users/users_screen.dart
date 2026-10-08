@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../auth/app_user.dart';
 import '../../auth/auth_service.dart';
 import '../../auth/user_directory.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/role_badge.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/feedback/app_snackbar.dart';
@@ -114,8 +115,8 @@ class _UsersScreenState extends State<UsersScreen> {
         'Como administrador podrá crear, editar y eliminar prendas, y '
             'gestionar las cuentas del personal.',
       if (before.role == UserRole.admin && after.role != UserRole.admin)
-        'Como empleado solo podrá consultar el catálogo, escanear y ajustar '
-            'existencias.',
+        'Como empleado solo podrá consultar el catálogo, escanear, ajustar '
+            'existencias y registrar ventas.',
     ];
     if (consequences.isEmpty) return Future.value(true);
 
@@ -144,39 +145,53 @@ class _UsersScreenState extends State<UsersScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _create(context),
         icon: const Icon(Icons.person_add_alt_rounded),
-        label: const Text('Nuevo'),
+        label: const Text('Nuevo usuario'),
       ),
       body: StreamBuilder<List<AppUser>>(
         stream: _staff,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('No se pudo cargar la lista.'),
-                    const SizedBox(height: 12),
-                    FilledButton(
-                      onPressed: _retry,
-                      child: const Text('Reintentar'),
-                    ),
-                  ],
-                ),
+              child: EmptyState(
+                icon: Icons.cloud_off_rounded,
+                title: 'No se pudo cargar el personal',
+                message:
+                    'La lista de usuarios necesita internet. Revisa la '
+                    'conexión y vuelve a intentarlo.',
+                actionLabel: 'Reintentar',
+                actionIcon: Icons.refresh_rounded,
+                onAction: _retry,
               ),
             );
           }
           final list = snapshot.data;
           if (list == null) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Cargando el personal…'),
+                ],
+              ),
+            );
           }
           return ListView.separated(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
-            itemCount: list.length,
+            itemCount: list.length + 1,
             separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (context, index) {
-              final user = list[index];
+              if (index == 0) {
+                return Text(
+                  'Toca a una persona para cambiar su rol o quitarle el '
+                  'acceso. Con "Nuevo usuario" das de alta a alguien más.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                );
+              }
+              final user = list[index - 1];
               final isSelf = user.uid == currentUser.uid;
               return _UserTile(
                 user: user,
@@ -212,8 +227,9 @@ class _UserTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         subtitle: Text(
-          user.correo,
-          maxLines: 1,
+          // Why tapping your own row does nothing.
+          isSelf ? 'Tu propia cuenta no se puede cambiar aquí' : user.correo,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
         trailing: Column(
@@ -285,6 +301,11 @@ class _EditUserSheetState extends State<_EditUserSheet> {
             ),
             SwitchListTile(
               title: const Text('Puede entrar a la app'),
+              subtitle: Text(
+                _activo
+                    ? 'Activo: puede iniciar sesión.'
+                    : 'Desactivado: no podrá entrar hasta que lo reactives.',
+              ),
               value: _activo,
               onChanged: (value) => setState(() => _activo = value),
             ),

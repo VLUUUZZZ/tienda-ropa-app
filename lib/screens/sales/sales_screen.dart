@@ -4,6 +4,8 @@ import 'package:flutter/scheduler.dart';
 import '../../data/clothing_repository.dart';
 import '../../data/sales_repository.dart';
 import '../../models/sale.dart';
+import '../../utils/formato.dart';
+import '../../widgets/empty_state.dart';
 
 /// What was sold, most recent first, with sales totals and the catalog's
 /// current worth up top.
@@ -11,7 +13,16 @@ class SalesScreen extends StatefulWidget {
   final SalesRepository salesRepo;
   final ClothingRepository repo;
 
-  const SalesScreen({super.key, required this.salesRepo, required this.repo});
+  /// The catalog's worth is only for whoever sees prices of the whole
+  /// store (the same rule as the catalog's summary).
+  final bool showInventoryValue;
+
+  const SalesScreen({
+    super.key,
+    required this.salesRepo,
+    required this.repo,
+    this.showInventoryValue = true,
+  });
 
   @override
   State<SalesScreen> createState() => _SalesScreenState();
@@ -89,29 +100,31 @@ class _SalesScreenState extends State<SalesScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Valor del inventario',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          Text(
-                            '\$${widget.repo.valorInventario.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                              color: colorScheme.primary,
+                  if (widget.showInventoryValue) ...[
+                    const SizedBox(height: 8),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Valor del inventario',
+                              style: TextStyle(fontWeight: FontWeight.w600),
                             ),
-                          ),
-                        ],
+                            Text(
+                              formatoPrecio(widget.repo.valorInventario),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                   if (masVendidos.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Card(
@@ -142,7 +155,7 @@ class _SalesScreenState extends State<SalesScreen> {
                                       ),
                                     ),
                                     Text(
-                                      '${item.piezas} pieza${item.piezas == 1 ? '' : 's'}',
+                                      formatoPiezas(item.piezas),
                                       style: TextStyle(
                                         color: colorScheme.outline,
                                       ),
@@ -160,20 +173,30 @@ class _SalesScreenState extends State<SalesScreen> {
             ),
           ),
           if (_ventas.isEmpty)
-            SliverFillRemaining(
+            const SliverFillRemaining(
               hasScrollBody: false,
               child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    'Aún no se ha registrado ninguna venta.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: colorScheme.outline),
-                  ),
+                child: EmptyState(
+                  icon: Icons.receipt_long_rounded,
+                  title: 'Aún no hay ventas',
+                  message:
+                      'Cuando vendas una prenda (botón "Vender" en el '
+                      'catálogo o al escanearla) aparecerá aquí, con su '
+                      'total del día, la semana y el mes.',
                 ),
               ),
             )
           else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              sliver: SliverToBoxAdapter(
+                child: Text(
+                  'Últimas ventas',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ),
+          if (_ventas.isNotEmpty)
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               sliver: SliverList.separated(
@@ -210,7 +233,7 @@ class _StatCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '\$${valor.toStringAsFixed(2)}',
+              formatoPrecio(valor),
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 15,
@@ -263,7 +286,7 @@ class _SaleTile extends StatelessWidget {
                       ),
                     ),
                   Text(
-                    _formatFecha(venta.fecha),
+                    formatoFecha(venta.fecha),
                     style: TextStyle(fontSize: 12, color: colorScheme.outline),
                   ),
                 ],
@@ -273,14 +296,14 @@ class _SaleTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  '\$${venta.total.toStringAsFixed(2)}',
+                  formatoPrecio(venta.total),
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     color: colorScheme.primary,
                   ),
                 ),
                 Text(
-                  '${venta.cantidad} pieza${venta.cantidad == 1 ? '' : 's'}',
+                  formatoPiezas(venta.cantidad),
                   style: TextStyle(fontSize: 12, color: colorScheme.outline),
                 ),
               ],
@@ -289,11 +312,5 @@ class _SaleTile extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static String _formatFecha(DateTime fecha) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(fecha.day)}/${two(fecha.month)}/${fecha.year} '
-        '${two(fecha.hour)}:${two(fecha.minute)}';
   }
 }

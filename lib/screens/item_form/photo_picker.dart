@@ -49,8 +49,14 @@ class _ItemPhotoPickerState extends State<ItemPhotoPicker> {
             ),
             if (_path != null)
               ListTile(
-                leading: const Icon(Icons.delete_outline),
-                title: const Text('Quitar foto'),
+                leading: Icon(
+                  Icons.delete_outline,
+                  color: Theme.of(ctx).colorScheme.error,
+                ),
+                title: Text(
+                  'Quitar foto',
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+                ),
                 onTap: () => Navigator.pop(ctx, _PhotoAction.remove),
               ),
           ],
@@ -82,7 +88,11 @@ class _ItemPhotoPickerState extends State<ItemPhotoPicker> {
       );
     } catch (e) {
       if (mounted) {
-        AppSnackBar.error(context, 'No se pudo abrir la cámara/galería.');
+        AppSnackBar.error(
+          context,
+          'No se pudo abrir la cámara o la galería. Revisa que la app tenga '
+          'permiso en los ajustes del teléfono.',
+        );
       }
       return;
     }
@@ -101,7 +111,10 @@ class _ItemPhotoPickerState extends State<ItemPhotoPicker> {
       // (keyed by path) would otherwise keep showing the old picture here
       // and on the catalog card until the app restarts.
       await FileImage(saved).evict();
-      if (mounted) setState(() => _path = saved.path);
+      if (mounted) {
+        setState(() => _path = saved.path);
+        AppSnackBar.success(context, 'Foto guardada');
+      }
     } catch (e) {
       if (mounted) AppSnackBar.error(context, 'No se pudo guardar la foto.');
     } finally {
@@ -134,6 +147,7 @@ class _ItemPhotoPickerState extends State<ItemPhotoPicker> {
         _busy = false;
         _path = null;
       });
+      AppSnackBar.success(context, 'Foto quitada');
     }
   }
 
@@ -142,54 +156,71 @@ class _ItemPhotoPickerState extends State<ItemPhotoPicker> {
     final colorScheme = Theme.of(context).colorScheme;
     final path = _path;
 
-    return Center(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: _busy ? null : _choose,
-        child: Container(
-          width: 120,
-          height: 120,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerHighest,
+    return Column(
+      children: [
+        Center(
+          child: InkWell(
             borderRadius: BorderRadius.circular(18),
-          ),
-          child: _busy
-              ? const Center(
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              : path == null
-              ? Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.add_a_photo_outlined,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Agregar foto',
-                      style: TextStyle(
-                        fontSize: 12,
+            onTap: _busy ? null : _choose,
+            child: Container(
+              width: 120,
+              height: 120,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: _busy
+                  ? const Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : path == null
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_a_photo_outlined,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Agregar foto',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Image.file(
+                      File(path),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Icon(
+                        Icons.broken_image_outlined,
                         color: colorScheme.onSurfaceVariant,
                       ),
                     ),
-                  ],
-                )
-              : Image.file(
-                  File(path),
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Icon(
-                    Icons.broken_image_outlined,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
+            ),
+          ),
         ),
-      ),
+        const SizedBox(height: 8),
+        // Photos don't sync (see above): said up front so nobody expects to
+        // see it on another phone.
+        Text(
+          path == null
+              ? 'Foto opcional. Se guarda solo en este teléfono.'
+              : 'Toca la foto para cambiarla o quitarla. Solo se ve en este '
+                    'teléfono.',
+          textAlign: TextAlign.center,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+        ),
+      ],
     );
   }
 }

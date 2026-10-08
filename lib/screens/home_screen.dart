@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../auth/app_user.dart';
@@ -14,15 +15,17 @@ import 'adjustments/adjustments_screen.dart';
 import 'sales/register_sale_screen.dart';
 import 'sales/sales_screen.dart';
 import '../models/clothing_item.dart';
+import '../utils/formato.dart';
 import '../widgets/feedback/app_snackbar.dart';
 import '../widgets/feedback/confirm_dialog.dart';
 import '../widgets/feedback/success_screen.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/item_summary.dart';
+import '../widgets/sync_status_banner.dart';
 import 'home/account_menu.dart';
 import 'home/catalog_filters.dart';
 import 'home/catalog_hero.dart';
 import 'home/clothing_card.dart';
-import 'home/empty_catalog.dart';
 import 'home/scanned_item_sheet.dart';
 import 'home/store_title.dart';
 import 'item_form_screen.dart';
@@ -67,6 +70,16 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _searchCtrl = TextEditingController();
   late final Listenable _repoChanges = widget.repo.listenable;
+  late final Listenable _syncChanges = Listenable.merge([
+    widget.repo.syncListenable,
+    widget.salesRepo.syncListenable,
+    widget.adjustmentsRepo.syncListenable,
+  ]);
+
+  int _pendingChanges() =>
+      widget.repo.pendingChanges +
+      widget.salesRepo.pendingChanges +
+      widget.adjustmentsRepo.pendingChanges;
 
   /// The whole catalog, for the summary and the filter counts.
   List<ClothingItem> _all = [];
@@ -133,8 +146,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _reload();
   }
 
-  void _showSavedSnackBar() =>
-      AppSnackBar.success(context, 'Cambios guardados');
+  static String _nombre(ClothingItem item) =>
+      item.nombre.isEmpty ? 'la prenda' : item.nombre;
+
+  void _showSavedSnackBar(ClothingItem item) =>
+      AppSnackBar.success(context, 'Cambios guardados en ${_nombre(item)}');
 
   void _showDeletedSnackBar(ClothingItem item) => AppSnackBar.undo(
     context,
@@ -177,8 +193,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     _reload();
     switch (result) {
-      case (outcome: ItemFormOutcome.saved, item: _):
-        _showSavedSnackBar();
+      case (outcome: ItemFormOutcome.saved, :final item):
+        _showSavedSnackBar(item);
       case (outcome: ItemFormOutcome.deleted, :final item):
         _showDeletedSnackBar(item);
       case null:
@@ -201,7 +217,14 @@ class _HomeScreenState extends State<HomeScreen> {
     _reload();
     switch (outcome) {
       case StockSaveOutcome.saved:
-        AppSnackBar.success(context, 'Existencia actualizada');
+        final total = widget.repo.getById(item.id)?.existenciaTotal;
+        AppSnackBar.success(
+          context,
+          total == null
+              ? 'Existencia actualizada'
+              : 'Existencia actualizada: ${_nombre(item)} tiene '
+                    '${formatoPiezas(total)}',
+        );
       case StockSaveOutcome.savedPartially:
         AppSnackBar.info(
           context,
@@ -235,9 +258,8 @@ class _HomeScreenState extends State<HomeScreen> {
       case (:final vendidas, pedidas: _):
         AppSnackBar.success(
           context,
-          vendidas == 1
-              ? 'Venta registrada'
-              : 'Venta registrada · $vendidas piezas',
+          'Venta registrada: ${formatoPiezas(vendidas)} de ${_nombre(item)} '
+          '· ${formatoPrecio(vendidas * item.precio)}',
         );
       case null:
         break;
@@ -247,8 +269,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openSales() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            SalesScreen(salesRepo: widget.salesRepo, repo: widget.repo),
+        builder: (_) => SalesScreen(
+          salesRepo: widget.salesRepo,
+          repo: widget.repo,
+          showInventoryValue: widget.user.canEditCatalog,
+        ),
       ),
     );
   }
@@ -287,7 +312,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _addManually() async {
+  /// [codigoProveedor] comes filled in when the garment is being added
+  /// right after scanning a supplier barcode the catalog didn't know.
+  Future<void> _addManually({String codigoProveedor = ''}) async {
     final String id;
     try {
       id = await widget.repo.generateId();
@@ -306,6 +333,7 @@ class _HomeScreenState extends State<HomeScreen> {
       nombre: '',
       precio: 0,
       variantes: const [],
+      codigoProveedor: codigoProveedor,
     );
     final result = await Navigator.of(context).push<ItemFormResult>(
       MaterialPageRoute(
@@ -366,27 +394,65 @@ class _HomeScreenState extends State<HomeScreen> {
     if (code == null || !mounted) return;
 
     // The app's own QR, or the barcode the supplier printed on the garment.
+    // Typed by hand, the app's own code may come in lowercase.
     final existing =
-        widget.repo.getById(code) ?? widget.repo.getByProviderCode(code);
+        widget.repo.getById(code) ??
+        widget.repo.getById(code.toUpperCase()) ??
+        widget.repo.getByProviderCode(code);
     if (existing == null) {
-      await _showUnrecognizedQrDialog();
+      await _showUnrecognizedCode(code);
       return;
     }
-    // Employees can only adjust stock, so there's nothing to choose.
-    if (!widget.user.canEditCatalog) return _quickEditStock(existing);
 
+    // At the counter a scan is usually a sale or a stock change: the sheet
+    // offers those first, and the full form only to whoever can edit.
     final action = await showModalBottomSheet<ScanAction>(
       context: context,
-      builder: (_) => ScannedItemSheet(item: existing),
+      isScrollControlled: true,
+      builder: (_) => ScannedItemSheet(
+        item: existing,
+        photoPath: widget.repo.photoPathFor(existing.id),
+        canEdit: widget.user.canEditCatalog,
+      ),
     );
     if (!mounted) return;
     switch (action) {
+      case ScanAction.sell:
+        await _registerSale(existing);
       case ScanAction.stock:
         await _quickEditStock(existing);
       case ScanAction.details:
         await _openItem(existing);
+      case ScanAction.scanAgain:
+        await _scan();
       case null:
         break;
+    }
+  }
+
+  /// A code that isn't any garment's: say what that means and offer the
+  /// way forward (adding it, for whoever can; scanning again otherwise).
+  Future<void> _showUnrecognizedCode(String code) async {
+    HapticFeedback.heavyImpact();
+    final canAdd = widget.user.canEditCatalog;
+    final add = await confirmAction(
+      context,
+      icon: Icons.help_outline_rounded,
+      title: 'Esta prenda no está en el catálogo',
+      message:
+          'El código "$code" no es de ninguna prenda de esta tienda. '
+          '${canAdd ? 'Si es una prenda nueva, agrégala y el código quedará guardado en su ficha para la próxima vez.' : 'Revisa que sea la etiqueta correcta, o busca la prenda por su nombre. Si es nueva, pide a un administrador que la agregue.'}',
+      confirmLabel: canAdd ? 'Agregar prenda' : 'Escanear otra vez',
+      cancelLabel: 'Cerrar',
+    );
+    if (!add || !mounted) return;
+    if (canAdd) {
+      // Only codes that aren't one of this app's own ids are a supplier's:
+      // an unknown "PRENDA-…" is a label of a garment deleted since.
+      final esDelProveedor = !code.startsWith('PRENDA-');
+      await _addManually(codigoProveedor: esDelProveedor ? code : '');
+    } else {
+      await _scan();
     }
   }
 
@@ -397,16 +463,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
-  Future<void> _showUnrecognizedQrDialog() => showNotice(
-    context,
-    icon: Icons.qr_code_scanner_rounded,
-    title: 'Código no reconocido',
-    message:
-        'Este código no corresponde a ninguna prenda de esta tienda, ni por '
-        'su QR ni por su código de proveedor. Si la prenda es nueva, '
-        'agrégala primero.',
-  );
 
   Future<void> _confirmSignOut(VoidCallback signOut) async {
     final confirmed = await confirmAction(
@@ -424,24 +480,36 @@ class _HomeScreenState extends State<HomeScreen> {
   bool get _canOpenUsers => widget.users != null && widget.user.canManageUsers;
 
   Widget _emptyState() {
-    if (_searchCtrl.text.trim().isNotEmpty) {
-      return EmptyCatalog(
+    final busqueda = _searchCtrl.text.trim();
+    final filtrando = _filtro != CatalogFilter.todas;
+    if (busqueda.isNotEmpty) {
+      return EmptyState(
         icon: Icons.search_off_rounded,
         title: 'Sin resultados',
-        message:
-            'Ninguna prenda coincide con "${_searchCtrl.text.trim()}". '
-            'Prueba con el código, un color o una talla.',
+        message: filtrando
+            ? 'Ninguna prenda de "${_filtro.label}" coincide con "$busqueda". '
+                  'Prueba buscando en todas las prendas.'
+            : 'Ninguna prenda coincide con "$busqueda". Prueba con otra '
+                  'palabra, el código, un color o una talla.',
+        actionLabel: filtrando ? 'Buscar en todas' : 'Borrar búsqueda',
+        actionIcon: filtrando ? Icons.filter_alt_off_rounded : Icons.close,
+        onAction: filtrando
+            ? () => _setFiltro(CatalogFilter.todas)
+            : _searchCtrl.clear,
       );
     }
-    if (_filtro != CatalogFilter.todas && _all.isNotEmpty) {
-      return EmptyCatalog(
+    if (filtrando && _all.isNotEmpty) {
+      return EmptyState(
         icon: Icons.check_circle_outline_rounded,
         title: 'Todo en orden',
         message: _filtro.emptyMessage,
+        actionLabel: 'Ver todas las prendas',
+        actionIcon: Icons.filter_alt_off_rounded,
+        onAction: () => _setFiltro(CatalogFilter.todas),
       );
     }
     final canAdd = widget.user.canEditCatalog;
-    return EmptyCatalog(
+    return EmptyState(
       icon: Icons.checkroom_rounded,
       title: 'Tu catálogo está vacío',
       message: canAdd
@@ -468,22 +536,18 @@ class _HomeScreenState extends State<HomeScreen> {
               titleSpacing: 20,
               title: StoreTitle(user: widget.user),
               actions: [
-                IconButton(
-                  icon: Icon(
-                    widget.isDarkMode
-                        ? Icons.light_mode_outlined
-                        : Icons.dark_mode_outlined,
-                  ),
-                  tooltip: widget.isDarkMode ? 'Tema claro' : 'Tema oscuro',
-                  onPressed: widget.onToggleTheme,
-                ),
-                IconButton(
+                // Labeled, not just an icon: a receipt alone doesn't say
+                // "sales" to someone new.
+                TextButton.icon(
                   icon: const Icon(Icons.receipt_long_rounded),
-                  tooltip: 'Ventas',
+                  label: const Text('Ventas'),
                   onPressed: () => _once(() async => _openSales()),
                 ),
+                const SizedBox(width: 4),
                 AccountMenu(
                   user: widget.user,
+                  isDarkMode: widget.isDarkMode,
+                  onToggleTheme: widget.onToggleTheme,
                   onManageUsers: _canOpenUsers
                       ? () => _openUsers(widget.users!)
                       : null,
@@ -512,10 +576,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     if (_searchCtrl.text.isNotEmpty)
                       IconButton(
                         icon: const Icon(Icons.close_rounded),
-                        tooltip: 'Limpiar búsqueda',
+                        tooltip: 'Borrar búsqueda',
                         onPressed: _searchCtrl.clear,
                       ),
                   ],
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: SyncStatusBanner(
+                  changes: _syncChanges,
+                  pending: _pendingChanges,
                 ),
               ),
             ),
@@ -571,21 +644,23 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (widget.user.canEditCatalog) ...[
-            FloatingActionButton(
+            FloatingActionButton.extended(
               heroTag: 'add',
               onPressed: () => _once(_addManually),
-              tooltip: 'Agregar prenda',
+              tooltip: 'Agregar una prenda nueva al catálogo',
               backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
               foregroundColor: Theme.of(
                 context,
               ).colorScheme.onSecondaryContainer,
-              child: const Icon(Icons.add_rounded),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Agregar'),
             ),
             const SizedBox(width: 12),
           ],
           FloatingActionButton.extended(
             heroTag: 'scan',
             onPressed: () => _once(_scan),
+            tooltip: 'Escanear el código QR o de barras de una prenda',
             icon: const Icon(Icons.qr_code_scanner_rounded),
             label: const Text('Escanear'),
           ),

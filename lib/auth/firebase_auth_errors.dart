@@ -8,17 +8,20 @@ import 'credential_validators.dart';
 AuthException authExceptionFrom(FirebaseAuthException e) {
   debugPrint('Firebase Auth: ${e.code}');
   final message = switch (e.code) {
-    'invalid-credential' ||
-    'wrong-password' ||
-    'user-not-found' => 'Correo o contraseña incorrectos.',
+    'invalid-credential' || 'wrong-password' || 'user-not-found' =>
+      'Correo o contraseña incorrectos. Revisa que estén bien escritos.',
     'invalid-email' => 'El correo no es válido.',
-    'user-disabled' => 'Esta cuenta está deshabilitada.',
-    'email-already-in-use' => 'Ese correo ya tiene una cuenta.',
+    'user-disabled' =>
+      'Esta cuenta está desactivada. Pide a un administrador que la active.',
+    'email-already-in-use' =>
+      'Ese correo ya tiene una cuenta. Usa otro, o entra con él desde la pantalla de inicio.',
     'weak-password' =>
       'La contraseña es muy débil (mínimo '
           '${CredentialValidators.minPasswordLength} caracteres).',
-    'too-many-requests' => 'Demasiados intentos. Espera un momento.',
-    'network-request-failed' => 'Sin conexión a internet.',
+    'too-many-requests' =>
+      'Demasiados intentos. Espera unos minutos y vuelve a intentarlo.',
+    'network-request-failed' =>
+      'Sin conexión a internet. Revisa el Wi-Fi o los datos e inténtalo de nuevo.',
     'operation-not-allowed' =>
       'El acceso con correo no está activado para esta tienda. Contacta al soporte.',
     'requires-recent-login' =>
