@@ -3,7 +3,8 @@ import 'package:flutter/widgets.dart';
 import '../auth/auth_service.dart';
 
 /// Busy/error state for forms that submit to the backend: disables the
-/// button while working and shows [AuthException] messages inline.
+/// button while working and shows [AuthException] messages inline (and a
+/// generic one for anything unexpected).
 mixin AsyncSubmit<T extends StatefulWidget> on State<T> {
   bool busy = false;
   String? error;

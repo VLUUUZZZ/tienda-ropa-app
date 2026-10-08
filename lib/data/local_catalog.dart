@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -68,14 +69,25 @@ class LocalCatalog {
   /// offers a number already in use.
   Future<void> write(ClothingItem item) async {
     await _box.put(item.id, item.toMap());
-    final n = _parseId(item.id);
-    if (n != null && n > _sequence) await _box.put(_sequenceKey, n);
+    await _advanceSequencePast([item.id]);
   }
 
-  /// Writes [item] only if it differs from what's stored, so an unchanged
-  /// remote snapshot doesn't trigger needless disk writes and UI rebuilds.
-  Future<void> writeIfChanged(ClothingItem item) async {
-    if (!_storedEquals(item)) await write(item);
+  Future<void> _advanceSequencePast(Iterable<String> ids) async {
+    final highest = ids.map(_parseId).nonNulls.fold(_sequence, math.max);
+    if (highest > _sequence) await _box.put(_sequenceKey, highest);
+  }
+
+  /// Writes those of [items] that differ from what's stored, all in one disk
+  /// write, so a remote snapshot with many garments doesn't cause one write
+  /// (and one UI refresh) per garment, and an unchanged one causes none.
+  Future<void> writeAllChanged(Iterable<ClothingItem> items) async {
+    final changed = {
+      for (final item in items)
+        if (!_storedEquals(item)) item.id: item.toMap(),
+    };
+    if (changed.isEmpty) return;
+    await _box.putAll(changed);
+    await _advanceSequencePast(changed.keys);
   }
 
   Future<void> remove(String id) => _box.delete(id);

@@ -5,29 +5,14 @@ import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
 import '../utils/formato.dart';
 import '../widgets/snackbars.dart';
+import '../widgets/unsaved_changes_guard.dart';
+import 'item_form/variant_row.dart';
 import 'qr_screen.dart';
 import 'quick_stock_screen.dart';
 
 /// What [ItemFormScreen] pops with, so the caller can tell a save apart from
 /// a delete and react accordingly (e.g. offer "undo" only after a delete).
 enum ItemFormResult { saved, deleted }
-
-class _VariantRow {
-  final TextEditingController talla;
-  final TextEditingController color;
-  final TextEditingController existencia;
-
-  _VariantRow({String talla = '', String color = '', int existencia = 0})
-    : talla = TextEditingController(text: talla),
-      color = TextEditingController(text: color),
-      existencia = TextEditingController(text: existencia.toString());
-
-  void dispose() {
-    talla.dispose();
-    color.dispose();
-    existencia.dispose();
-  }
-}
 
 /// Create/edit screen for a single garment. Works both for a brand-new item
 /// (blank fields, id already assigned) and an existing one loaded from a scan
@@ -52,7 +37,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nombreCtrl;
   late final TextEditingController _precioCtrl;
-  final List<_VariantRow> _variantes = [];
+  final List<VariantRowControllers> _variantes = [];
   bool _dirty = false;
   bool _saving = false;
 
@@ -86,51 +71,16 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       ..clear()
       ..addAll(
         variantes.isEmpty
-            ? [_VariantRow()]
-            : variantes.map(
-                (v) => _VariantRow(
-                  talla: v.talla,
-                  color: v.color,
-                  existencia: v.existencia,
-                ),
-              ),
+            ? [VariantRowControllers()]
+            : variantes.map(VariantRowControllers.fromVariant),
       );
     for (final row in _variantes) {
-      _attachDirtyListeners(row);
+      row.addListener(_markDirty);
     }
-  }
-
-  void _attachDirtyListeners(_VariantRow row) {
-    row.talla.addListener(_markDirty);
-    row.color.addListener(_markDirty);
-    row.existencia.addListener(_markDirty);
   }
 
   void _markDirty() {
     if (!_dirty) setState(() => _dirty = true);
-  }
-
-  Future<bool> _confirmDiscard() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Descartar cambios'),
-        content: const Text(
-          'Tienes cambios sin guardar. ¿Deseas salir sin guardarlos?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Seguir editando'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Descartar'),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
   }
 
   @override
@@ -144,8 +94,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   void _addVariantRow() {
-    final row = _VariantRow();
-    _attachDirtyListeners(row);
+    final row = VariantRowControllers()..addListener(_markDirty);
     setState(() {
       _variantes.add(row);
       _dirty = true;
@@ -160,69 +109,56 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     });
   }
 
-  bool _rowIsUsed(_VariantRow row) =>
-      row.talla.text.trim().isNotEmpty || row.color.text.trim().isNotEmpty;
+  /// What the price field holds, as it will be stored (see [leerPrecio]).
+  double _precio() =>
+      ClothingItem.clampPrecio(leerPrecio(_precioCtrl.text) ?? 0);
 
-  String? _validateTalla(_VariantRow row) {
-    if (!_rowIsUsed(row)) {
-      return null;
-    }
-    return row.talla.text.trim().isEmpty ? 'Requerido' : null;
-  }
-
-  String? _validateColor(_VariantRow row) {
-    if (!_rowIsUsed(row)) return null;
-    return row.color.text.trim().isEmpty ? 'Requerido' : null;
-  }
-
-  String? _validateExistencia(_VariantRow row) {
-    if (!_rowIsUsed(row)) return null;
-    final text = row.existencia.text.trim();
-    if (text.isEmpty) return null; // treated as 0
-    final parsed = int.tryParse(text);
-    if (parsed == null) return 'Inválido';
-    if (parsed < 0) return 'No negativo';
-    if (parsed > Limites.existenciaMax) return 'Máx. ${Limites.existenciaMax}';
-    return null;
-  }
-
-  String? _validatePrecio(String? value) {
+  static String? _validatePrecio(String? value) {
     if (value == null || value.trim().isEmpty) return 'Requerido';
-    final parsed = leerPrecio(value);
-    if (parsed == null || parsed < 0) return 'Precio inválido';
-    if (parsed > Limites.precioMax) {
+    final precio = leerPrecio(value);
+    if (precio == null || precio < 0) return 'Precio inválido';
+    if (precio > Limites.precioMax) {
       return 'Máximo ${formatoPrecio(Limites.precioMax)}';
     }
     return null;
   }
 
-  Future<void> _save() async {
-    if (_saving) return;
-    setState(() => _saving = true);
-    try {
-      await _doSave();
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+  /// Turns the counts in [variantes] (absolute, as typed) into "latest
+  /// stored count + what changed in this form", for the variants that
+  /// existed when the form was filled and still exist now.
+  List<ClothingVariant> _rebaseStock(
+    List<ClothingVariant> variantes,
+    ClothingItem latest,
+  ) {
+    final latestStock = {for (final v in latest.variantes) v.key: v.existencia};
+    return [
+      for (final v in variantes)
+        switch ((_loadedStock[v.key], latestStock[v.key])) {
+          (final int loaded, final int current) => ClothingVariant(
+            talla: v.talla,
+            color: v.color,
+            existencia: ClothingVariant.clampExistencia(
+              current + v.existencia - loaded,
+            ),
+          ),
+          _ => v,
+        },
+    ];
   }
 
-  Future<void> _doSave() async {
+  Future<void> _save() async {
+    // A second tap while saving would pop this screen twice, closing the
+    // catalog behind it too.
+    if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
 
-    final variantes = _variantes
-        .where(_rowIsUsed)
-        .map(
-          (row) => ClothingVariant(
-            talla: row.talla.text.trim(),
-            color: row.color.text.trim(),
-            existencia: int.tryParse(row.existencia.text.trim()) ?? 0,
-          ),
-        )
-        .toList();
+    var variantes = [
+      for (final row in _variantes)
+        if (row.isUsed) row.toVariant(),
+    ];
 
     final duplicate = ClothingItem.firstDuplicateVariant(variantes);
     if (duplicate != null) {
-      if (!mounted) return;
       showErrorSnackBar(
         context,
         'La combinación ${duplicate.color} / ${duplicate.talla} ya está registrada.',
@@ -244,20 +180,22 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         );
         return;
       }
-      _rebaseStock(variantes, latest);
+      variantes = _rebaseStock(variantes, latest);
     }
 
     final updated = ClothingItem(
       id: id,
       nombre: _nombreCtrl.text.trim(),
-      precio: ClothingItem.clampPrecio(leerPrecio(_precioCtrl.text) ?? 0),
+      precio: _precio(),
       variantes: variantes,
     );
 
+    setState(() => _saving = true);
     try {
       await widget.repo.save(updated);
     } catch (e) {
       if (mounted) {
+        setState(() => _saving = false);
         showErrorSnackBar(context, 'No se pudo guardar. Inténtalo de nuevo.');
       }
       return;
@@ -266,21 +204,6 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     if (!mounted) return;
     _dirty = false;
     Navigator.of(context).pop(ItemFormResult.saved);
-  }
-
-  /// Turns the counts in [variantes] (absolute, as typed) into "latest
-  /// stored count + what changed in this form", for the variants that
-  /// existed when the form was filled and still exist now.
-  void _rebaseStock(List<ClothingVariant> variantes, ClothingItem latest) {
-    final latestStock = {for (final v in latest.variantes) v.key: v.existencia};
-    for (final v in variantes) {
-      final loaded = _loadedStock[v.key];
-      final current = latestStock[v.key];
-      if (loaded == null || current == null) continue;
-      v.existencia = ClothingVariant.clampExistencia(
-        current + v.existencia - loaded,
-      );
-    }
   }
 
   Future<void> _quickEditStock() async {
@@ -348,7 +271,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     final snapshot = ClothingItem(
       id: widget.item.id,
       nombre: _nombreCtrl.text.trim(),
-      precio: ClothingItem.clampPrecio(leerPrecio(_precioCtrl.text) ?? 0),
+      precio: _precio(),
       variantes: const [],
     );
     Navigator.of(
@@ -360,17 +283,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   Widget build(BuildContext context) {
     final isExisting = !widget.isNew;
 
-    return PopScope(
-      canPop: !_dirty,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-        final descartar = await _confirmDiscard();
-        if (!descartar) return;
-        if (!mounted) return;
-        setState(() => _dirty = false);
-        // ignore: use_build_context_synchronously
-        Navigator.of(context).pop();
-      },
+    return UnsavedChangesGuard(
+      hasChanges: _dirty,
+      message: 'Tienes cambios sin guardar. ¿Deseas salir sin guardarlos?',
       child: Scaffold(
         appBar: AppBar(
           title: Text(widget.isNew ? 'Nueva prenda' : 'Editar prenda'),
@@ -466,105 +381,14 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              ..._variantes.asMap().entries.map((entry) {
-                final index = entry.key;
-                final row = entry.value;
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              flex: 3,
-                              child: TextFormField(
-                                controller: row.talla,
-                                maxLength: Limites.talla,
-                                textCapitalization:
-                                    TextCapitalization.characters,
-                                decoration: const InputDecoration(
-                                  labelText: 'Talla',
-                                  isDense: true,
-                                  counterText: '',
-                                ),
-                                validator: (_) => _validateTalla(row),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              flex: 3,
-                              child: TextFormField(
-                                controller: row.color,
-                                maxLength: Limites.color,
-                                textCapitalization:
-                                    TextCapitalization.sentences,
-                                decoration: const InputDecoration(
-                                  labelText: 'Color',
-                                  isDense: true,
-                                  counterText: '',
-                                ),
-                                validator: (_) => _validateColor(row),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              flex: 2,
-                              child: TextFormField(
-                                controller: row.existencia,
-                                decoration: const InputDecoration(
-                                  labelText: 'Existencia',
-                                  isDense: true,
-                                ),
-                                keyboardType: TextInputType.number,
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.digitsOnly,
-                                  LengthLimitingTextInputFormatter(5),
-                                ],
-                                validator: (_) => _validateExistencia(row),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline),
-                              tooltip: 'Quitar esta talla/color',
-                              onPressed: _variantes.length > 1
-                                  ? () => _removeVariantRow(index)
-                                  : null,
-                            ),
-                          ],
-                        ),
-                        AnimatedBuilder(
-                          animation: row.existencia,
-                          builder: (context, _) {
-                            final agotado =
-                                (int.tryParse(row.existencia.text.trim()) ??
-                                    0) <=
-                                0;
-                            if (!agotado || !_rowIsUsed(row)) {
-                              return const SizedBox.shrink();
-                            }
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  'AGOTADO',
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.error,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
+              for (final (index, row) in _variantes.indexed)
+                VariantRowFields(
+                  key: ObjectKey(row),
+                  row: row,
+                  onRemove: _variantes.length > 1
+                      ? () => _removeVariantRow(index)
+                      : null,
+                ),
               const SizedBox(height: 20),
               FilledButton.icon(
                 onPressed: _saving ? null : _save,

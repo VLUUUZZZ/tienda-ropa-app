@@ -5,6 +5,7 @@ import '../models/clothing_item.dart';
 import '../utils/formato.dart';
 import '../widgets/color_dot.dart';
 import '../widgets/snackbars.dart';
+import '../widgets/unsaved_changes_guard.dart';
 
 /// Fast +/- adjustment of existing colors and sizes, grouped by color — no
 /// need to open the full edit form just to bump a count up or down. Does not
@@ -21,10 +22,6 @@ class QuickStockScreen extends StatefulWidget {
 
 class _QuickStockScreenState extends State<QuickStockScreen> {
   late List<ClothingVariant> _variantes;
-  bool _dirty = false;
-
-  /// Guards against a double tap on Guardar: each save applies this screen's
-  /// changes as deltas, so saving twice would count them twice.
   bool _saving = false;
 
   @override
@@ -50,31 +47,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
         color: v.color,
         existencia: ClothingVariant.clampExistencia(v.existencia + delta),
       );
-      _dirty = true;
     });
-  }
-
-  Future<bool> _confirmDiscard() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Descartar cambios'),
-        content: const Text(
-          'Tienes cambios de existencia sin guardar. ¿Deseas salir sin guardarlos?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Seguir editando'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Descartar'),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
   }
 
   int _delta(int i) =>
@@ -85,17 +58,13 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
     for (var i = 0; i < _variantes.length; i++) _variantes[i].key: _delta(i),
   };
 
-  Future<void> _save() async {
-    if (_saving) return;
-    setState(() => _saving = true);
-    try {
-      await _applyChanges();
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
+  /// Adding a piece and taking it back out again is not a change: nothing
+  /// to save and nothing to discard.
+  bool get _hasChanges => _stockChanges.values.any((delta) => delta != 0);
 
-  Future<void> _applyChanges() async {
+  Future<void> _save() async {
+    // A second tap while saving would apply the same +/- twice.
+    if (_saving) return;
     // The garment may have changed on another device since this screen
     // opened: apply only this screen's +/- on top of its latest version.
     final latest = widget.repo.getById(widget.item.id);
@@ -103,16 +72,17 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
       showErrorSnackBar(context, 'Esta prenda ya no existe en el catálogo.');
       return;
     }
+    setState(() => _saving = true);
     try {
       await widget.repo.save(latest.withStockChanges(_stockChanges));
     } catch (e) {
       if (mounted) {
+        setState(() => _saving = false);
         showErrorSnackBar(context, 'No se pudo guardar. Inténtalo de nuevo.');
       }
       return;
     }
     if (!mounted) return;
-    _dirty = false;
     Navigator.of(context).pop(true);
   }
 
@@ -135,17 +105,10 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
           .add(i);
     }
 
-    return PopScope(
-      canPop: !_dirty,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-        final descartar = await _confirmDiscard();
-        if (!descartar) return;
-        if (!mounted) return;
-        setState(() => _dirty = false);
-        // ignore: use_build_context_synchronously
-        Navigator.of(context).pop();
-      },
+    return UnsavedChangesGuard(
+      hasChanges: _hasChanges,
+      message:
+          'Tienes cambios de existencia sin guardar. ¿Deseas salir sin guardarlos?',
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -202,7 +165,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
             : SafeArea(
                 minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: FilledButton.icon(
-                  onPressed: _dirty && !_saving ? _save : null,
+                  onPressed: _hasChanges && !_saving ? _save : null,
                   icon: _saving
                       ? const SizedBox(
                           width: 18,
