@@ -60,6 +60,15 @@ busca de errores reales, no de funciones nuevas.
    pero el historial de ajustes seguía registrando el número que se había tocado en pantalla,
    no el que realmente se aplicó. Ahora el historial registra el cambio real, y se avisa en
    pantalla cuando el número aplicado terminó siendo menor al pedido.
+4. [el más importante de hoy] Al guardar el formulario completo de una prenda (por ejemplo
+   para corregir el precio o el nombre), la existencia de cada talla/color se guardaba tal
+   como se veía en pantalla cuando se abrió el formulario. Si alguien vendía esa prenda o le
+   ajustaba la existencia en otro teléfono mientras el formulario seguía abierto en el
+   primero, "Guardar" deshacía ese cambio en silencio, sin aviso ni rastro — la venta seguía
+   registrada, pero la existencia volvía al número de antes. Ahora, la talla/color que no se
+   tocó en el formulario conserva la existencia más reciente en vez de la que se veía al
+   abrir; la que sí se editó a mano sigue aplicando exactamente ese cambio, pero sobre el
+   número más reciente.
 
 Verificado con flutter analyze (0 avisos).
 

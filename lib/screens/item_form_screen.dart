@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -178,21 +179,23 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       }
     }
 
-    final updated = ClothingItem(
-      id: widget.item.id,
-      nombre: _nombreCtrl.text.trim(),
-      precio: _parsePrecio(_precioCtrl.text) ?? 0,
-      variantes: variantes,
-      codigoProveedor: codigoProveedor,
-    );
-
-    // The freshest saved stock, in case a quick edit happened earlier in
-    // this same form session: that's the real "before" for the audit log,
-    // not widget.item (loaded when the screen first opened).
+    // The freshest saved stock, in case a sale or a quick edit happened
+    // elsewhere while this form was open: the real "before" for the audit
+    // log, and also what this save's existencia actually applies on top of
+    // — not widget.item (loaded when the screen first opened), whose stale
+    // numbers these fields still show for any variant not touched here.
     final baseline = widget.isNew
         ? const <ClothingVariant>[]
         : widget.repo.getById(widget.item.id)?.variantes ??
               widget.item.variantes;
+
+    final updated = ClothingItem(
+      id: widget.item.id,
+      nombre: _nombreCtrl.text.trim(),
+      precio: _parsePrecio(_precioCtrl.text) ?? 0,
+      variantes: _reconcileStock(variantes, baseline),
+      codigoProveedor: codigoProveedor,
+    );
 
     setState(() => _saving = true);
     try {
@@ -209,6 +212,34 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     if (!mounted) return;
     _dirty = false;
     Navigator.of(context).pop(const ItemFormSaved());
+  }
+
+  /// A variant this form didn't touch keeps whatever [baseline] (the
+  /// freshest saved stock) has for it, instead of the stale count these
+  /// fields still show from when the screen opened: otherwise a sale or a
+  /// quick stock edit made elsewhere while this form was open would be
+  /// silently undone the moment "Guardar" overwrites the whole garment. A
+  /// variant actually edited here still applies exactly that change, now on
+  /// top of the latest count instead of on top of the stale one.
+  List<ClothingVariant> _reconcileStock(
+    List<ClothingVariant> rows,
+    List<ClothingVariant> baseline,
+  ) {
+    final whenOpened = {
+      for (final v in widget.item.variantes) v.key: v.existencia,
+    };
+    final latest = {for (final v in baseline) v.key: v.existencia};
+    return [
+      for (final v in rows)
+        ClothingVariant(
+          talla: v.talla,
+          color: v.color,
+          existencia: math.max(
+            0,
+            (latest[v.key] ?? 0) + (v.existencia - (whenOpened[v.key] ?? 0)),
+          ),
+        ),
+    ];
   }
 
   /// Best-effort audit trail for stock changes made directly in this form
