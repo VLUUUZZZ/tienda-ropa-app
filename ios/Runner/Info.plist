@@ -46,6 +46,8 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Se usa la cámara para escanear el código QR de las prendas.</string>
+	<string>Se usa la cámara para escanear códigos QR y tomar fotos de las prendas.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Se usa para elegir una foto existente para una prenda.</string>
 </dict>
 </plist>

@@ -1,9 +1,18 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../auth/app_user.dart';
 import '../auth/user_directory.dart';
 import '../data/clothing_repository.dart';
+import '../data/adjustments_repository.dart';
+import '../data/catalog_export.dart';
+import '../data/sales_repository.dart';
+import 'adjustments/adjustments_screen.dart';
+import 'sales/register_sale_screen.dart';
+import 'sales/sales_screen.dart';
 import '../models/clothing_item.dart';
 import '../widgets/feedback/app_snackbar.dart';
 import '../widgets/feedback/confirm_dialog.dart';
@@ -36,6 +45,9 @@ class HomeScreen extends StatefulWidget {
   /// Null when there are no accounts to manage (local-only mode).
   final UserDirectory? users;
 
+  final SalesRepository salesRepo;
+  final AdjustmentsRepository adjustmentsRepo;
+
   const HomeScreen({
     super.key,
     required this.repo,
@@ -44,6 +56,8 @@ class HomeScreen extends StatefulWidget {
     required this.onToggleTheme,
     this.onSignOut,
     this.users,
+    required this.salesRepo,
+    required this.adjustmentsRepo,
   });
 
   @override
@@ -152,7 +166,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final result = await Navigator.of(context).push<ItemFormResult>(
       MaterialPageRoute(
-        builder: (_) => ItemFormScreen(repo: widget.repo, item: item),
+        builder: (_) => ItemFormScreen(
+          repo: widget.repo,
+          adjustmentsRepo: widget.adjustmentsRepo,
+          user: widget.user,
+          item: item,
+        ),
       ),
     );
     if (!mounted) return;
@@ -168,27 +187,135 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _quickEditStock(ClothingItem item) async {
-    final saved = await Navigator.of(context).push<bool>(
+    final outcome = await Navigator.of(context).push<StockSaveOutcome>(
       MaterialPageRoute(
-        builder: (_) => QuickStockScreen(repo: widget.repo, item: item),
+        builder: (_) => QuickStockScreen(
+          repo: widget.repo,
+          adjustmentsRepo: widget.adjustmentsRepo,
+          user: widget.user,
+          item: item,
+        ),
       ),
     );
     if (!mounted) return;
     _reload();
-    if (saved == true) _showSavedSnackBar();
+    switch (outcome) {
+      case StockSaveOutcome.saved:
+        AppSnackBar.success(context, 'Existencia actualizada');
+      case StockSaveOutcome.savedPartially:
+        AppSnackBar.info(
+          context,
+          'Existencia actualizada. Alguien más vendió o ajustó esas piezas, '
+          'así que se restó solo lo que quedaba.',
+        );
+      case null:
+        break;
+    }
+  }
+
+  Future<void> _registerSale(ClothingItem item) async {
+    final venta = await Navigator.of(context).push<SaleResult>(
+      MaterialPageRoute(
+        builder: (_) => RegisterSaleScreen(
+          repo: widget.repo,
+          salesRepo: widget.salesRepo,
+          item: item,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    _reload();
+    switch (venta) {
+      case (:final vendidas, :final pedidas) when vendidas < pedidas:
+        AppSnackBar.info(
+          context,
+          'Solo quedaban $vendidas de $pedidas piezas: se registró lo '
+          'disponible.',
+        );
+      case (:final vendidas, pedidas: _):
+        AppSnackBar.success(
+          context,
+          vendidas == 1
+              ? 'Venta registrada'
+              : 'Venta registrada · $vendidas piezas',
+        );
+      case null:
+        break;
+    }
+  }
+
+  void _openSales() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            SalesScreen(salesRepo: widget.salesRepo, repo: widget.repo),
+      ),
+    );
+  }
+
+  void _openAdjustments() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            AdjustmentsScreen(adjustmentsRepo: widget.adjustmentsRepo),
+      ),
+    );
+  }
+
+  /// A CSV of the whole catalog, for a backup outside the app or to hand to
+  /// someone (a spreadsheet, the accountant, a paper inventory).
+  Future<void> _exportCatalog() async {
+    final csv = catalogToCsv(widget.repo.getAll());
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(
+              // BOM so Excel opens the accented names correctly.
+              const Utf8Encoder().convert('\uFEFF$csv'),
+              mimeType: 'text/csv',
+              name: 'catalogo.csv',
+            ),
+          ],
+          fileNameOverrides: ['catalogo.csv'],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        AppSnackBar.error(context, 'No se pudo exportar el catálogo.');
+      }
+    }
   }
 
   Future<void> _addManually() async {
+    final String id;
+    try {
+      id = await widget.repo.generateId();
+    } catch (e) {
+      if (mounted) {
+        AppSnackBar.error(
+          context,
+          'No se pudo crear la prenda. Inténtalo de nuevo.',
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
     final newItem = ClothingItem(
-      id: widget.repo.nextId(),
+      id: id,
       nombre: '',
       precio: 0,
       variantes: const [],
     );
     final result = await Navigator.of(context).push<ItemFormResult>(
       MaterialPageRoute(
-        builder: (_) =>
-            ItemFormScreen(repo: widget.repo, item: newItem, isNew: true),
+        builder: (_) => ItemFormScreen(
+          repo: widget.repo,
+          adjustmentsRepo: widget.adjustmentsRepo,
+          user: widget.user,
+          item: newItem,
+          isNew: true,
+        ),
       ),
     );
     if (!mounted) return;
@@ -238,7 +365,9 @@ class _HomeScreenState extends State<HomeScreen> {
     ).push<String>(MaterialPageRoute(builder: (_) => const ScannerScreen()));
     if (code == null || !mounted) return;
 
-    final existing = widget.repo.getById(code);
+    // The app's own QR, or the barcode the supplier printed on the garment.
+    final existing =
+        widget.repo.getById(code) ?? widget.repo.getByProviderCode(code);
     if (existing == null) {
       await _showUnrecognizedQrDialog();
       return;
@@ -272,10 +401,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _showUnrecognizedQrDialog() => showNotice(
     context,
     icon: Icons.qr_code_scanner_rounded,
-    title: 'QR no reconocido',
+    title: 'Código no reconocido',
     message:
-        'Este código no corresponde a ninguna prenda de esta tienda. Si la '
-        'prenda es nueva, agrégala primero e imprime su etiqueta desde la app.',
+        'Este código no corresponde a ninguna prenda de esta tienda, ni por '
+        'su QR ni por su código de proveedor. Si la prenda es nueva, '
+        'agrégala primero.',
   );
 
   Future<void> _confirmSignOut(VoidCallback signOut) async {
@@ -347,14 +477,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   tooltip: widget.isDarkMode ? 'Tema claro' : 'Tema oscuro',
                   onPressed: widget.onToggleTheme,
                 ),
-                if (widget.onSignOut case final onSignOut?)
-                  AccountMenu(
-                    user: widget.user,
-                    onManageUsers: _canOpenUsers
-                        ? () => _openUsers(widget.users!)
-                        : null,
-                    onSignOut: () => _confirmSignOut(onSignOut),
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.receipt_long_rounded),
+                  tooltip: 'Ventas',
+                  onPressed: () => _once(() async => _openSales()),
+                ),
+                AccountMenu(
+                  user: widget.user,
+                  onManageUsers: _canOpenUsers
+                      ? () => _openUsers(widget.users!)
+                      : null,
+                  onExport: widget.user.canEditCatalog ? _exportCatalog : null,
+                  onViewAdjustments: widget.user.canManageUsers
+                      ? _openAdjustments
+                      : null,
+                  onSignOut: switch (widget.onSignOut) {
+                    final signOut? => () => _confirmSignOut(signOut),
+                    null => null,
+                  },
+                ),
                 const SizedBox(width: 12),
               ],
             ),
@@ -417,6 +558,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       item: item,
                       onTap: () => _once(() => _openItem(item)),
                       onQuickEdit: () => _once(() => _quickEditStock(item)),
+                      onSell: () => _once(() => _registerSale(item)),
+                      photoPath: widget.repo.photoPathFor(item.id),
                     );
                   },
                 ),

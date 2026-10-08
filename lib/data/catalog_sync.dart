@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../models/clothing_item.dart';
 import 'backoff.dart';
 import 'local_catalog.dart';
+import 'local_photos.dart';
 import 'remote_catalog.dart';
 import 'sync_state.dart';
 
@@ -23,19 +24,30 @@ class CatalogSync {
     required SyncState state,
     required RemoteCatalog remote,
     required Backoff backoff,
+    required LocalPhotos photos,
   }) : _local = local,
        _state = state,
        _remote = remote,
-       _backoff = backoff;
+       _backoff = backoff,
+       _photos = photos;
 
   final LocalCatalog _local;
   final SyncState _state;
   final RemoteCatalog _remote;
   final Backoff _backoff;
+  final LocalPhotos _photos;
 
   StreamSubscription<void>? _subscription;
   Timer? _retryTimer;
   bool _running = false;
+
+  /// One push at a time per id: otherwise two pushes for the same
+  /// never-yet-confirmed new id (e.g. a garment edited again right after
+  /// being created, before the first upload round-trips) could both try to
+  /// create it, self-conflict, and have the loser rekey off a stale
+  /// snapshot — destroying the newer edit the other push just wrote
+  /// locally. See [push].
+  final Map<String, Future<void>> _pushQueue = {};
 
   void start() {
     if (_running) return;
@@ -46,7 +58,6 @@ class CatalogSync {
 
   Future<void> stop() async {
     _running = false;
-    _inFlight.clear();
     _retryTimer?.cancel();
     _retryTimer = null;
     await _subscription?.cancel();
@@ -57,61 +68,75 @@ class CatalogSync {
   /// gone) and confirms it in [SyncState] once the remote acknowledges it.
   ///
   /// Not awaited on purpose: Firestore queues writes while offline and its
-  /// futures only complete once the server acknowledges them.
+  /// futures only complete once the server acknowledges them. Chained after
+  /// any push already in flight for this same id, so overlapping pushes
+  /// never run concurrently — each one reads the id's current state fresh
+  /// once its turn comes, instead of two stale snapshots racing each other.
   void push(String id) {
     if (!_running) return;
+    final previous = _pushQueue[id] ?? Future<void>.value();
+    final next = previous.then((_) => _pushOnce(id));
+    _pushQueue[id] = next.then((_) {}, onError: (_) {});
+    unawaited(next);
+  }
+
+  Future<void> _pushOnce(String id) async {
     final token = _state.pendingToken(id);
     if (token == null) return;
-    // Already on its way (start, first upload and every re-listen all push
-    // what's pending): sending it again would only duplicate writes.
-    if (_inFlight[id] == token) return;
 
     final ClothingItem? item;
     try {
       item = _local.read(id);
     } catch (e) {
-      // Unreadable locally: better to leave the remote copy alone.
+      // Unreadable locally: better to leave the remote copy alone. Also
+      // drops the pending mark, or this id would retry forever and stay
+      // immune to remote updates and deletions (see _apply).
       debugPrint('Prenda $id ilegible, no se sube: $e');
+      unawaited(_state.confirm(id, token));
       return;
     }
 
-    _inFlight[id] = token;
-    unawaited(_send(id, item, token));
+    await _send(id, item, token);
   }
 
-  /// The change (by its pending token) currently being sent for each id.
-  final Map<String, int> _inFlight = {};
-
   Future<void> _send(String id, ClothingItem? item, int token) async {
-    var rejected = false;
     try {
       if (item == null) {
         await _remote.delete(id);
+        await _state.clearLocallyMinted(id);
+      } else if (_state.isLocallyMinted(id)) {
+        // Never confirmed to exist anywhere else: create it atomically
+        // instead of a blind upsert, so another device that independently
+        // minted this same id while both were offline is detected instead
+        // of silently overwritten.
+        try {
+          await _remote.create(item);
+          await _state.clearLocallyMinted(id);
+        } on RemoteIdTaken {
+          await _rekey(id, item, token);
+          return;
+        }
       } else {
         await _remote.upsert(item);
       }
+      await _state.confirm(id, token);
     } on RemoteWriteRejected catch (e) {
+      // Retrying can't help: drop the change and put the server's version
+      // back. Waiting for the next snapshot isn't enough, because the one
+      // that reverts the rejected write can arrive while the change is
+      // still marked pending, and be skipped.
       debugPrint('Cambio a $id rechazado, se descarta: $e');
-      rejected = true;
+      try {
+        await _state.confirm(id, token);
+        await _restoreFromRemote(id);
+      } catch (e) {
+        // Storage closed meanwhile (sign-out mid-flight): nothing to do,
+        // and it must not escape as an unhandled error.
+        debugPrint('No se pudo registrar el rechazo de $id: $e');
+      }
     } catch (e) {
       // Stays pending: retried on reconnect or on the next launch.
       debugPrint('No se sincronizó $id, se reintentará: $e');
-      if (_inFlight[id] == token) _inFlight.remove(id);
-      return;
-    }
-    if (_inFlight[id] == token) _inFlight.remove(id);
-
-    // Bookkeeping can fail too (e.g. storage closed by signing out while
-    // the write was in flight); it must not escape as an unhandled error.
-    try {
-      await _state.confirm(id, token);
-      // Retrying a rejected write can't help: drop it and put the server's
-      // version back. Waiting for the next snapshot isn't enough, because
-      // the one that reverts it can arrive while it's still marked pending,
-      // and be skipped.
-      if (rejected) await _restoreFromRemote(id);
-    } catch (e) {
-      debugPrint('No se pudo registrar el resultado de $id: $e');
     }
   }
 
@@ -129,6 +154,44 @@ class CatalogSync {
       // The next server snapshot will bring it back instead.
       debugPrint('No se pudo restaurar $id del servidor: $e');
     }
+  }
+
+  /// [id] was minted independently by another device too, while both were
+  /// offline: moves this garment to a freshly minted id instead of
+  /// colliding with the one already claimed remotely.
+  ///
+  /// Clears [id]'s pending mark (with its own token, not the caller's)
+  /// first, so the next remote snapshot restores the other device's real
+  /// item under [id] instead of it staying excluded as "ours, unconfirmed".
+  Future<void> _rekey(String id, ClothingItem item, int token) async {
+    await _state.clearLocallyMinted(id);
+    await _state.confirm(id, token);
+
+    final newId = await _local.nextId();
+    final renamed = ClothingItem(
+      id: newId,
+      nombre: item.nombre,
+      precio: item.precio,
+      variantes: item.variantes,
+      codigoProveedor: item.codigoProveedor,
+    );
+    await _local.write(renamed);
+    await _local.remove(id);
+    // This device's photo for the garment is keyed by its old id (never
+    // synced, see LocalPhotos): without moving it here, it would look
+    // orphaned (no such id in the catalog any more) and get deleted by
+    // ClothingRepository's startup cleanup the next time the app opens.
+    final photoPath = _photos.pathFor(id);
+    if (photoPath != null) {
+      await _photos.setPath(newId, photoPath);
+      await _photos.remove(id);
+    }
+    await _state.markLocallyMinted(newId);
+    await _state.markPending(newId);
+    debugPrint(
+      'Id $id ya estaba tomado en el servidor; esta prenda pasa a $newId.',
+    );
+    push(newId);
   }
 
   void pushAllPending() => _state.pendingIds.forEach(push);
@@ -194,7 +257,7 @@ class CatalogSync {
     if (!snapshot.fromServer) return;
 
     if (_state.initialUploadDone) {
-      await _removeDeletedRemotely(remoteIds, pending);
+      await _removeDeletedRemotely(remoteIds);
     } else {
       await _uploadLocalOnlyItems(remoteIds);
     }
@@ -204,20 +267,23 @@ class CatalogSync {
   /// being treated as deleted remotely.
   Future<void> _uploadLocalOnlyItems(Set<String> remoteIds) async {
     for (final id in _local.ids.toList()) {
+      if (remoteIds.contains(id)) continue;
+      // Same situation as a freshly minted id: never confirmed remotely,
+      // so its first push must create it instead of a blind upsert.
+      await _state.markLocallyMinted(id);
       // Already pending ones keep their token: a new one would make the
-      // change look different from the one already on its way, and send it
-      // twice.
-      if (remoteIds.contains(id) || _state.pendingToken(id) != null) continue;
-      await _state.markPending(id);
+      // queued push look like a different change and send it twice.
+      if (_state.pendingToken(id) == null) await _state.markPending(id);
     }
     await _state.markInitialUploadDone();
     pushAllPending();
   }
 
-  Future<void> _removeDeletedRemotely(
-    Set<String> remoteIds,
-    Set<String> pending,
-  ) async {
+  Future<void> _removeDeletedRemotely(Set<String> remoteIds) async {
+    // Read fresh instead of reusing the snapshot taken at the top of
+    // _apply: a garment saved locally during that await would otherwise
+    // look neither remote nor pending, and get deleted by mistake.
+    final pending = _state.pendingIds;
     final removed = _local.ids
         .where((id) => !remoteIds.contains(id) && !pending.contains(id))
         .toList();

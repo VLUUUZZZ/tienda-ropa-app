@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../auth/app_user.dart';
+import '../data/adjustments_repository.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
+import '../models/stock_adjustment.dart';
 import '../utils/formato.dart';
 import '../widgets/color_dot.dart';
 import '../widgets/item_avatar.dart';
@@ -12,11 +17,28 @@ import '../widgets/unsaved_changes_guard.dart';
 /// Fast +/- adjustment of existing colors and sizes, grouped by color — no
 /// need to open the full edit form just to bump a count up or down. Does not
 /// add or remove colors/tallas; that still goes through [ItemFormScreen].
+/// How a stock save ended, for the screen that opened this one to report.
+enum StockSaveOutcome {
+  saved,
+
+  /// Saved, but someone else had sold or adjusted the same pieces meanwhile,
+  /// so less was subtracted than requested (stock never goes below zero).
+  savedPartially,
+}
+
 class QuickStockScreen extends StatefulWidget {
   final ClothingRepository repo;
+  final AdjustmentsRepository adjustmentsRepo;
+  final AppUser user;
   final ClothingItem item;
 
-  const QuickStockScreen({super.key, required this.repo, required this.item});
+  const QuickStockScreen({
+    super.key,
+    required this.repo,
+    required this.adjustmentsRepo,
+    required this.user,
+    required this.item,
+  });
 
   @override
   State<QuickStockScreen> createState() => _QuickStockScreenState();
@@ -74,9 +96,11 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
       AppSnackBar.error(context, 'Esta prenda ya no existe en el catálogo.');
       return;
     }
+    final changes = _stockChanges;
     setState(() => _saving = true);
+    final ClothingItem applied;
     try {
-      await widget.repo.save(latest.withStockChanges(_stockChanges));
+      applied = await widget.repo.applyStockDelta(latest.id, changes);
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
@@ -84,8 +108,44 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
       }
       return;
     }
+    // What the server actually applied, not what was requested: a decrease
+    // never takes stock below zero, so if someone else sold or adjusted the
+    // same variant in between, less may have been subtracted than this
+    // screen's +/- asked for. The audit trail must reflect the real change.
+    final latestByKey = {for (final v in latest.variantes) v.key: v.existencia};
+    final appliedByKey = {
+      for (final v in applied.variantes) v.key: v.existencia,
+    };
+    var clamped = false;
+    // Best-effort audit trail: a failure here must never block the stock
+    // change itself, already saved above.
+    for (final v in _variantes) {
+      final requested = changes[v.key] ?? 0;
+      if (requested == 0) continue;
+      final real = (appliedByKey[v.key] ?? 0) - (latestByKey[v.key] ?? 0);
+      if (real != requested) clamped = true;
+      if (real == 0) continue;
+      unawaited(
+        widget.adjustmentsRepo.registrar(
+          StockAdjustment(
+            id: StockAdjustment.newId(),
+            itemId: latest.id,
+            nombreItem: latest.nombre,
+            color: v.color,
+            talla: v.talla,
+            delta: real,
+            usuarioNombre: widget.user.nombre,
+            fecha: DateTime.now(),
+          ),
+        ),
+      );
+    }
     if (!mounted) return;
-    Navigator.of(context).pop(true);
+    // Reported by the screen this returns to, so the message isn't cut
+    // short by the transition (or replaced by "Cambios guardados").
+    Navigator.of(
+      context,
+    ).pop(clamped ? StockSaveOutcome.savedPartially : StockSaveOutcome.saved);
   }
 
   @override
@@ -113,6 +173,8 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
       hasChanges: _hasChanges,
       message:
           'Los ajustes de existencia que hiciste todavía no se han guardado.',
+      busy: _saving,
+      busyMessage: 'Espera a que termine de guardar.',
       child: Scaffold(
         appBar: AppBar(title: const Text('Ajustar existencia')),
         body: _variantes.isEmpty

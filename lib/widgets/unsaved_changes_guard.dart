@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'feedback/app_snackbar.dart';
 import 'feedback/confirm_dialog.dart';
 
 /// Wraps a screen that edits something: while [hasChanges], leaving it (back
@@ -10,6 +11,8 @@ class UnsavedChangesGuard extends StatelessWidget {
     required this.hasChanges,
     required this.message,
     required this.child,
+    this.busy = false,
+    this.busyMessage,
   });
 
   final bool hasChanges;
@@ -17,6 +20,13 @@ class UnsavedChangesGuard extends StatelessWidget {
   /// Body of the confirmation dialog.
   final String message;
   final Widget child;
+
+  /// True while the change itself is already being saved and can't be
+  /// cancelled from here: leaving is blocked outright with [busyMessage]
+  /// instead of offering "Descartar", which would be misleading — the save
+  /// keeps running in the background regardless.
+  final bool busy;
+  final String? busyMessage;
 
   Future<void> _confirmLeave(BuildContext context) async {
     final discard = await confirmAction(
@@ -32,12 +42,24 @@ class UnsavedChangesGuard extends StatelessWidget {
     if (discard && context.mounted) Navigator.of(context).pop();
   }
 
+  void _blockWhileBusy(BuildContext context) {
+    AppSnackBar.info(
+      context,
+      busyMessage ?? 'Espera a que termine de guardar.',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: !hasChanges,
+      canPop: !busy && !hasChanges,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _confirmLeave(context);
+        if (didPop) return;
+        if (busy) {
+          _blockWhileBusy(context);
+        } else {
+          _confirmLeave(context);
+        }
       },
       child: child,
     );

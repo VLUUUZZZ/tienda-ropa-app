@@ -92,6 +92,18 @@ class FirestoreCatalog implements RemoteCatalog {
   }
 
   @override
+  Future<void> create(ClothingItem item) => _write(() async {
+    await _collection.firestore.runTransaction((tx) async {
+      final ref = _collection.doc(item.id);
+      if ((await tx.get(ref)).exists) throw RemoteIdTaken(item.id);
+      tx.set(ref, {
+        ...item.toMap(),
+        'actualizado': FieldValue.serverTimestamp(),
+      });
+    });
+  });
+
+  @override
   Future<void> upsert(ClothingItem item) => _write(
     () => _collection.doc(item.id).set({
       ...item.toMap(),
@@ -102,11 +114,35 @@ class FirestoreCatalog implements RemoteCatalog {
   @override
   Future<void> delete(String id) => _write(() => _collection.doc(id).delete());
 
+  @override
+  Future<ClothingItem> applyStockDelta(String id, Map<String, int> deltas) =>
+      _write(() async {
+        final ref = _collection.doc(id);
+        return _collection.firestore.runTransaction((tx) async {
+          final snap = await tx.get(ref);
+          final data = snap.data();
+          if (data == null) {
+            throw StateError('La prenda $id ya no existe en el servidor.');
+          }
+          // Applied against whatever the server has *right now*, not a
+          // possibly-stale local copy: a concurrent transaction on the same
+          // document is retried by Firestore from a fresh read, so two
+          // overlapping sales both land instead of one clobbering the other.
+          final current = ClothingItem.fromMap({...data, 'id': id});
+          final updated = current.withStockChanges(deltas);
+          tx.update(ref, {
+            'variantes': updated.variantes.map((v) => v.toMap()).toList(),
+            'actualizado': FieldValue.serverTimestamp(),
+          });
+          return updated;
+        });
+      });
+
   /// A rules rejection won't succeed on retry, so it's reported as
   /// [RemoteWriteRejected] instead of a plain error.
-  static Future<void> _write(Future<void> Function() action) async {
+  static Future<T> _write<T>(Future<T> Function() action) async {
     try {
-      await action();
+      return await action();
     } on FirebaseException catch (e) {
       if (e.code == 'permission-denied') {
         throw RemoteWriteRejected(e.message ?? e.code);

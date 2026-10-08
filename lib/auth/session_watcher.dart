@@ -17,10 +17,17 @@ import 'auth_service.dart';
 /// is re-opened with [Backoff] while the current state is kept; only a real
 /// permission denial shows as [AccessDenied].
 class SessionWatcher {
-  SessionWatcher(this._auth, this._firestore);
+  SessionWatcher(this._auth, this._firestore, {this.isProvisioning = _never});
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
+
+  /// True while this device itself is in the middle of creating a brand-new
+  /// store: its own profile document may not have reached Firestore yet, so
+  /// a missing document must not be read as "no access" during that window.
+  final bool Function() isProvisioning;
+
+  static bool _never() => false;
 
   final Backoff _backoff = Backoff(
     initial: const Duration(seconds: 3),
@@ -57,16 +64,24 @@ class SessionWatcher {
   }
 
   void _followProfile(User user) {
-    // With metadata changes: when the cache already knows the profile is
-    // missing, the server confirming it is only a metadata change, and
-    // without it the app would wait on the loading screen forever.
+    // includeMetadataChanges: true, same as CatalogSync's listener, so a
+    // cached "no such document" that the server later confirms still fires:
+    // otherwise that transition is metadata-only and gets skipped, leaving
+    // a nonexistent profile stuck in AuthLoading forever.
     _profileSub = FirestorePaths.user(_firestore, user.uid)
         .snapshots(includeMetadataChanges: true)
-        .listen((doc) {
-          _backoff.reset();
-          final state = _stateFor(user, doc);
-          if (state != null) _controller.add(state);
-        }, onError: (Object e) => _onProfileError(user, e));
+        .listen(
+          (doc) {
+            _backoff.reset();
+            final state = _stateFor(user, doc, isProvisioning());
+            if (state != null) _controller.add(state);
+          },
+          onError: (Object e) => _onProfileError(user, e),
+          // Firestore can also close the listener without an error; without this
+          // a role change or reactivation could stop being picked up for the
+          // rest of the session.
+          onDone: () => _scheduleProfileRetry(user),
+        );
   }
 
   void _onProfileError(User user, Object error) {
@@ -74,8 +89,15 @@ class SessionWatcher {
     if (error is FirebaseException && error.code == 'permission-denied') {
       _controller.add(AccessDenied(user.email ?? ''));
     }
-    // Firestore closes a listener after an error: re-open it, or later role
-    // changes (or the connection coming back) would never be seen.
+    _scheduleProfileRetry(user);
+  }
+
+  /// Re-opens the profile listener after an error or an unexpected close, or
+  /// later role changes (or the connection coming back) would never be seen.
+  void _scheduleProfileRetry(User user) {
+    // onError and onDone can both fire for the same closed listener; only
+    // the first one needs to schedule a retry.
+    if (_retryTimer != null) return;
     _profileSub = null;
     _retryTimer = Timer(_backoff.next(), () {
       _retryTimer = null;
@@ -95,10 +117,13 @@ class SessionWatcher {
   static AuthState? _stateFor(
     User user,
     DocumentSnapshot<Map<String, dynamic>> doc,
+    bool isProvisioning,
   ) {
     final data = doc.data();
     if (data == null) {
-      return doc.metadata.isFromCache ? null : AccessDenied(user.email ?? '');
+      return doc.metadata.isFromCache || isProvisioning
+          ? null
+          : AccessDenied(user.email ?? '');
     }
     final profile = AppUser.fromMap(user.uid, data);
     final hasAccess = profile.activo && profile.tienda != null;

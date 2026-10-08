@@ -5,19 +5,58 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 1. La sesión diaria toma las tareas de "Pendiente", de arriba hacia abajo.
 2. Si no hay ninguna pendiente, se dedica a pulir lo que ya existe (bugs, UI/UX, rendimiento, pruebas) — sin agregar funciones nuevas grandes por su cuenta.
 3. Cada tarea completada se mueve a "Completado" con la fecha y el commit correspondiente.
-4. Todo cambio se compila y se prueba antes de darse por terminado, y queda guardado en git.
-5. Sincronización con GitHub, para que ninguna sesión repita trabajo de otra:
-   - Al empezar, antes de tomar una tarea: `git pull origin master` y revisar este archivo ya actualizado (y el código) para confirmar que la tarea no está hecha.
-   - Al terminar cada tarea: moverla a "Completado" y subir el commit a `master` (`git push origin master`) de inmediato, no al final de la sesión.
-   - Nunca usar `git push --force` sobre `master`: si el push es rechazado, hacer `git pull` (merge), resolver conflictos, volver a compilar/probar y subir de nuevo.
-6. Si en algún momento se necesita una base de datos remota/backend, debe ser Firebase (acordado con el usuario el 2026-09-22).
+4. Todo cambio se compila y se prueba antes de darse por terminado (`flutter analyze` sin avisos).
+5. **Ramas — solo existen dos:**
+   - `develop` = **preproducción**: donde se trabaja y se prueba. Toda sesión (diaria o manual) empieza con `git pull origin develop`, revisa este archivo y el código para confirmar que la tarea no está hecha, y sube cada tarea terminada a `develop` de inmediato.
+   - `master` = **producción**: lo que se despliega. Nadie escribe en `master` directamente; solo recibe `develop` mediante un pull request `develop → master`, después de que el dueño lo pruebe.
+   - No crear otras ramas. Nunca usar `git push --force` ni reescribir historia: si el push es rechazado, `git pull` (merge), resolver, volver a verificar y subir.
+6. Commits sin firmas de IA (sin `Co-Authored-By` ni menciones a Claude): el dueño quiere solo su nombre en el historial.
+7. Si en algún momento se necesita una base de datos remota/backend, debe ser Firebase (acordado con el usuario el 2026-09-22).
 
 ## Pendiente
 
-1. Evitar que dos teléfonos **sin conexión** creen el mismo código de prenda. Ya resuelto con conexión (ver Completado 2026-09-23); falta el caso sin red: si dos teléfonos agregan prendas sin conexión al mismo tiempo, ambos pueden generar el mismo `PRENDA-0000NN` y al sincronizar una prenda pisaría a la otra. Opciones: contador en Firestore con transacción al tener red, o detectar el choque al sincronizar y renumerar la prenda local.
-2. Registro de ventas: botón "Vender" que descuente una pieza y guarde la venta, con historial y total del día.
+1. Categorías o tipos de prenda (solo si el catálogo crece mucho).
+2. Sincronizar las fotos de las prendas entre teléfonos (hoy son solo locales; requiere habilitar Firebase Storage en el proyecto — pedir al dueño que lo active en la consola de Firebase antes de implementarlo).
+3. Revisar con más calma, junto al dueño, el caso (raro) de dos teléfonos sin internet creando prendas distintas que puedan terminar compartiendo código — ver nota técnica en la ronda (2) del 2026-10-02.
+4. [encontrado el 2026-10-07, bajo riesgo] Las reglas de Firestore (`firestore.rules`, regla de
+   `update` de `prendas` para empleados) solo verifican que la cantidad de combinaciones
+   color/talla no cambie, no que sigan siendo las mismas combinaciones. En teoría, alguien
+   con una cuenta de Empleado podría usar la API de Firestore directamente (no la app) para
+   renombrar un color o talla existente sin pasar por el formulario de administrador. No es
+   algo que se pueda hacer desde la app normal, solo manipulando la base de datos a mano.
+   Corregirlo bien requeriría cambiar cómo se guardan las variantes en Firestore (de lista a
+   algo indexable por color+talla), un cambio de estructura de datos más grande que conviene
+   pensar con calma y probar contra el Firebase real, no intentarlo a ciegas.
+5. [encontrado el 2026-10-07, bajo riesgo] El código de barras de proveedor de una prenda
+   (`codigoProveedor`) solo se revisa como "ya usado por otra prenda" contra lo que hay
+   guardado en el teléfono en ese momento, no contra el servidor. Dos administradores en
+   teléfonos distintos (o uno mismo trabajando sin conexión) podrían, en teoría, asignar el
+   mismo código a dos prendas distintas sin que ninguno de los dos se entere; al escanear
+   ese código luego, solo encuentra la primera. Corregirlo de verdad requiere una estructura
+   nueva en Firestore para reservar códigos de forma atómica — se deja pendiente por el mismo
+   motivo que el punto 4.
+6. [encontrado el 2026-10-07, menor] En una venta, si dos teléfonos venden la última pieza de
+   la misma combinación color/talla casi al mismo tiempo, el número real de existencia en el
+   servidor queda correcto (nunca baja de 0, gracias a la corrección de hoy), pero el
+   historial de esa venta en particular podría registrar más piezas de las que realmente
+   había disponibles en ese instante preciso. Es una ventana de coincidencia muy angosta y de
+   bajo impacto (el dinero cobrado sigue siendo el correcto); se deja documentado en vez de
+   corregido por ahora.
 
 ## Completado
+
+### 2026-10-08 — todo junto en `develop`; solo quedan `develop` y `master`
+
+A pedido del dueño, se juntó todo el trabajo en una sola rama de preproducción, `develop`:
+la rama diaria `auto/mejoras-diarias` (PR #3: ventas, fotos, exportar CSV, código de
+proveedor, historial de ajustes, códigos sin conexión y sus correcciones) y la rama
+`claude/como-ves-la-app-g73nn7` (PR #1: interfaz moderna, robustez, revisión de errores,
+mensajes/confirmaciones/pantallas de éxito). En los 19 archivos con conflicto se conservaron
+las funciones de ambos lados; donde las dos resolvieron lo mismo quedó una sola versión (por
+ejemplo, la generación de códigos y la cola de envíos de la rama diaria; el diseño y los
+componentes de feedback de la otra). Ventas y ajustes que no se aplican completos ahora se
+anuncian en el catálogo en vez de retrasar 3 s la salida. Se eliminaron las ramas viejas.
+`master` (producción) no se tocó: recibe `develop` por pull request cuando el dueño lo pruebe.
 
 ### 2026-10-08 — mensajes, confirmaciones y pantallas de éxito (rama `claude/como-ves-la-app-g73nn7`)
 
@@ -122,6 +161,458 @@ pantallas divididas en `screens/home/` y `screens/item_form/`) y conservando lo 
 (lectura tolerante y límites, no pisar ventas de otros teléfonos, precio flexible, resumen
 y filtros, sincronización tolerante a datos malos con escritura en lote). Verificado con
 `flutter analyze`, `flutter build web` y 27 pruebas (en copia aparte).
+
+### 2026-10-08 (1) — sesión de pulido diaria
+
+No había tareas pendientes, así que la sesión revisó a fondo el código ya existente
+(incluyendo con ayuda de una revisión automática enfocada en la capa de sincronización) en
+busca de errores reales, no de funciones nuevas.
+
+1. Al resolver dos prendas creadas con el mismo código por dos teléfonos sin internet (caso
+   descrito en el punto 3 de "Pendiente"), la prenda que pasaba a un código nuevo perdía su
+   foto: quedaba guardada bajo el código viejo, que ya no existía en el catálogo, y la
+   limpieza automática de fotos huérfanas la borraba la próxima vez que se abría la app.
+   Ahora la foto se mueve junto con la prenda a su nuevo código.
+2. Si la lista de "Usuarios" fallaba al cargar (por ejemplo, justo después de iniciar
+   sesión, antes de que el servidor reconociera el permiso), se quedaba mostrando "No se
+   pudo cargar la lista." para siempre, sin forma de reintentar salvo salir y volver a
+   entrar a la pantalla. Ahora tiene un botón "Reintentar".
+3. Ajuste rápido de existencia: si otra persona vendía o ajustaba la misma combinación
+   color/talla justo antes de guardar, el servidor nunca deja bajar la existencia de cero,
+   pero el historial de ajustes seguía registrando el número que se había tocado en pantalla,
+   no el que realmente se aplicó. Ahora el historial registra el cambio real, y se avisa en
+   pantalla cuando el número aplicado terminó siendo menor al pedido.
+4. [el más importante de hoy] Al guardar el formulario completo de una prenda (por ejemplo
+   para corregir el precio o el nombre), la existencia de cada talla/color se guardaba tal
+   como se veía en pantalla cuando se abrió el formulario. Si alguien vendía esa prenda o le
+   ajustaba la existencia en otro teléfono mientras el formulario seguía abierto en el
+   primero, "Guardar" deshacía ese cambio en silencio, sin aviso ni rastro — la venta seguía
+   registrada, pero la existencia volvía al número de antes. Ahora, la talla/color que no se
+   tocó en el formulario conserva la existencia más reciente en vez de la que se veía al
+   abrir; la que sí se editó a mano sigue aplicando exactamente ese cambio, pero sobre el
+   número más reciente.
+
+Verificado con flutter analyze (0 avisos).
+
+### 2026-10-07 (4), a pedido del dueño — "Robustece el código" (continuación)
+
+Cuarta ronda de la misma tarea, revisando el arranque de la app, el guardado local y las
+pantallas de edición:
+
+1. **Corregido un caso real de pérdida de datos al crear una prenda:** si justo después de
+   crear una prenda nueva se le hacía un segundo cambio muy rápido (por ejemplo, corregir
+   el nombre a los pocos segundos, antes de que el primer guardado terminara de subirse),
+   los dos guardados podían chocar entre sí al sincronizar y el segundo cambio podía
+   perderse, quedando la prenda con un código distinto y solo la versión vieja. Ahora los
+   guardados de una misma prenda siempre se suben de a uno, en orden, así que esto ya no
+   puede pasar.
+2. Al editar una prenda o hacer un ajuste rápido de existencia, salir con el botón de
+   regresar mientras se está guardando ya no ofrece "Descartar cambios" (lo cual sería
+   engañoso, porque el guardado sigue en curso de todas formas); ahora avisa que hay que
+   esperar, igual que ya pasaba en Registrar venta.
+3. Si fallaba borrar la foto de una prenda eliminada (por ejemplo, el teléfono estaba
+   ocupado en ese instante), antes la app daba por hecho que ya se había borrado y nunca
+   lo volvía a intentar, dejando el archivo ocupando espacio para siempre. Ahora se
+   reintenta en el siguiente inicio si la primera vez no se pudo.
+4. Si el contador interno usado para generar los códigos de las prendas nuevas
+   (PRENDA-000001, etc.) se corrompía por algún motivo raro, antes la app dejaba de poder
+   crear prendas nuevas por completo. Ahora, en ese caso, simplemente empieza a contar de
+   nuevo en vez de fallar.
+5. Si falla guardar la preferencia de tema claro/oscuro (muy raro), ahora queda un rastro
+   en el registro técnico en vez de fallar en silencio sin ninguna pista.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format`.
+
+### 2026-10-07 (3), a pedido del dueño — "Robustece el código" (continuación)
+
+Más robustez encontrada revisando el código a fondo, en la misma sesión que el punto (2):
+
+1. **Corregido un error en la corrección de hoy mismo:** si la venta se aplicaba bien en el
+   servidor pero fallaba al guardarse en el teléfono justo después (por ejemplo, el teléfono
+   se quedó sin espacio en ese instante), antes se volvía a aplicar el descuento de
+   existencia por segunda vez y se subía de nuevo al servidor, duplicando el descuento. Ahora
+   ese caso (muy raro) ya no duplica nada: si el servidor ya confirmó el cambio, se usa ese
+   resultado tal cual, y si guardarlo localmente falla, se reintentará solo guardarlo (no
+   recalcular) la próxima vez que llegue una actualización.
+2. **Ventas y ajustes de existencia rechazados por el servidor ya no se pierden en
+   silencio.** Antes, si el servidor rechazaba subir una venta o un ajuste (por ejemplo justo
+   después de iniciar sesión, antes de que el servidor reconozca los permisos), ese registro
+   se descartaba para siempre sin ningún aviso: quedaba solo en ese teléfono, nunca en el
+   respaldo. Ahora se reintenta en vez de descartarse — no hay forma de "recuperar" ese
+   registro desde el servidor como sí la hay para una prenda, así que perderlo en silencio
+   era peor que seguir intentando.
+3. El historial de ajustes de existencia (quién cambió qué) ahora exige, también del lado del
+   servidor, que el nombre registrado sea el de quien realmente inició sesión — antes solo se
+   verificaba en la app, así que alguien manipulando la base de datos directamente podría en
+   teoría haber firmado un ajuste con el nombre de otra persona.
+4. En editar prenda, el botón "Guardar" también se desactiva mientras se está eliminando la
+   prenda (antes solo se desactivaba mientras se estaba guardando), para que no puedan correr
+   los dos a la vez.
+5. Las fotos de prenda se guardan en una resolución más chica (antes se guardaba la foto a la
+   resolución completa de la cámara, aunque en la app nunca se muestra más grande que una
+   miniatura); ahorra espacio en el teléfono y hace que la lista cargue más rápido en
+   teléfonos de gama baja.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format`. No había pruebas automatizadas
+que correr. No se pudo probar el cambio de reglas de Firestore ni el de ventas/ajustes
+rechazados contra un proyecto de Firebase real desde esta sesión.
+
+### 2026-10-07 (2), a pedido del dueño — "Robustece el código"
+
+Se corrigió el problema [IMPORTANTE] que había quedado documentado en "Pendiente" tras
+la ronda anterior del mismo día: si dos empleados vendían piezas de la misma prenda casi
+al mismo tiempo desde dos teléfonos distintos, una de las rebajas de existencia podía
+perderse (la venta quedaba bien registrada, pero el conteo de piezas disponibles podía
+quedar más alto de lo real).
+
+Se corrigió de la forma recomendada: ahora, cuando el teléfono tiene conexión, una venta
+o un ajuste rápido de existencia se aplica directamente en el servidor como una
+operación atómica ("réstale X a lo que haya en este momento"), en vez de que cada
+teléfono calcule el nuevo número por su cuenta y lo sobrescriba. Así, si dos ventas
+llegan casi juntas, las dos rebajas se aplican correctamente sobre el valor real, en vez
+de que la segunda borre el efecto de la primera. Si el teléfono está sin conexión, el
+cambio se guarda localmente y se sincroniza después, como ya funcionaba antes (ese caso
+sin conexión simultánea en dos teléfonos sigue siendo una posibilidad remota, igual que
+otros casos ya documentados en "Pendiente").
+
+No se tocaron las reglas de Firestore (`firestore.rules`): ya permitían este tipo de
+cambio parcial para empleados, sin necesitar ningún ajuste.
+
+Verificado con `flutter analyze` (0 avisos) y revisión manual del flujo (sin acceso a un
+proyecto de Firebase real desde esta sesión para probarlo en vivo contra el servidor;
+revísalo con una venta de prueba desde dos teléfonos cuando puedas).
+
+### 2026-10-07 — sesión automática diaria de pulido
+
+Las tareas de "Pendiente" seguían bloqueadas (necesitan algo del dueño primero o son
+condicionales), así que la sesión se dedicó a revisar a fondo el código en busca de
+errores reales. Se encontraron y corrigieron 15 problemas; el más serio de los
+encontrados (ventas simultáneas desde dos teléfonos, ver punto 1 de "Pendiente" arriba)
+quedó documentado ahí en vez de corregirse a ciegas, por su riesgo y por no poder
+probarse contra el Firebase real desde esta sesión.
+
+1. Un empleado ya no puede exportar el catálogo completo (precios y códigos de
+   proveedor) desde el menú de Cuenta: esa opción solo aparecía para Administradores en
+   la intención original, pero por un descuido estaba visible y funcionando para
+   cualquier cuenta.
+2. En editar prenda, los botones de ajuste rápido, código QR y eliminar se desactivan
+   mientras se está guardando o eliminando, para que no puedan correr al mismo tiempo y
+   dejar la prenda en un estado contradictorio.
+3. Un doble toque rápido en "Eliminar" (pantalla de prenda) ya no abre dos diálogos de
+   confirmación a la vez.
+4. Si se quita una combinación de color/talla que tenía existencia (en vez de solo
+   poner su existencia en 0 y dejarla), ahora queda registrada en el historial de
+   ajustes como una salida de esas piezas, en vez de desaparecer sin dejar rastro.
+5. Si falla quitar una foto guardada en el teléfono, ya no se muestra "sin foto" de
+   todas formas: se avisa del error y la foto se mantiene hasta poder intentarlo de
+   nuevo.
+6. En la lista principal, si el archivo de la foto de una prenda ya no se puede abrir
+   (se movió de teléfono, se dañó), se muestra el ícono genérico de ropa en vez de un
+   círculo vacío sin explicación.
+7. Corregido un caso donde guardar o eliminar una prenda, justo cuando llega al mismo
+   tiempo una actualización desde otro teléfono, podía perder el cambio recién hecho sin
+   ningún aviso.
+8. Al registrar una venta: ya no se puede salir de la pantalla a medio camino creyendo
+   que se "descartó" cuando en realidad ya se estaba guardando; ahora se avisa que hay
+   que esperar a que termine.
+9. El botón "Registrar venta" muestra un círculo de carga mientras se guarda, igual que
+   los demás botones de guardar en la app.
+10. Si falla registrar una venta justo después de descontar la existencia, reintentar
+    ya no descuenta la existencia dos veces ni duplica las ventas ya registradas
+    correctamente en el primer intento.
+11. Vender varias tallas/colores con el mismo nombre normalizado en una sola venta ya
+    no pierde ni duplica por error la rebaja de existencia de alguna de ellas.
+12. "Más vendidos" (en los reportes de ventas) ahora desempata siempre por la venta más
+    reciente de forma consistente, como ya decía que hacía.
+13. Dar de alta dos cuentas de empleado casi al mismo tiempo ya no puede chocar entre
+    sí con un error interno confuso.
+14. La descripción del rol "Empleado" al crear un usuario ahora menciona que también
+    puede registrar ventas (antes solo decía "consultar, escanear y ajustar
+    existencias", lo cual podía confundir al dueño sobre qué puede hacer esa cuenta).
+15. Limpieza menor: una prenda nueva que se empieza a crear pero nunca se guarda ya no
+    deja un registro interno "pendiente" abandonado para siempre.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` (sin cambios pendientes). No
+hay pruebas automatizadas que correr (se retiraron por pedido explícito del dueño el
+2026-09-22) ni se compiló el APK (sin SDK de Android en este entorno).
+
+### 2026-10-06 — sesión automática diaria de pulido
+
+Las 3 tareas de "Pendiente" siguen bloqueadas (necesitan algo del dueño primero o son
+condicionales). Se revisó a fondo el código en busca de errores reales, inconsistencias
+de UI/UX y manejo de errores; se encontraron y corrigieron 4 detalles pequeños:
+
+1. La etiqueta roja "AGOTADO" en la tarjeta de la lista principal tenía el texto con el
+   color gris por defecto (poco legible sobre el fondo rojo claro) en vez del color
+   correcto; ahora usa el mismo color que el aviso de "pocas piezas" junto a ella.
+2. En el menú de Cuenta, un nombre o correo muy largo ya no se corta a la mitad ni se
+   envuelve mal en pantallas angostas.
+3. Si en Firestore el campo de rol de un usuario llega con un valor que la app no
+   reconoce (por ejemplo editado a mano), antes se degradaba a Empleado en silencio;
+   ahora además queda un registro para poder detectarlo.
+4. Corregido un caso raro donde, si se cerraba sesión justo cuando se descartaba un
+   cambio de existencia rechazado por el servidor, podía generarse un error interno sin
+   capturar (no visible para quien usa la app, pero quedaba ruido en los registros).
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` (sin cambios pendientes). No
+hay pruebas automatizadas que correr (se retiraron por pedido explícito del dueño el
+2026-09-22) ni se compiló el APK (sin SDK de Android en este entorno).
+
+### 2026-10-05 — sesión automática diaria de pulido
+
+Las 3 tareas de "Pendiente" siguen bloqueadas (necesitan algo del dueño primero o son
+condicionales). Se revisó a fondo el código (pantallas, capa de datos, modelo de
+autenticación) y se encontraron 2 errores reales, pequeños y ya corregidos:
+
+1. Si una prenda llegaba del servidor con una existencia inválida (negativa, por un dato
+   corrupto o editado a mano), se mostraba un número en negativo en vez de 0 — ahora se
+   corrige al leerla, igual que en el resto de la app.
+2. Al escanear un código QR o de proveedor, si la pantalla del escáner se cerraba justo en el
+   instante de leer el código, podía aparecer un error técnico en pantalla; ahora esa lectura
+   simplemente se ignora.
+
+**Ronda 2 (a pedido del dueño, "corrige y pule el código"):** revisión más profunda de la
+sincronización, la foto por prenda, las ventas y el código de proveedor. 4 errores reales
+corregidos:
+
+3. Al eliminar una prenda con foto, la foto se quedaba guardada en el teléfono para siempre
+   (un desperdicio de espacio que solo crece). Ahora se borran las fotos de prendas eliminadas
+   cada vez que se abre el catálogo (no de inmediato, para no perderla si se usa "Deshacer").
+4. Al cambiar la foto de una prenda, la miniatura en la lista y en el formulario seguían
+   mostrando la foto anterior hasta reiniciar la app. Ahora se actualiza al instante.
+5. Al registrar una venta, si la existencia había cambiado en otro teléfono justo antes de
+   confirmar, se vendían menos piezas de las pedidas sin avisarlo — solo decía "Venta
+   registrada" igual. Ahora avisa cuántas piezas se registraron realmente si fueron menos.
+6. Dos prendas distintas podían terminar con el mismo código de proveedor escaneado (por
+   error), y entonces escanear ese código desde la pantalla principal siempre encontraba la
+   primera, ocultando la segunda. Ahora se avisa al guardar si el código ya está en otra
+   prenda.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/` (sin cambios
+pendientes). No hay pruebas automatizadas que correr (se retiraron por pedido explícito del
+usuario el 2026-09-22). No se compiló el APK: esta sesión no tiene el SDK de Android
+instalado, solo Flutter.
+
+### 2026-10-04 — sesión automática diaria de pulido
+
+Las 3 tareas de "Pendiente" siguen bloqueadas (necesitan algo del dueño primero o son
+condicionales), igual que ayer, así que se revisó a fondo el código en busca de errores
+reales: pantallas (catálogo, formulario de prenda, ajuste rápido, ventas, historial de
+ajustes, QR, escáner, usuarios, login), la capa de datos (sincronización de catálogo,
+ventas y ajustes, almacenamiento local, fotos) y el modelo de autenticación. No se encontró
+ningún bug nuevo: las rondas anteriores ya cubrieron los casos delicados (doble toque,
+sincronización entre teléfonos, roles, mensajes de error, setState tras cerrar sesión,
+contraste de colores) y el código sigue igual de sólido hoy. Por eso no se tocó ningún
+archivo de código esta sesión, para no arriesgar cambios sin un problema real que corregir.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/` (sin cambios
+pendientes). No hay pruebas automatizadas que correr (se retiraron por pedido explícito del
+usuario el 2026-09-22). No se compiló el APK: esta sesión no tiene el SDK de Android
+instalado, solo Flutter.
+
+Nota: el Pull Request #3 (`auto/mejoras-diarias` → `master`) sigue abierto y acumulando las
+sesiones diarias desde el 2026-09-28; no se abrió uno nuevo. Para que las ventas y el
+historial de ajustes sincronicen en producción, falta desplegar las reglas de Firestore
+actualizadas (`firebase deploy --only firestore:rules`) una vez que el dueño revise y
+mergee el PR.
+
+### 2026-10-03 — sesión automática diaria, 4 tareas de "Pendiente"
+
+Se tomaron 4 de las 7 tareas que había en "Pendiente", de arriba hacia abajo.
+Las otras 3 quedan arriba porque necesitan algo del dueño primero (activar
+Firebase Storage, o revisar con calma un caso delicado de sincronización) o
+son condicionales ("solo si el catálogo crece mucho").
+
+1. **Filtro rápido de existencia**: chips "Todos / Agotado / Stock bajo"
+   arriba del catálogo, junto a la búsqueda por nombre, usando los mismos
+   indicadores que ya mostraba cada tarjeta.
+2. **Historial de ajustes**: nueva sección "Historial de ajustes" (solo
+   para administradores, en Cuenta) que registra quién cambió cuánta
+   existencia de qué prenda y cuándo — tanto desde el ajuste rápido como
+   desde el formulario completo. Se guarda igual que las ventas (en el
+   teléfono y sincronizado entre teléfonos), nunca se edita ni se borra.
+3. **Código de barras de proveedor**: cada prenda puede guardar el código
+   de barras que el proveedor ya le puso (opcional, con botón para
+   escanearlo en el formulario). Al escanear desde la pantalla principal,
+   si el código no es el QR propio de la app, ahora también se busca entre
+   esos códigos de proveedor antes de avisar "Código no reconocido".
+4. **Reportes más completos**: la pantalla de Ventas ahora también muestra
+   el total vendido en la semana y en el mes en curso, lo más vendido (top
+   5 prendas) y el valor actual de todo el inventario (precio x existencia).
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/`.
+No hay carpeta `test/` (se retiraron por pedido explícito del usuario el
+2026-09-22). No se compiló el APK: esta sesión automática no tiene el SDK
+de Android instalado, solo Flutter.
+
+Importante: el historial de ajustes agrega una colección nueva en
+Firestore (`tiendas/{id}/ajustes`) y `firestore.rules` se actualizó para
+permitirla. Hace falta desplegar las reglas nuevas
+(`firebase deploy --only firestore:rules`, o pegarlas en la consola de
+Firebase) para que esa parte funcione en los teléfonos reales — el resto
+de lo hecho hoy no depende de eso.
+
+### 2026-10-02 (2) — a pedido del dueño: bugs críticos e funciones nuevas
+
+El dueño pidió una lista priorizada de bugs y mejoras, y que se trabajara de
+una vez lo crítico y lo importante (lo demás quedó arriba, en "Pendiente").
+Se hizo todo en la misma sesión:
+
+1. **Bug crítico de sincronización**: dos empleados sin señal podían crear
+   cada uno una prenda nueva y, por mala suerte, que ambas calcularan el
+   mismo código (ej. ambas "PRENDA-000011"). Al volver a tener señal, una de
+   las dos se sobrescribía en silencio y desaparecía del catálogo sin ningún
+   aviso. Ahora, al subir una prenda nueva por primera vez, la app verifica
+   que nadie más haya tomado ya ese código; si alguien más lo tomó mientras
+   ambas estaban sin señal, esta prenda recibe un código distinto en vez de
+   perderse. Las ediciones normales a prendas que ya existían no cambiaron
+   en nada.
+2. **Registro de ventas**: ahora cada prenda tiene un botón para "Registrar
+   venta" (cuánto se vendió de cada color/talla), que descuenta la
+   existencia solo y guarda el registro. Un ícono "Ventas" en la pantalla
+   principal muestra el historial completo y el total vendido en el día.
+   Las ventas se sincronizan entre teléfonos igual que el catálogo.
+3. **Exportar catálogo a CSV**: nueva opción en el menú de la cuenta para
+   sacar el catálogo completo como un archivo que se abre en Excel/Sheets —
+   sirve de respaldo y para compartir el inventario con alguien fuera de
+   la app (por ejemplo, el contador).
+4. **Aviso de "pocas unidades"**: antes solo se avisaba "AGOTADO" al llegar
+   a 0. Ahora, con 3 piezas o menos de un color/talla, se avisa antes de
+   que se agote del todo, para reabastecer a tiempo.
+5. **Foto por prenda**: se puede tomar o elegir una foto para cada prenda
+   desde el formulario; aparece como miniatura en la tarjeta del catálogo.
+   Ojo: la foto se guarda solo en ese teléfono, no se comparte todavía con
+   los demás (ver punto 6 de "Pendiente").
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/`.
+No hay carpeta `test/` (se retiraron por pedido explícito del usuario el
+2026-09-22). No se compiló el APK: sigue sin SDK de Android en esta sesión,
+solo Flutter — la función de foto (cámara/galería) no se pudo probar
+visualmente en un teléfono real por la misma razón, aunque sigue el mismo
+patrón de permisos que ya usa el escaneo de QR.
+
+### 2026-10-02 (1) — sesión automática diaria de pulido
+
+Sin tareas en "Pendiente". Se revisó a fondo todo `lib/` (en dos partes: datos/sincronización/autenticación por un lado, pantallas/widgets por otro) buscando errores reales de comportamiento. Se encontraron y corrigieron 5 problemas reales:
+
+1. Si el registro guardado en el teléfono de una prenda estaba dañado (muy raro, pero puede pasar), esa prenda se quedaba intentando subirse para siempre sin lograrlo, y de paso dejaba de recibir correcciones que llegaran desde otro teléfono. Ahora ese caso se resuelve igual que los demás errores de sincronización.
+2. En un caso muy puntual (una cuenta de empleado que quedó a medias por un error anterior), la pantalla de "cargando" podía quedarse así para siempre sin pasar a ningún mensaje, dejando a esa persona sin poder entrar ni ver por qué. Corregido.
+3. Al editar el rol o acceso de un empleado desde Cuenta → Usuarios, ahora aparece un mensaje de "Usuario actualizado", igual que al crear una prenda o un usuario (antes no avisaba nada y parecía que no había guardado).
+4. Si se estaba editando una prenda y, sin guardar todavía, se abría el botón de "ajuste rápido de existencia" desde esa misma pantalla, al volver se perdían en silencio los cambios de tallas/colores que se tenían a medio escribir. Ahora la app avisa que hay que guardar o descartar esos cambios antes de usar el ajuste rápido.
+5. Se podía generar e imprimir/compartir el código QR de una prenda nueva antes de guardarla por primera vez, produciendo una etiqueta con un código que el catálogo todavía no reconoce. Ahora se pide guardar la prenda primero.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/`. No hay carpeta `test/` (las pruebas automatizadas se retiraron por pedido explícito del usuario el 2026-09-22), así que no aplica `flutter test`. No se compiló el APK: esta sesión automática no tiene el SDK de Android instalado, solo Flutter.
+
+Nota para revisar con calma (no corregido hoy, por prudencia): se detectó que si dos teléfonos están sin conexión a internet al mismo tiempo y cada uno crea una prenda nueva, en un caso de muy mala suerte ambas podrían terminar con el mismo código, y al reconectarse una sobrescribiría a la otra sin aviso. Arreglarlo bien requiere cambiar cómo se fusionan los cambios al sincronizar, que es un cambio más delicado de lo que una sesión automática debe hacer sin que el dueño lo revise primero.
+
+Nota: la sesión del 2026-09-28 sigue esperando revisión en el Pull Request #3 (`auto/mejoras-diarias` → `master`); se sigue usando ese mismo PR.
+
+### 2026-10-01 — sesión automática diaria de pulido
+
+Sin tareas en "Pendiente". Se revisó a fondo, archivo por archivo, todo `lib/`
+(pantallas, autenticación, sincronización, modelo de datos, widgets) y
+`firestore.rules`, buscando errores reales de comportamiento. Se encontró y
+corrigió un detalle real:
+
+1. `SessionWatcher` (quién puede entrar y con qué rol) solo volvía a escuchar
+   el perfil del usuario cuando esa escucha fallaba con un error. Si
+   Firestore la cerraba sin avisar con un error (algo que ya se contempla en
+   la sincronización del catálogo, `CatalogSync`), la app dejaba de detectar
+   cambios de rol o de activación para el resto de esa sesión, hasta volver
+   a iniciar sesión. Ahora también se reintenta en ese caso.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/`
+(sin cambios pendientes). No hay carpeta `test/` (las pruebas automatizadas
+se retiraron por pedido explícito del usuario el 2026-09-22), así que no
+aplica `flutter test`. No se compiló el APK: esta sesión no tiene el SDK de
+Android instalado.
+
+Nota: la sesión del 2026-09-28 sigue esperando revisión en el Pull Request
+#3 (`auto/mejoras-diarias` → `master`); se sigue usando ese mismo PR.
+
+### 2026-09-30 — sesión automática diaria de pulido
+
+Sin tareas en "Pendiente". Se revisó a fondo, archivo por archivo, todo `lib/`
+(pantallas, autenticación, sincronización, modelo de datos, widgets) y también
+`firestore.rules` y la configuración de Android, buscando errores reales de
+comportamiento. El código sigue muy sólido gracias a las rondas anteriores;
+se encontró y corrigió un solo detalle real:
+
+1. Al dar de alta un empleado desde Cuenta → Usuarios, si el administrador
+   salía de la pantalla (botón de retroceso) justo mientras la cuenta se
+   estaba creando, la cuenta se seguía creando de todas formas en segundo
+   plano, pero el administrador no veía ninguna confirmación y podía pensar
+   que no funcionó. Ahora esa pantalla espera a que termine, igual que ya
+   pasaba en "Iniciar nueva tienda".
+
+Verificado con `flutter analyze` (0 avisos) y `dart format`. No había
+pruebas automatizadas que correr (se retiraron por pedido explícito del
+usuario el 2026-09-22). No se compiló el APK (`flutter build apk`): esta
+sesión automática no tiene el SDK de Android instalado, solo Flutter.
+
+Nota: la sesión del 2026-09-28 sigue esperando revisión en el Pull Request
+#3 (`auto/mejoras-diarias` → `master`); se sigue usando ese mismo PR.
+
+### 2026-09-29 — sesión automática diaria de pulido
+
+Sin tareas en "Pendiente". Se revisó a fondo, archivo por archivo, todo `lib/`
+(pantallas, autenticación, sincronización con Firebase, modelo de datos y
+widgets compartidos) buscando errores reales de comportamiento. No se
+encontró ningún bug nuevo: las rondas de pulido de días anteriores ya habían
+cubierto los casos delicados (doble toque, sincronización, roles, mensajes de
+error, contraste de colores, etc.) y el código sigue igual de sólido hoy.
+Por eso no se tocó ningún archivo de código esta sesión, para no arriesgar
+cambios sin un problema real que corregir.
+
+Verificado de nuevo con `flutter analyze` (0 avisos) y `dart format` en todo
+`lib/` (sin cambios pendientes). No hay pruebas automatizadas que correr (se
+retiraron por pedido explícito del usuario el 2026-09-22). No se compiló el
+APK: esta sesión no tiene el SDK de Android instalado.
+
+Nota: la sesión del 2026-09-28 sigue esperando revisión en el Pull Request
+#3 (`auto/mejoras-diarias` → `master`); no se abrió uno nuevo porque ya hay
+uno abierto con todo lo pendiente de revisar.
+
+### 2026-09-28 — sesión automática diaria de pulido
+
+Sin tareas en "Pendiente". Antes de pulir, se incorporaron a esta rama los cambios
+recientes de `master` (8 rondas de mejora que se habían hecho directo ahí), resolviendo
+a mano los archivos que ambos lados habían tocado. Después se revisó `lib/` a fondo
+buscando errores reales de comportamiento, no solo de estilo:
+
+1. Un doble toque en el botón "+" podía crear dos prendas nuevas a la vez (dos
+   formularios apilados) y desperdiciar un número de código. Ahora el segundo toque
+   se ignora mientras el primero sigue en curso; también se corrigió la causa de raíz:
+   generar el siguiente código de prenda dos veces muy seguido podía repetir el mismo
+   número.
+2. Al eliminar una prenda desde el formulario justo después de haber ajustado su
+   existencia con el editor rápido (dentro de la misma visita), el botón "Deshacer"
+   restauraba la existencia de antes del ajuste, no la más reciente. Ahora "Deshacer"
+   siempre restaura la versión correcta.
+3. El mensaje de catálogo vacío invitaba a "escanear" para agregar la primera prenda,
+   pero escanear un código no registrado nunca crea una prenda (solo avisa "QR no
+   reconocido"). Se quitó esa parte confusa del mensaje.
+4. Caso muy raro de sincronización: si se guardaba una prenda nueva en el teléfono en
+   el instante exacto en que llegaba una actualización desde otro teléfono, esa prenda
+   nueva podía borrarse sola (localmente y en la nube). Corregido.
+5. Si a un administrador le quitaban el rol o lo desactivaban mientras tenía abierta la
+   pantalla de Usuarios, la pantalla seguía funcionando como si nada. Ahora se cierra
+   sola apenas cambia su rol.
+6. "Olvidé mi contraseña" con un correo que no existe mostraba "correo o contraseña
+   incorrectos", un mensaje que no tiene sentido ahí (no se pidió contraseña). Ahora
+   dice claramente que no se encontró una cuenta con ese correo.
+7. Al crear una tienda nueva, por una fracción de segundo la app podía mostrar por
+   error la pantalla de "sin acceso" mientras el perfil todavía se estaba guardando.
+   Ya no pasa.
+8. Se deshabilitó el botón de retroceder en "Iniciar nueva tienda" mientras se está
+   creando la cuenta, para que no se pueda "salir" de algo que en realidad ya se está
+   completando en segundo plano.
+9. Varios mensajes de error mencionaban directamente "Firebase" o códigos técnicos
+   sin traducir; se cambiaron por lenguaje sencillo.
+
+Verificado con `flutter analyze` (0 avisos) y `dart format` en todo `lib/`. No había
+pruebas automatizadas que correr (se retiraron por pedido explícito del usuario el
+2026-09-22). No se compiló el APK: esta sesión no tiene el SDK de Android instalado.
 
 ### 2026-09-27 — integración de ramas
 
@@ -265,6 +756,7 @@ Verificado con `flutter analyze` (0 avisos). No se pudo correr `flutter build ap
 porque este entorno no tiene el SDK de Android instalado (solo se instaló Flutter);
 el resto de los cambios son de bajo riesgo (mensajes y consistencia visual, sin tocar
 lógica de guardado ni de sincronización).
+
 ### 2026-09-23 — robustez (rama `claude/como-ves-la-app-g73nn7`)
 
 El usuario pidió priorizar la robustez sobre lo estético. Verificado con `flutter analyze`
@@ -456,31 +948,6 @@ Sesión de pulido (sin tareas pendientes en el backlog, según regla 2):
 
 Verificado con flutter analyze (0 avisos), flutter test (9/9) y flutter build apk --debug.
 
-### 2026-09-20 — commit `022ea4c`
-
-Lista de pulido acordada con el usuario (búsqueda tolerante, tarjetas, edición rápida de
-existencia, QR listo para imprimir, validaciones). Ya cumplido antes de esta sesión, sin cambios:
-búsqueda por substring insensible a mayúsculas, orden alfabético por defecto, y el escáner ya
-cerraba solo al detectar un código.
-
-Implementado y verificado (flutter analyze, flutter test, flutter build apk --debug, todo real:
-Hive local, cámara real vía mobile_scanner, share sheet nativo vía share_plus — nada simulado):
-
-1. Tarjetas de producto muestran colores disponibles además de precio y existencia total.
-2. Edición rápida de existencia por color/talla con botones +/-, sin pasar por el formulario completo.
-3. Tallas en 0 se marcan como "AGOTADO" sin eliminar el registro.
-4. Se evitan variantes duplicadas (misma combinación color + talla) dentro de una prenda.
-5. Validaciones: precio y existencia no negativos, nombre/color/talla no vacíos.
-6. QR con código legible tipo PRENDA-000001 (en vez de UUID) y opción de compartir/guardar como imagen.
-7. Al escanear un QR que no corresponde a ninguna prenda registrada, se muestra "QR no reconocido"
-   en vez de crear una prenda automáticamente.
-8. Confirmación visual ("Cambios guardados") al guardar cambios desde la pantalla principal.
-9. Búsqueda ahora también ignora acentos.
-
-También se instaló el skill de diseño `ui-ux-pro-max` en `.claude/skills/` (repo
-github.com/nextlevelbuilder/ui-ux-pro-max-skill) para consultarlo en trabajo de UI/UX futuro del
-proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de Flutter).
-
 ### 2026-09-22 — Login con roles
 
 - Inicio de sesión con correo y contraseña (Firebase Auth), recuperación de contraseña.
@@ -575,3 +1042,28 @@ proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de 
   Lo mismo en el formulario de prenda, donde el doble toque cerraba también el catálogo.
 - Sumar una pieza y volver a quitarla ya no cuenta como cambio: "Guardar" queda desactivado
   y salir no pide confirmar descartar, porque no hay nada que guardar.
+
+### 2026-09-20 — commit `022ea4c`
+
+Lista de pulido acordada con el usuario (búsqueda tolerante, tarjetas, edición rápida de
+existencia, QR listo para imprimir, validaciones). Ya cumplido antes de esta sesión, sin cambios:
+búsqueda por substring insensible a mayúsculas, orden alfabético por defecto, y el escáner ya
+cerraba solo al detectar un código.
+
+Implementado y verificado (flutter analyze, flutter test, flutter build apk --debug, todo real:
+Hive local, cámara real vía mobile_scanner, share sheet nativo vía share_plus — nada simulado):
+
+1. Tarjetas de producto muestran colores disponibles además de precio y existencia total.
+2. Edición rápida de existencia por color/talla con botones +/-, sin pasar por el formulario completo.
+3. Tallas en 0 se marcan como "AGOTADO" sin eliminar el registro.
+4. Se evitan variantes duplicadas (misma combinación color + talla) dentro de una prenda.
+5. Validaciones: precio y existencia no negativos, nombre/color/talla no vacíos.
+6. QR con código legible tipo PRENDA-000001 (en vez de UUID) y opción de compartir/guardar como imagen.
+7. Al escanear un QR que no corresponde a ninguna prenda registrada, se muestra "QR no reconocido"
+   en vez de crear una prenda automáticamente.
+8. Confirmación visual ("Cambios guardados") al guardar cambios desde la pantalla principal.
+9. Búsqueda ahora también ignora acentos.
+
+También se instaló el skill de diseño `ui-ux-pro-max` en `.claude/skills/` (repo
+github.com/nextlevelbuilder/ui-ux-pro-max-skill) para consultarlo en trabajo de UI/UX futuro del
+proyecto (paletas, tipografía, guías de accesibilidad, guías específicas de Flutter).

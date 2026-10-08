@@ -29,14 +29,21 @@ class UsersScreen extends StatefulWidget {
 }
 
 class _UsersScreenState extends State<UsersScreen> {
-  // Created once: building it in build() would re-subscribe to Firestore on
-  // every rebuild.
-  late final Stream<List<AppUser>> _staff = widget.users.watchStore(
-    widget.currentUser.tienda!,
-  );
+  // Rebuilt only when _retry() replaces it (not on every build()), so this
+  // doesn't re-subscribe to Firestore on every rebuild.
+  late Stream<List<AppUser>> _staff = _watchStaff();
+
+  Stream<List<AppUser>> _watchStaff() =>
+      widget.users.watchStore(widget.currentUser.tienda!);
 
   UserDirectory get users => widget.users;
   AppUser get currentUser => widget.currentUser;
+
+  // Unlike the catalog/sales/adjustments listeners, this one doesn't
+  // auto-retry with backoff: a permission error here is rare (and, unlike
+  // those, nothing silently falls behind while it's not listening — the
+  // list just sits still until reopened), so a manual retry is enough.
+  void _retry() => setState(() => _staff = _watchStaff());
 
   Future<void> _create(BuildContext context) async {
     final account = await Navigator.of(context).push<NewAccount>(
@@ -143,7 +150,22 @@ class _UsersScreenState extends State<UsersScreen> {
         stream: _staff,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return const Center(child: Text('No se pudo cargar la lista.'));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('No se pudo cargar la lista.'),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: _retry,
+                      child: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
           final list = snapshot.data;
           if (list == null) {

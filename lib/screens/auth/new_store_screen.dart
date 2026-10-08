@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../auth/auth_service.dart';
 import '../../auth/credential_validators.dart';
 import '../../widgets/async_submit.dart';
+import '../../widgets/feedback/app_snackbar.dart';
 import '../../widgets/auth_layout.dart';
 import '../../widgets/feedback/success_screen.dart';
 import '../../widgets/busy_button.dart';
@@ -74,66 +75,82 @@ class _NewStoreScreenState extends State<NewStoreScreen> with AsyncSubmit {
     );
   }
 
+  void _blockLeaveWhileBusy(bool didPop, Object? result) {
+    if (didPop) return;
+    AppSnackBar.info(context, 'Espera a que termine de crear la tienda.');
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AuthLayout(
-      title: 'Inicia tu nueva tienda',
-      subtitle:
-          'Serás el administrador: gestionas el catálogo y registras a tus '
-          'empleados.',
-      showBack: true,
-      child: Form(
-        key: _formKey,
-        child: AutofillGroup(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _nombreCtrl,
-                maxLength: CredentialValidators.maxNombre,
-                textCapitalization: TextCapitalization.words,
-                textInputAction: TextInputAction.next,
-                validator: CredentialValidators.required,
-                decoration: const InputDecoration(
-                  labelText: 'Tu nombre',
-                  prefixIcon: Icon(Icons.person_outline_rounded),
+    // The account is already being created by the time this could fire (not
+    // cancellable), so leaving now would only make the user think they
+    // backed out while it keeps going and signs them in moments later.
+    return PopScope(
+      canPop: !busy,
+      onPopInvokedWithResult: _blockLeaveWhileBusy,
+      child: AuthLayout(
+        title: 'Inicia tu nueva tienda',
+        subtitle:
+            'Serás el administrador: gestionas el catálogo y registras a tus '
+            'empleados.',
+        showBack: true,
+        child: Form(
+          key: _formKey,
+          child: AutofillGroup(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  controller: _nombreCtrl,
+                  maxLength: CredentialValidators.maxNombre,
+                  textCapitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
+                  validator: CredentialValidators.required,
+                  decoration: const InputDecoration(
+                    labelText: 'Tu nombre',
+                    prefixIcon: Icon(Icons.person_outline_rounded),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _correoCtrl,
-                keyboardType: TextInputType.emailAddress,
-                autocorrect: false,
-                autofillHints: const [AutofillHints.email],
-                textInputAction: TextInputAction.next,
-                validator: CredentialValidators.email,
-                decoration: const InputDecoration(
-                  labelText: 'Correo',
-                  prefixIcon: Icon(Icons.mail_outline_rounded),
-                ),
-              ),
-              const SizedBox(height: 14),
-              PasswordField(
-                controller: _passwordCtrl,
-                textInputAction: TextInputAction.next,
-                autofillHints: const [AutofillHints.newPassword],
-              ),
-              const SizedBox(height: 14),
-              PasswordField(
-                controller: _confirmCtrl,
-                label: 'Confirmar contraseña',
-                validator: _validateConfirm,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _create(),
-                autofillHints: const [AutofillHints.newPassword],
-              ),
-              if (error != null) ...[
                 const SizedBox(height: 14),
-                ErrorText(error!),
+                TextFormField(
+                  controller: _correoCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
+                  autofillHints: const [AutofillHints.email],
+                  textInputAction: TextInputAction.next,
+                  validator: CredentialValidators.email,
+                  decoration: const InputDecoration(
+                    labelText: 'Correo',
+                    prefixIcon: Icon(Icons.mail_outline_rounded),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                PasswordField(
+                  controller: _passwordCtrl,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.newPassword],
+                ),
+                const SizedBox(height: 14),
+                PasswordField(
+                  controller: _confirmCtrl,
+                  label: 'Confirmar contraseña',
+                  validator: _validateConfirm,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _create(),
+                  autofillHints: const [AutofillHints.newPassword],
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 14),
+                  ErrorText(error!),
+                ],
+                const SizedBox(height: 20),
+                BusyButton(
+                  label: 'Crear tienda',
+                  busy: busy,
+                  onPressed: _create,
+                ),
               ],
-              const SizedBox(height: 20),
-              BusyButton(label: 'Crear tienda', busy: busy, onPressed: _create),
-            ],
+            ),
           ),
         ),
       ),
