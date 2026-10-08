@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import 'auth_service.dart';
+import 'credential_validators.dart';
 
 /// Turns a Firebase Auth error into a message the store's staff can act on.
 AuthException authExceptionFrom(FirebaseAuthException e) {
@@ -13,7 +14,9 @@ AuthException authExceptionFrom(FirebaseAuthException e) {
     'invalid-email' => 'El correo no es válido.',
     'user-disabled' => 'Esta cuenta está deshabilitada.',
     'email-already-in-use' => 'Ese correo ya tiene una cuenta.',
-    'weak-password' => 'La contraseña es muy débil (mínimo 6 caracteres).',
+    'weak-password' =>
+      'La contraseña es muy débil (mínimo '
+          '${CredentialValidators.minPasswordLength} caracteres).',
     'too-many-requests' => 'Demasiados intentos. Espera un momento.',
     'network-request-failed' => 'Sin conexión a internet.',
     'operation-not-allowed' =>

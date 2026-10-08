@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
@@ -20,8 +22,33 @@ class FirestoreCatalog implements RemoteCatalog {
     // event once the server confirms it — Firestore treats that transition as
     // a metadata-only change and skips it by default. That follow-up is what
     // [CatalogSync] waits for to know it can trust the server's answer.
+    //
+    // The price is an extra event per local write (pending -> confirmed),
+    // each of which would make sync re-read and compare the whole catalog.
+    // Those are let through only if a garment actually changed or the
+    // cache/server state did. State is per listen, so a re-listen starts
+    // fresh.
+    bool? lastFromServer;
+    final seen = <String, String>{};
+
     return _collection
         .snapshots(includeMetadataChanges: true)
+        .where((snapshot) {
+          final fromServer = !snapshot.metadata.isFromCache;
+          var relevant = fromServer != lastFromServer;
+          lastFromServer = fromServer;
+          for (final change in snapshot.docChanges) {
+            final id = change.doc.id;
+            if (change.type == DocumentChangeType.removed) {
+              relevant |= seen.remove(id) != null;
+            } else {
+              final signature = _signature(change.doc);
+              relevant |= seen[id] != signature;
+              seen[id] = signature;
+            }
+          }
+          return relevant;
+        })
         .map(
           (snapshot) => RemoteSnapshot(
             items: snapshot.docs.map(_parse).nonNulls.toList(),
@@ -29,6 +56,18 @@ class FirestoreCatalog implements RemoteCatalog {
             fromServer: !snapshot.metadata.isFromCache,
           ),
         );
+  }
+
+  /// What the app reads from a document, to tell a real change from a
+  /// metadata-only one (the server timestamp isn't part of a garment).
+  static String _signature(DocumentSnapshot<Map<String, dynamic>> doc) {
+    try {
+      final data = doc.data();
+      if (data == null) return '';
+      return jsonEncode(ClothingItem.fromMap({...data, 'id': doc.id}).toMap());
+    } catch (_) {
+      return 'ilegible:${doc.data()}';
+    }
   }
 
   @override

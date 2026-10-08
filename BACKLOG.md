@@ -19,6 +19,49 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-10-08 — revisión completa y corrección de errores (rama `claude/como-ves-la-app-g73nn7`)
+
+Dos revisiones de código a fondo (cambios de la rama, y sesión/usuarios/sincronización).
+Verificado con `flutter analyze` (0 avisos), `flutter build web`, 44 pruebas de
+lógica/sincronización/formulario/capturas y 28 de reglas en el emulador (copia aparte).
+No se pudo generar APK: la red del entorno bloquea las descargas del SDK de Android.
+
+Errores corregidos:
+1. **Ajustes de empleados que se perdían**: al leer una prenda se "limpiaban" nombre y
+   precio (espacios, redondeo); al guardar existencia el documento cambiaba también esos
+   campos, el servidor lo rechazaba y el ajuste se descartaba. Ahora los valores válidos se
+   leen y se escriben tal cual.
+2. **QR de prenda nueva antes de guardar**: podía imprimirse con un código que cambiaba al
+   guardar. Ahora el QR se ofrece después de guardar ("Ver QR" en el aviso de creada).
+3. **Variantes con y sin acento** ("Café"/"Cafe") se mezclaban en el ajuste de existencia.
+   Vuelven a ser variantes distintas, como antes.
+4. **Códigos con espacios** dejaban de verse; ahora se aceptan (solo se rechaza lo que
+   Hive no puede guardar: acentos o más de 255 caracteres).
+5. **Nombres/colores largos ya guardados** se recortaban al editarlos. Ya no se recortan;
+   el límite solo impide que crezcan.
+6. Un número guardado como "NaN"/"Infinity" hacía desaparecer la prenda.
+7. Sincronización: cada guardado provocaba releer y comparar todo el catálogo dos veces;
+   ahora solo se procesan avisos con cambios reales.
+8. Sincronización: un cambio pendiente podía enviarse varias veces a la vez (al iniciar,
+   al primer contacto y al reconectar). Ahora se envía una sola vez.
+9. Cerrar sesión con un envío en curso podía dejar un error sin controlar.
+10. Sesión: un perfil inexistente ya guardado en caché dejaba la app cargando para
+    siempre; ahora muestra "Sin acceso".
+11. Si cambia el rol del usuario con pantallas abiertas, se cierran (ya no queda abierto
+    un formulario de admin para alguien que pasó a empleado).
+12. Abrir la tienda dos veces seguidas (salir y entrar rápido) podía dejar dos
+    sincronizaciones sobre el mismo almacenamiento.
+13. Formularios de sesión/usuarios: Enter dos veces enviaba dos veces (dos cuentas o dos
+    tiendas); y un error podía perderse si la pantalla se cerraba antes.
+14. Desactivar a un usuario sin nombre fallaba con "No tienes permiso"; ahora se guarda.
+15. Muestras de color: "Verde oliva" y "Azul mezclilla" mostraban verde y azul genéricos.
+16. Detalles: aviso de error del QR con el estilo de error de la app, mensaje de
+    contraseña débil tomado de la misma constante que el formulario, búsqueda de código
+    existente sin recorrer todo el catálogo.
+
+Pulido: pantalla de usuarios con avatar de iniciales y etiqueta "Desactivado";
+"Guardar cambios" de la hoja de usuario solo se activa si hay cambios.
+
 ### 2026-10-08 — interfaz modernizada (rama `claude/como-ves-la-app-g73nn7`)
 
 Pedido del usuario: modernizar la UI. Verificado con `flutter analyze`, `flutter build web`,

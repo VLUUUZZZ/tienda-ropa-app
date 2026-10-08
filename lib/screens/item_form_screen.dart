@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -12,7 +14,12 @@ import 'quick_stock_screen.dart';
 
 /// What [ItemFormScreen] pops with, so the caller can tell a save apart from
 /// a delete and react accordingly (e.g. offer "undo" only after a delete).
-enum ItemFormResult { saved, deleted }
+enum ItemFormOutcome { saved, deleted }
+
+/// The outcome, and the garment as saved (its id may differ from the one
+/// the form opened with, see [_ItemFormScreenState._save]) or as it was
+/// right before being deleted (for "undo").
+typedef ItemFormResult = ({ItemFormOutcome outcome, ClothingItem item});
 
 /// Create/edit screen for a single garment. Works both for a brand-new item
 /// (blank fields, id already assigned) and an existing one loaded from a scan
@@ -113,6 +120,17 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   double _precio() =>
       ClothingItem.clampPrecio(leerPrecio(_precioCtrl.text) ?? 0);
 
+  late final int _nombreMax = math.max(
+    Limites.nombre,
+    widget.item.nombre.length,
+  );
+
+  String? _validateNombre(String? value) {
+    final nombre = value?.trim() ?? '';
+    if (nombre.isEmpty) return 'Requerido';
+    return nombre.length > _nombreMax ? 'Máximo $_nombreMax caracteres' : null;
+  }
+
   static String? _validatePrecio(String? value) {
     if (value == null || value.trim().isEmpty) return 'Requerido';
     final precio = leerPrecio(value);
@@ -203,7 +221,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
     if (!mounted) return;
     _dirty = false;
-    Navigator.of(context).pop(ItemFormResult.saved);
+    Navigator.of(
+      context,
+    ).pop<ItemFormResult>((outcome: ItemFormOutcome.saved, item: updated));
   }
 
   Future<void> _quickEditStock() async {
@@ -253,6 +273,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       ),
     );
     if (confirm != true) return;
+    // What "undo" will bring back: the stored version, which may be newer
+    // than the one this form opened with.
+    final deleted = widget.repo.getById(widget.item.id) ?? widget.item;
     try {
       await widget.repo.delete(widget.item.id);
     } catch (e) {
@@ -263,7 +286,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     }
     if (!mounted) return;
     _dirty = false;
-    Navigator.of(context).pop(ItemFormResult.deleted);
+    Navigator.of(
+      context,
+    ).pop<ItemFormResult>((outcome: ItemFormOutcome.deleted, item: deleted));
   }
 
   void _showQr() {
@@ -293,11 +318,12 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         appBar: AppBar(
           title: Text(widget.isNew ? 'Nueva prenda' : 'Editar prenda'),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.qr_code_2_rounded),
-              tooltip: 'Ver código QR',
-              onPressed: _showQr,
-            ),
+            if (isExisting)
+              IconButton(
+                icon: const Icon(Icons.qr_code_2_rounded),
+                tooltip: 'Ver código QR',
+                onPressed: _showQr,
+              ),
             if (isExisting)
               PopupMenuButton<_FormAction>(
                 tooltip: 'Más opciones',
@@ -339,31 +365,39 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
             children: [
+              // A new garment's code is only final once saved (another phone
+              // may take the number meanwhile), so its QR is offered after.
               Align(
                 alignment: Alignment.centerLeft,
-                child: ActionChip(
-                  avatar: const Icon(Icons.qr_code_rounded, size: 18),
-                  label: Text(widget.item.id),
-                  tooltip: 'Ver código QR',
-                  onPressed: _showQr,
-                ),
+                child: isExisting
+                    ? ActionChip(
+                        avatar: const Icon(Icons.qr_code_rounded, size: 18),
+                        label: Text(widget.item.id),
+                        tooltip: 'Ver código QR',
+                        onPressed: _showQr,
+                      )
+                    : Chip(
+                        avatar: const Icon(Icons.qr_code_rounded, size: 18),
+                        label: const Text('El código QR se genera al guardar'),
+                      ),
               ),
               const SizedBox(height: 20),
               const _SectionTitle('Información'),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _nombreCtrl,
-                maxLength: Limites.nombre,
+                // Counted, never cut: a longer name saved before the limit
+                // existed stays as it is unless it's edited to grow.
+                maxLength: _nombreMax,
+                maxLengthEnforcement: MaxLengthEnforcement.none,
                 textCapitalization: TextCapitalization.sentences,
                 textInputAction: TextInputAction.next,
                 decoration: const InputDecoration(
                   labelText: 'Nombre de la prenda',
                   hintText: 'Ej. Playera básica',
                   prefixIcon: Icon(Icons.checkroom_rounded),
-                  counterText: '',
                 ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+                validator: _validateNombre,
               ),
               const SizedBox(height: 14),
               TextFormField(

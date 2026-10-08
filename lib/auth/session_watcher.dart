@@ -57,13 +57,16 @@ class SessionWatcher {
   }
 
   void _followProfile(User user) {
-    _profileSub = FirestorePaths.user(_firestore, user.uid).snapshots().listen((
-      doc,
-    ) {
-      _backoff.reset();
-      final state = _stateFor(user, doc);
-      if (state != null) _controller.add(state);
-    }, onError: (Object e) => _onProfileError(user, e));
+    // With metadata changes: when the cache already knows the profile is
+    // missing, the server confirming it is only a metadata change, and
+    // without it the app would wait on the loading screen forever.
+    _profileSub = FirestorePaths.user(_firestore, user.uid)
+        .snapshots(includeMetadataChanges: true)
+        .listen((doc) {
+          _backoff.reset();
+          final state = _stateFor(user, doc);
+          if (state != null) _controller.add(state);
+        }, onError: (Object e) => _onProfileError(user, e));
   }
 
   void _onProfileError(User user, Object error) {

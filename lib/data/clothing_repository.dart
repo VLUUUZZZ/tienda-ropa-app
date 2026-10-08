@@ -70,7 +70,7 @@ class ClothingRepository {
   /// leaves no gap in the numbering.
   String nextId() => _local.peekNextId();
 
-  bool exists(String id) => _local.ids.contains(id);
+  bool exists(String id) => _local.contains(id);
 
   List<ClothingItem> getAll() => _local.readAll()
     ..sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));

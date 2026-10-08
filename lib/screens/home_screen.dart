@@ -15,6 +15,7 @@ import 'home/empty_catalog.dart';
 import 'home/scanned_item_sheet.dart';
 import 'home/store_title.dart';
 import 'item_form_screen.dart';
+import 'qr_screen.dart';
 import 'quick_stock_screen.dart';
 import 'scanner_screen.dart';
 import 'users/users_screen.dart';
@@ -176,8 +177,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (!mounted) return;
     _reload();
-    if (result == ItemFormResult.saved) _showSavedSnackBar();
-    if (result == ItemFormResult.deleted) _showDeletedSnackBar(item);
+    switch (result) {
+      case (outcome: ItemFormOutcome.saved, item: _):
+        _showSavedSnackBar();
+      case (outcome: ItemFormOutcome.deleted, :final item):
+        _showDeletedSnackBar(item);
+      case null:
+        break;
+    }
   }
 
   Future<void> _quickEditStock(ClothingItem item) async {
@@ -206,7 +213,28 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (!mounted) return;
     _reload();
-    if (result == ItemFormResult.saved) _showSavedSnackBar();
+    if (result case (outcome: ItemFormOutcome.saved, :final item)) {
+      _showCreatedSnackBar(item);
+    }
+  }
+
+  /// After adding a garment, the next step is usually printing its label.
+  void _showCreatedSnackBar(ClothingItem item) {
+    HapticFeedback.lightImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${item.nombre.isEmpty ? 'Prenda' : item.nombre} agregada · ${item.id}',
+        ),
+        duration: const Duration(seconds: 6),
+        action: SnackBarAction(
+          label: 'Ver QR',
+          onPressed: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => QrScreen(item: item))),
+        ),
+      ),
+    );
   }
 
   Future<void> _scan() async {

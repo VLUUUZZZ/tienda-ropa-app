@@ -31,14 +31,17 @@ class LocalCatalog {
 
   /// Whether [key] can be a garment's id here. Hive only accepts ASCII
   /// string keys of up to 255 characters, so anything else (a document
-  /// created by hand in the console, a random QR) is rejected up front
-  /// instead of failing when it's written.
+  /// created by hand in the console with accents, a random QR) is rejected
+  /// up front instead of failing when it's written. Spaces and other ASCII
+  /// are fine: ids like that may already be stored.
   static bool isItemId(dynamic key) =>
       key is String &&
       key != _sequenceKey &&
       key.isNotEmpty &&
       key.length <= 255 &&
-      key.codeUnits.every((c) => c > 0x20 && c < 0x7F);
+      key.codeUnits.every((c) => c < 0x80);
+
+  bool contains(String id) => isItemId(id) && _box.containsKey(id);
 
   /// Throws if the stored record is corrupt; see [readAll] for the tolerant
   /// version.

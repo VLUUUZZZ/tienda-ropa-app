@@ -1,7 +1,5 @@
 import 'dart:math' as math;
 
-import '../utils/texto.dart';
-
 /// Bounds for what a garment may hold. The forms enforce them and reading
 /// stored data clamps to them, so a bad record (typed by hand in the
 /// console, from an old version) can't break a screen or the totals.
@@ -45,10 +43,11 @@ class ClothingVariant {
   });
 
   /// What makes a variant unique within a garment: its color and talla,
-  /// ignoring case and surrounding spaces.
-  /// Accents count as the same letter too, so "Café" and "cafe" can't
-  /// become two separate stock lines.
-  String get key => '${normalizar(color.trim())}|${normalizar(talla.trim())}';
+  /// ignoring case and surrounding spaces. Accents do count: garments saved
+  /// before may already hold "Café" and "Cafe" as separate stock lines, and
+  /// merging them here would mix up their counts.
+  String get key =>
+      '${color.trim().toLowerCase()}|${talla.trim().toLowerCase()}';
 
   Map<String, dynamic> toMap() => {
     'talla': talla,
@@ -57,7 +56,7 @@ class ClothingVariant {
   };
 
   /// Tolerant of wrong types: a number where text was expected is turned
-  /// into text, and stock is clamped to 0..[Limites.existenciaMax].
+  /// into text, and stock is a whole number in 0..[Limites.existenciaMax].
   factory ClothingVariant.fromMap(Map<String, dynamic> map) {
     return ClothingVariant(
       talla: _text(map['talla']),
@@ -148,9 +147,14 @@ class ClothingItem {
   };
 
   /// Reads a stored or synced record. Only a missing id is fatal
-  /// ([FormatException]); anything else that's the wrong type or out of
-  /// range falls back to a safe value, and variants that aren't maps are
-  /// skipped, so one bad field doesn't hide the whole garment.
+  /// ([FormatException]); a field of the wrong type falls back to a safe
+  /// value and variants that aren't maps are skipped, so one bad field
+  /// doesn't hide the whole garment.
+  ///
+  /// Valid values are kept exactly as stored (no trimming or rounding):
+  /// whatever is read here is written back whole on the next save, and an
+  /// employee's stock change must not also alter the name or price, which
+  /// the server rules would reject.
   factory ClothingItem.fromMap(Map<String, dynamic> map) {
     final id = map['id'];
     if (id is! String || id.isEmpty) {
@@ -160,10 +164,10 @@ class ClothingItem {
     return ClothingItem(
       id: id,
       nombre: _text(map['nombre']),
-      precio: clampPrecio(_number(map['precio'])?.toDouble() ?? 0),
+      precio: _number(map['precio'])?.toDouble() ?? 0,
       variantes: [
         if (rawVariantes is List)
-          for (final v in rawVariantes.take(Limites.variantes))
+          for (final v in rawVariantes)
             if (v is Map) ClothingVariant.fromMap(Map<String, dynamic>.from(v)),
       ],
     );
@@ -178,12 +182,17 @@ class ClothingItem {
 
 String _text(Object? value) => switch (value) {
   null => '',
-  final String s => s.trim(),
-  _ => value.toString().trim(),
+  final String s => s,
+  _ => value.toString(),
 };
 
-num? _number(Object? value) => switch (value) {
-  final num n when n.isFinite => n,
-  final String s => num.tryParse(s.trim()),
-  _ => null,
-};
+/// A finite number, or null. Strings such as "NaN" or "Infinity" parse to
+/// non-finite values and are rejected like any other bad input.
+num? _number(Object? value) {
+  final n = switch (value) {
+    final num n => n,
+    final String s => num.tryParse(s.trim()),
+    _ => null,
+  };
+  return (n != null && n.isFinite) ? n : null;
+}

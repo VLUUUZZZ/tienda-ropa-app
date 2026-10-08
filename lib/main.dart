@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app_theme.dart';
+import 'widgets/app_messenger.dart';
 import 'auth/app_user.dart';
 import 'auth/user_directory.dart';
 import 'backend.dart';
@@ -172,6 +173,7 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Tienda de Ropa',
+      scaffoldMessengerKey: appMessengerKey,
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
       theme: buildAppTheme(Brightness.light),

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -14,7 +16,9 @@ class VariantRowControllers {
     int existencia = 0,
   }) : talla = TextEditingController(text: talla),
        color = TextEditingController(text: color),
-       existencia = TextEditingController(text: existencia.toString());
+       existencia = TextEditingController(text: existencia.toString()),
+       _tallaMax = math.max(Limites.talla, talla.length),
+       _colorMax = math.max(Limites.color, color.length);
 
   VariantRowControllers.fromVariant(ClothingVariant v)
     : this(talla: v.talla, color: v.color, existencia: v.existencia);
@@ -22,6 +26,12 @@ class VariantRowControllers {
   final TextEditingController talla;
   final TextEditingController color;
   final TextEditingController existencia;
+
+  /// Length limits for this row. A value saved before the limits existed
+  /// may be longer; it stays valid (and is never cut) as long as it doesn't
+  /// grow.
+  final int _tallaMax;
+  final int _colorMax;
 
   /// A row with neither talla nor color is ignored on save, so a spare blank
   /// row never blocks the form.
@@ -47,11 +57,15 @@ class VariantRowControllers {
     existencia.addListener(listener);
   }
 
-  String? validateTalla(String? _) =>
-      isUsed && talla.text.trim().isEmpty ? 'Requerido' : null;
+  String? validateTalla(String? _) => _validateText(talla.text, _tallaMax);
 
-  String? validateColor(String? _) =>
-      isUsed && color.text.trim().isEmpty ? 'Requerido' : null;
+  String? validateColor(String? _) => _validateText(color.text, _colorMax);
+
+  String? _validateText(String text, int max) {
+    if (!isUsed) return null;
+    if (text.trim().isEmpty) return 'Requerido';
+    return text.trim().length > max ? 'Máx. $max' : null;
+  }
 
   /// Only rows in use are checked: a spare blank row never blocks saving.
   String? validateExistencia(String? _) {
@@ -74,6 +88,9 @@ class VariantRowControllers {
 
 /// The fields for one variant row, with a live swatch of the color typed
 /// and an "Agotado" hint when a used row has no stock.
+int _tallaMax(VariantRowControllers row) => row._tallaMax;
+int _colorMax(VariantRowControllers row) => row._colorMax;
+
 class VariantRowFields extends StatelessWidget {
   const VariantRowFields({super.key, required this.row, this.onRemove});
 
@@ -98,7 +115,8 @@ class VariantRowFields extends StatelessWidget {
                     flex: 2,
                     child: TextFormField(
                       controller: row.talla,
-                      maxLength: Limites.talla,
+                      maxLength: _tallaMax(row),
+                      maxLengthEnforcement: MaxLengthEnforcement.none,
                       textCapitalization: TextCapitalization.characters,
                       textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
@@ -119,7 +137,8 @@ class VariantRowFields extends StatelessWidget {
                         final color = row.color.text.trim();
                         return TextFormField(
                           controller: row.color,
-                          maxLength: Limites.color,
+                          maxLength: _colorMax(row),
+                          maxLengthEnforcement: MaxLengthEnforcement.none,
                           textCapitalization: TextCapitalization.sentences,
                           textInputAction: TextInputAction.next,
                           decoration: InputDecoration(
