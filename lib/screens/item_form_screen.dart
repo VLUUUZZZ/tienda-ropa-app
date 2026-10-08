@@ -282,6 +282,9 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   @override
   Widget build(BuildContext context) {
     final isExisting = !widget.isNew;
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final usadas = _variantes.where((r) => r.isUsed).length;
 
     return UnsavedChangesGuard(
       hasChanges: _dirty,
@@ -290,97 +293,124 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         appBar: AppBar(
           title: Text(widget.isNew ? 'Nueva prenda' : 'Editar prenda'),
           actions: [
-            if (isExisting && widget.item.variantes.isNotEmpty)
-              IconButton(
-                icon: const Icon(Icons.tune_rounded),
-                tooltip: 'Editar existencia rápido',
-                onPressed: _quickEditStock,
-              ),
             IconButton(
-              icon: const Icon(Icons.qr_code),
+              icon: const Icon(Icons.qr_code_2_rounded),
               tooltip: 'Ver código QR',
               onPressed: _showQr,
             ),
             if (isExisting)
-              IconButton(
-                icon: const Icon(Icons.delete_outline),
-                tooltip: 'Eliminar',
-                onPressed: _delete,
+              PopupMenuButton<_FormAction>(
+                tooltip: 'Más opciones',
+                onSelected: (action) => switch (action) {
+                  _FormAction.stock => _quickEditStock(),
+                  _FormAction.delete => _delete(),
+                },
+                itemBuilder: (context) => [
+                  if (widget.item.variantes.isNotEmpty)
+                    const PopupMenuItem(
+                      value: _FormAction.stock,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.tune_rounded),
+                        title: Text('Ajustar existencia'),
+                      ),
+                    ),
+                  PopupMenuItem(
+                    value: _FormAction.delete,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.delete_outline_rounded,
+                        color: colorScheme.error,
+                      ),
+                      title: Text(
+                        'Eliminar prenda',
+                        style: TextStyle(color: colorScheme.error),
+                      ),
+                    ),
+                  ),
+                ],
               ),
+            const SizedBox(width: 8),
           ],
         ),
         body: Form(
           key: _formKey,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      TextFormField(
-                        controller: _nombreCtrl,
-                        maxLength: Limites.nombre,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: const InputDecoration(
-                          labelText: 'Nombre de la prenda',
-                          prefixIcon: Icon(Icons.checkroom_rounded),
-                          counterText: '',
-                        ),
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Requerido'
-                            : null,
-                      ),
-                      const SizedBox(height: 14),
-                      TextFormField(
-                        controller: _precioCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Precio',
-                          prefixIcon: Icon(Icons.sell_outlined),
-                          prefixText: '\$ ',
-                        ),
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                          LengthLimitingTextInputFormatter(13),
-                        ],
-                        validator: _validatePrecio,
-                      ),
-                    ],
+              Align(
+                alignment: Alignment.centerLeft,
+                child: ActionChip(
+                  avatar: const Icon(Icons.qr_code_rounded, size: 18),
+                  label: Text(widget.item.id),
+                  tooltip: 'Ver código QR',
+                  onPressed: _showQr,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const _SectionTitle('Información'),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _nombreCtrl,
+                maxLength: Limites.nombre,
+                textCapitalization: TextCapitalization.sentences,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre de la prenda',
+                  hintText: 'Ej. Playera básica',
+                  prefixIcon: Icon(Icons.checkroom_rounded),
+                  counterText: '',
+                ),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _precioCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Precio',
+                  hintText: '0.00',
+                  prefixIcon: Icon(Icons.sell_outlined),
+                  prefixText: '\$ ',
+                ),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  LengthLimitingTextInputFormatter(13),
+                ],
+                validator: _validatePrecio,
+              ),
+              const SizedBox(height: 28),
+              Row(
+                children: [
+                  Expanded(
+                    child: _SectionTitle(
+                      'Tallas y colores',
+                      trailing: usadas == 0
+                          ? null
+                          : (usadas == 1
+                                ? '1 combinación'
+                                : '$usadas combinaciones'),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Tallas, colores y existencia',
-                      style: Theme.of(context).textTheme.titleMedium,
+                  FilledButton.tonalIcon(
+                    onPressed: _variantes.length < Limites.variantes
+                        ? _addVariantRow
+                        : null,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Agregar'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      textStyle: textTheme.labelLarge,
                     ),
-                    FilledButton.tonalIcon(
-                      onPressed: _variantes.length < Limites.variantes
-                          ? _addVariantRow
-                          : null,
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('Agregar'),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               for (final (index, row) in _variantes.indexed)
                 VariantRowFields(
                   key: ObjectKey(row),
@@ -389,22 +419,54 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                       ? () => _removeVariantRow(index)
                       : null,
                 ),
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: _saving ? null : _save,
-                icon: _saving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_rounded),
-                label: const Text('Guardar'),
-              ),
             ],
           ),
         ),
+        bottomNavigationBar: SafeArea(
+          minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          child: FilledButton.icon(
+            onPressed: _saving ? null : _save,
+            icon: _saving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.check_rounded),
+            label: Text(widget.isNew ? 'Guardar prenda' : 'Guardar cambios'),
+          ),
+        ),
       ),
+    );
+  }
+}
+
+enum _FormAction { stock, delete }
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text, {this.trailing});
+
+  final String text;
+  final String? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Flexible(child: Text(text, style: textTheme.titleMedium)),
+        if (trailing != null) ...[
+          const SizedBox(width: 8),
+          Text(
+            trailing!,
+            style: textTheme.labelMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

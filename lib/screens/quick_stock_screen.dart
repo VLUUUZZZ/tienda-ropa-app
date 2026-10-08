@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
 import '../utils/formato.dart';
 import '../widgets/color_dot.dart';
+import '../widgets/item_avatar.dart';
 import '../widgets/snackbars.dart';
 import '../widgets/unsaved_changes_guard.dart';
 
@@ -104,33 +106,36 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
           })
           .add(i);
     }
+    final total = _variantes.fold(0, (sum, v) => sum + v.existencia);
+    final totalDelta = total - widget.item.existenciaTotal;
 
     return UnsavedChangesGuard(
       hasChanges: _hasChanges,
       message:
           'Tienes cambios de existencia sin guardar. ¿Deseas salir sin guardarlos?',
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            widget.item.nombre.isEmpty
-                ? 'Editar existencia'
-                : widget.item.nombre,
-          ),
-        ),
+        appBar: AppBar(title: const Text('Ajustar existencia')),
         body: _variantes.isEmpty
             ? Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(32),
                   child: Text(
-                    'Esta prenda todavía no tiene colores ni tallas.\nAgrégalos desde el formulario completo.',
+                    'Esta prenda todavía no tiene colores ni tallas.\n'
+                    'Agrégalos desde la ficha completa.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: colorScheme.onSurfaceVariant),
                   ),
                 ),
               )
             : ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
                 children: [
+                  _ItemHeader(
+                    item: widget.item,
+                    total: total,
+                    totalDelta: totalDelta,
+                  ),
+                  const SizedBox(height: 24),
                   for (final color in colores) ...[
                     _ColorHeader(
                       color: color,
@@ -139,13 +144,13 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
                         (sum, i) => sum + _variantes[i].existencia,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Card(
                       child: Column(
                         children: [
                           for (final (n, i)
                               in indicesPorColor[color]!.indexed) ...[
-                            if (n > 0) const Divider(indent: 16, endIndent: 16),
+                            if (n > 0) const Divider(indent: 20, endIndent: 20),
                             _VariantRow(
                               variant: _variantes[i],
                               delta: _delta(i),
@@ -156,27 +161,93 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
                   ],
                 ],
               ),
         bottomNavigationBar: _variantes.isEmpty
             ? null
-            : SafeArea(
-                minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: FilledButton.icon(
-                  onPressed: _hasChanges && !_saving ? _save : null,
-                  icon: _saving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save_rounded),
-                  label: const Text('Guardar'),
-                ),
+            : _SaveBar(
+                enabled: _hasChanges && !_saving,
+                saving: _saving,
+                onSave: _save,
               ),
       ),
+    );
+  }
+}
+
+/// The garment being adjusted and its total, with how much this screen has
+/// moved it so far.
+class _ItemHeader extends StatelessWidget {
+  const _ItemHeader({
+    required this.item,
+    required this.total,
+    required this.totalDelta,
+  });
+
+  final ClothingItem item;
+  final int total;
+  final int totalDelta;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        ItemAvatar(nombre: item.nombre, size: 60),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.nombre.isEmpty ? '(sin nombre)' : item.nombre,
+                style: textTheme.titleLarge,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${item.id} · ${formatoPrecio(item.precio)}',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              transitionBuilder: (child, animation) =>
+                  ScaleTransition(scale: animation, child: child),
+              child: Text(
+                '$total',
+                key: ValueKey(total),
+                style: textTheme.headlineMedium?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+            Text(
+              totalDelta == 0
+                  ? (total == 1 ? 'pieza' : 'piezas')
+                  : '${totalDelta > 0 ? '+' : ''}$totalDelta sin guardar',
+              style: textTheme.labelMedium?.copyWith(
+                color: totalDelta == 0
+                    ? colorScheme.onSurfaceVariant
+                    : colorScheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -195,8 +266,8 @@ class _ColorHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Row(
         children: [
-          ColorDot(nombre: color, size: 16),
-          const SizedBox(width: 8),
+          ColorDot(nombre: color, size: 18),
+          const SizedBox(width: 10),
           Expanded(child: Text(color, style: textTheme.titleMedium)),
           Text(
             formatoPiezas(total),
@@ -234,7 +305,7 @@ class _VariantRow extends StatelessWidget {
     final talla = variant.talla.isEmpty ? '(sin talla)' : variant.talla;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 10, 8),
+      padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
       child: Row(
         children: [
           Expanded(
@@ -257,22 +328,79 @@ class _VariantRow extends StatelessWidget {
               ],
             ),
           ),
-          IconButton.filledTonal(
+          _Stepper(
+            value: variant.existencia,
+            talla: talla,
+            onDecrement: variant.existencia > 0 ? onDecrement : null,
+            onIncrement: variant.existencia < Limites.existenciaMax
+                ? onIncrement
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "− 3 +" as one pill: big touch targets, a tick of haptic feedback per
+/// press, and the number animating as it changes.
+class _Stepper extends StatelessWidget {
+  const _Stepper({
+    required this.value,
+    required this.talla,
+    required this.onDecrement,
+    required this.onIncrement,
+  });
+
+  final int value;
+  final String talla;
+  final VoidCallback? onDecrement;
+  final VoidCallback? onIncrement;
+
+  VoidCallback? _withHaptics(VoidCallback? action) => action == null
+      ? null
+      : () {
+          HapticFeedback.selectionClick();
+          action();
+        };
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(100),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
             icon: const Icon(Icons.remove_rounded),
             tooltip: 'Restar una pieza de talla $talla',
-            onPressed: variant.existencia > 0 ? onDecrement : null,
+            onPressed: _withHaptics(onDecrement),
           ),
           SizedBox(
-            width: 48,
+            width: 44,
             child: Semantics(
               liveRegion: true,
-              label: '${formatoPiezas(variant.existencia)} en talla $talla',
+              label: '${formatoPiezas(value)} en talla $talla',
               excludeSemantics: true,
-              child: Text(
-                '${variant.existencia}',
-                textAlign: TextAlign.center,
-                style: textTheme.titleLarge?.copyWith(
-                  fontFeatures: const [FontFeature.tabularFigures()],
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 150),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(scale: animation, child: child),
+                ),
+                child: Text(
+                  '$value',
+                  key: ValueKey(value),
+                  textAlign: TextAlign.center,
+                  style: textTheme.titleLarge?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             ),
@@ -280,11 +408,40 @@ class _VariantRow extends StatelessWidget {
           IconButton.filled(
             icon: const Icon(Icons.add_rounded),
             tooltip: 'Sumar una pieza a talla $talla',
-            onPressed: variant.existencia < Limites.existenciaMax
-                ? onIncrement
-                : null,
+            onPressed: _withHaptics(onIncrement),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Save action pinned to the bottom, above the system navigation.
+class _SaveBar extends StatelessWidget {
+  const _SaveBar({
+    required this.enabled,
+    required this.saving,
+    required this.onSave,
+  });
+
+  final bool enabled;
+  final bool saving;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+      child: FilledButton.icon(
+        onPressed: enabled ? onSave : null,
+        icon: saving
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.check_rounded),
+        label: const Text('Guardar cambios'),
       ),
     );
   }

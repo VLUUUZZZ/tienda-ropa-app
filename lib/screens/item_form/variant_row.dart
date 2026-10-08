@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../models/clothing_item.dart';
+import '../../widgets/color_dot.dart';
+import '../../widgets/stock_badge.dart';
 
 /// The editable state of one color+talla row in the garment form: its text
 /// controllers, their validation, and the [ClothingVariant] they produce.
@@ -70,8 +72,8 @@ class VariantRowControllers {
   }
 }
 
-/// The fields for one variant row, with an "AGOTADO" hint when a used row
-/// has no stock.
+/// The fields for one variant row, with a live swatch of the color typed
+/// and an "Agotado" hint when a used row has no stock.
 class VariantRowFields extends StatelessWidget {
   const VariantRowFields({super.key, required this.row, this.onRemove});
 
@@ -82,98 +84,105 @@ class VariantRowFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: TextFormField(
-                    controller: row.talla,
-                    maxLength: Limites.talla,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
-                      labelText: 'Talla',
-                      isDense: true,
-                      counterText: '',
-                    ),
-                    validator: row.validateTalla,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 3,
-                  child: TextFormField(
-                    controller: row.color,
-                    maxLength: Limites.color,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      labelText: 'Color',
-                      isDense: true,
-                      counterText: '',
-                    ),
-                    validator: row.validateColor,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 2,
-                  child: TextFormField(
-                    controller: row.existencia,
-                    decoration: const InputDecoration(
-                      labelText: 'Existencia',
-                      isDense: true,
-                    ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(5),
-                    ],
-                    validator: row.validateExistencia,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.remove_circle_outline),
-                  tooltip: 'Quitar fila',
-                  onPressed: onRemove,
-                ),
-              ],
-            ),
-            ListenableBuilder(
-              listenable: Listenable.merge([
-                row.talla,
-                row.color,
-                row.existencia,
-              ]),
-              builder: (context, _) =>
-                  row.agotado ? const _AgotadoLabel() : const SizedBox.shrink(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AgotadoLabel extends StatelessWidget {
-  const _AgotadoLabel();
-
-  @override
-  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          'AGOTADO',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.error,
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 6, 14),
+          child: Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: TextFormField(
+                      controller: row.talla,
+                      maxLength: Limites.talla,
+                      textCapitalization: TextCapitalization.characters,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Talla',
+                        isDense: true,
+                        counterText: '',
+                      ),
+                      validator: row.validateTalla,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 4,
+                    // Rebuilt as the color is typed, to show its swatch.
+                    child: ListenableBuilder(
+                      listenable: row.color,
+                      builder: (context, _) {
+                        final color = row.color.text.trim();
+                        return TextFormField(
+                          controller: row.color,
+                          maxLength: Limites.color,
+                          textCapitalization: TextCapitalization.sentences,
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            labelText: 'Color',
+                            isDense: true,
+                            counterText: '',
+                            prefixIcon: color.isEmpty
+                                ? null
+                                : Padding(
+                                    padding: const EdgeInsets.only(
+                                      left: 12,
+                                      right: 8,
+                                    ),
+                                    child: ColorDot(nombre: color, size: 16),
+                                  ),
+                            prefixIconConstraints: const BoxConstraints(),
+                          ),
+                          validator: row.validateColor,
+                        );
+                      },
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    tooltip: 'Quitar esta talla/color',
+                    onPressed: onRemove,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 132,
+                    child: TextFormField(
+                      controller: row.existencia,
+                      decoration: const InputDecoration(
+                        labelText: 'Piezas',
+                        isDense: true,
+                        prefixIcon: Icon(Icons.inventory_2_outlined, size: 20),
+                      ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(5),
+                      ],
+                      validator: row.validateExistencia,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ListenableBuilder(
+                    listenable: Listenable.merge([
+                      row.talla,
+                      row.color,
+                      row.existencia,
+                    ]),
+                    builder: (context, _) => row.agotado
+                        ? const StockBadge(existencia: 0)
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),

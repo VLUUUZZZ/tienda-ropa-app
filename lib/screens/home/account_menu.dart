@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../auth/app_user.dart';
+import '../../utils/texto.dart';
 
 enum _AccountAction { users, signOut }
 
-/// Who is signed in, plus the account actions their role allows.
+/// Who is signed in, as an avatar with their initials, plus the account
+/// actions their role allows.
 class AccountMenu extends StatelessWidget {
   const AccountMenu({
     super.key,
@@ -19,9 +21,12 @@ class AccountMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final initials = iniciales(user.nombre);
+
     return PopupMenuButton<_AccountAction>(
-      icon: const Icon(Icons.account_circle_outlined),
       tooltip: 'Cuenta',
+      offset: const Offset(0, 52),
       onSelected: (action) => switch (action) {
         _AccountAction.users => onManageUsers?.call(),
         _AccountAction.signOut => onSignOut(),
@@ -54,6 +59,23 @@ class AccountMenu extends StatelessWidget {
           ),
         ),
       ],
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: CircleAvatar(
+          radius: 20,
+          backgroundColor: colorScheme.primaryContainer,
+          foregroundColor: colorScheme.onPrimaryContainer,
+          child: initials.isEmpty
+              ? const Icon(Icons.person_rounded)
+              : Text(
+                  initials,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+        ),
+      ),
     );
   }
 }
