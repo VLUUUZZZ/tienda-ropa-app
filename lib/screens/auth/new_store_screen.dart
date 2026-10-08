@@ -89,7 +89,7 @@ class _NewStoreScreenState extends State<NewStoreScreen> with AsyncSubmit {
       canPop: !busy,
       onPopInvokedWithResult: _blockLeaveWhileBusy,
       child: AuthLayout(
-        title: 'Inicia tu nueva tienda',
+        title: 'Crea tu tienda',
         subtitle:
             'Serás el administrador: gestionas el catálogo y registras a tus '
             'empleados.',
@@ -105,9 +105,10 @@ class _NewStoreScreenState extends State<NewStoreScreen> with AsyncSubmit {
                   maxLength: CredentialValidators.maxNombre,
                   textCapitalization: TextCapitalization.words,
                   textInputAction: TextInputAction.next,
-                  validator: CredentialValidators.required,
+                  validator: CredentialValidators.nombre,
                   decoration: const InputDecoration(
                     labelText: 'Tu nombre',
+                    helperText: 'Tu tienda se llamará "Tienda de" + tu nombre.',
                     prefixIcon: Icon(Icons.person_outline_rounded),
                   ),
                 ),
@@ -121,6 +122,7 @@ class _NewStoreScreenState extends State<NewStoreScreen> with AsyncSubmit {
                   validator: CredentialValidators.email,
                   decoration: const InputDecoration(
                     labelText: 'Correo',
+                    helperText: 'Con este correo entrarás a la app.',
                     prefixIcon: Icon(Icons.mail_outline_rounded),
                   ),
                 ),
@@ -129,6 +131,9 @@ class _NewStoreScreenState extends State<NewStoreScreen> with AsyncSubmit {
                   controller: _passwordCtrl,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.newPassword],
+                  helperText:
+                      'Al menos ${CredentialValidators.minPasswordLength} '
+                      'caracteres.',
                 ),
                 const SizedBox(height: 14),
                 PasswordField(

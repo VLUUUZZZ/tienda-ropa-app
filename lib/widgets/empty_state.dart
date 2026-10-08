@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 
-/// What the list area shows when there's nothing to list, with a way
-/// forward when there is one.
-class EmptyCatalog extends StatelessWidget {
-  const EmptyCatalog({
+/// What a list shows when there's nothing in it (or nothing matches): what
+/// that means, and the way forward when there is one. Shared by every list
+/// in the app so empty, no-results and error states all look alike.
+class EmptyState extends StatelessWidget {
+  const EmptyState({
     super.key,
     required this.icon,
     required this.title,
     required this.message,
     this.actionLabel,
+    this.actionIcon = Icons.add_rounded,
     this.onAction,
   });
 
@@ -16,6 +18,7 @@ class EmptyCatalog extends StatelessWidget {
   final String title;
   final String message;
   final String? actionLabel;
+  final IconData actionIcon;
   final VoidCallback? onAction;
 
   @override
@@ -50,7 +53,7 @@ class EmptyCatalog extends StatelessWidget {
             const SizedBox(height: 20),
             FilledButton.tonalIcon(
               onPressed: onAction,
-              icon: const Icon(Icons.add_rounded),
+              icon: Icon(actionIcon),
               label: Text(actionLabel!),
             ),
           ],

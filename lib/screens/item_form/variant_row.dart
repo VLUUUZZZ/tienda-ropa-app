@@ -62,14 +62,16 @@ class VariantRowControllers {
     existencia.addListener(listener);
   }
 
-  String? validateTalla(String? _) => _validateText(talla.text, _tallaMax);
+  String? validateTalla(String? _) =>
+      _validateText(talla.text, _tallaMax, 'Falta la talla');
 
-  String? validateColor(String? _) => _validateText(color.text, _colorMax);
+  String? validateColor(String? _) =>
+      _validateText(color.text, _colorMax, 'Falta el color');
 
-  String? _validateText(String text, int max) {
+  String? _validateText(String text, int max, String missing) {
     if (!isUsed) return null;
-    if (text.trim().isEmpty) return 'Requerido';
-    return text.trim().length > max ? 'Máx. $max' : null;
+    if (text.trim().isEmpty) return missing;
+    return text.trim().length > max ? 'Máximo $max letras' : null;
   }
 
   /// Only rows in use are checked: a spare blank row never blocks saving.
@@ -78,9 +80,11 @@ class VariantRowControllers {
     final text = existencia.text.trim();
     if (text.isEmpty) return null; // treated as 0
     final parsed = int.tryParse(text);
-    if (parsed == null) return 'Inválido';
-    if (parsed < 0) return 'No negativo';
-    if (parsed > Limites.existenciaMax) return 'Máx. ${Limites.existenciaMax}';
+    if (parsed == null) return 'Solo números';
+    if (parsed < 0) return 'Mínimo 0';
+    if (parsed > Limites.existenciaMax) {
+      return 'Máximo ${Limites.existenciaMax}';
+    }
     return null;
   }
 
@@ -126,6 +130,7 @@ class VariantRowFields extends StatelessWidget {
                       textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
                         labelText: 'Talla',
+                        hintText: 'Ej. M',
                         isDense: true,
                         counterText: '',
                       ),
@@ -148,6 +153,7 @@ class VariantRowFields extends StatelessWidget {
                           textInputAction: TextInputAction.next,
                           decoration: InputDecoration(
                             labelText: 'Color',
+                            hintText: 'Ej. Negro',
                             isDense: true,
                             counterText: '',
                             prefixIcon: color.isEmpty

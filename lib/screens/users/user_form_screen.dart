@@ -86,9 +86,10 @@ class _UserFormScreenState extends State<UserFormScreen> with AsyncSubmit {
                 maxLength: CredentialValidators.maxNombre,
                 textCapitalization: TextCapitalization.words,
                 textInputAction: TextInputAction.next,
-                validator: CredentialValidators.required,
+                validator: CredentialValidators.nombre,
                 decoration: const InputDecoration(
                   labelText: 'Nombre',
+                  helperText: 'Así aparecerá en el historial de ajustes.',
                   prefixIcon: Icon(Icons.person_outline_rounded),
                 ),
               ),
@@ -101,6 +102,7 @@ class _UserFormScreenState extends State<UserFormScreen> with AsyncSubmit {
                 validator: CredentialValidators.email,
                 decoration: const InputDecoration(
                   labelText: 'Correo',
+                  helperText: 'Con este correo entrará a la app.',
                   prefixIcon: Icon(Icons.mail_outline_rounded),
                 ),
               ),
@@ -108,6 +110,10 @@ class _UserFormScreenState extends State<UserFormScreen> with AsyncSubmit {
               PasswordField(
                 controller: _passwordCtrl,
                 label: 'Contraseña temporal',
+                helperText:
+                    'Al menos ${CredentialValidators.minPasswordLength} '
+                    'caracteres. Compártela con la persona; después podrá '
+                    'cambiarla con "¿Olvidaste tu contraseña?".',
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _create(),
                 // No es la contraseña de quien usa este teléfono: no ofrecer

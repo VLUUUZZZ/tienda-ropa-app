@@ -1,4 +1,5 @@
-/// Form validators shared by the login and account screens.
+/// Form validators shared by the login and account screens. Each message
+/// says what to do, not just what's wrong.
 abstract final class CredentialValidators {
   static const int minPasswordLength = 6;
 
@@ -9,19 +10,31 @@ abstract final class CredentialValidators {
   static final RegExp _email = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
   static String? required(String? value) =>
-      (value == null || value.trim().isEmpty) ? 'Requerido' : null;
+      (value == null || value.trim().isEmpty)
+      ? 'Este campo es obligatorio'
+      : null;
+
+  static String? nombre(String? value) =>
+      (value == null || value.trim().isEmpty) ? 'Escribe el nombre' : null;
 
   static String? email(String? value) {
     final text = value?.trim() ?? '';
-    if (text.isEmpty) return 'Requerido';
-    return _email.hasMatch(text) ? null : 'Correo inválido';
+    if (text.isEmpty) return 'Escribe el correo';
+    return _email.hasMatch(text)
+        ? null
+        : 'Revisa el correo: debe verse como nombre@ejemplo.com';
   }
 
+  /// For signing in: any length (the account may predate the minimum).
+  static String? currentPassword(String? value) =>
+      (value == null || value.isEmpty) ? 'Escribe tu contraseña' : null;
+
+  /// For a new password.
   static String? password(String? value) {
     final text = value ?? '';
-    if (text.isEmpty) return 'Requerido';
+    if (text.isEmpty) return 'Escribe una contraseña';
     return text.length < minPasswordLength
-        ? 'Mínimo $minPasswordLength caracteres'
+        ? 'Usa al menos $minPasswordLength caracteres'
         : null;
   }
 }

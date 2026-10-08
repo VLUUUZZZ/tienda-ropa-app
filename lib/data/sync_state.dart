@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 /// What sync needs to remember across app restarts: which local changes the
@@ -26,6 +27,10 @@ class SyncState {
       SyncState._(await Hive.openBox(boxName));
 
   Future<void> close() => _box.close();
+
+  /// Fires whenever a change is marked pending or confirmed, so the screens
+  /// can show whether everything reached the server.
+  Listenable get listenable => _box.listenable();
 
   bool get initialUploadDone => _box.get(_initialUploadKey) == true;
 

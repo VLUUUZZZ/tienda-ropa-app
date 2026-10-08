@@ -12,6 +12,7 @@ class PasswordField extends StatefulWidget {
     this.textInputAction,
     this.onSubmitted,
     this.autofillHints = const [AutofillHints.password],
+    this.helperText,
   });
 
   final TextEditingController controller;
@@ -20,6 +21,9 @@ class PasswordField extends StatefulWidget {
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
   final List<String>? autofillHints;
+
+  /// What the password is for, or what it must look like.
+  final String? helperText;
 
   @override
   State<PasswordField> createState() => _PasswordFieldState();
@@ -41,6 +45,8 @@ class _PasswordFieldState extends State<PasswordField> {
       autofillHints: widget.autofillHints,
       decoration: InputDecoration(
         labelText: widget.label,
+        helperText: widget.helperText,
+        helperMaxLines: 3,
         prefixIcon: const Icon(Icons.lock_outline_rounded),
         suffixIcon: IconButton(
           icon: Icon(

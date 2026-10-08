@@ -18,6 +18,23 @@ String formatoPrecio(double valor) {
 /// "1 pieza" / "3 piezas".
 String formatoPiezas(int n) => n == 1 ? '1 pieza' : '$n piezas';
 
+/// When something happened, as people say it: "Hoy, 14:05", "Ayer, 09:30"
+/// or "08/10/2026, 14:05".
+String formatoFecha(DateTime fecha, {DateTime? ahora}) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  final hora = '${two(fecha.hour)}:${two(fecha.minute)}';
+  final hoy = ahora ?? DateTime.now();
+  final dia = DateTime(fecha.year, fecha.month, fecha.day);
+  final diferencia = DateTime(
+    hoy.year,
+    hoy.month,
+    hoy.day,
+  ).difference(dia).inDays;
+  if (diferencia == 0) return 'Hoy, $hora';
+  if (diferencia == 1) return 'Ayer, $hora';
+  return '${two(fecha.day)}/${two(fecha.month)}/${fecha.year}, $hora';
+}
+
 /// Reads a price as people type it: "1250", "1,250.50", "1.250,50",
 /// "$ 300", "99,9". Returns null if it isn't a valid amount.
 ///

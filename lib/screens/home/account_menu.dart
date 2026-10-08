@@ -3,14 +3,16 @@ import 'package:flutter/material.dart';
 import '../../auth/app_user.dart';
 import '../../utils/texto.dart';
 
-enum _AccountAction { users, adjustments, export, signOut }
+enum _AccountAction { theme, users, adjustments, export, signOut }
 
-/// Who is signed in, as an avatar with their initials, plus the account
-/// actions their role allows.
+/// Who is signed in, as an avatar with their initials, plus the app and
+/// account options their role allows.
 class AccountMenu extends StatelessWidget {
   const AccountMenu({
     super.key,
     required this.user,
+    required this.isDarkMode,
+    required this.onToggleTheme,
     required this.onManageUsers,
     this.onExport,
     this.onViewAdjustments,
@@ -18,6 +20,8 @@ class AccountMenu extends StatelessWidget {
   });
 
   final AppUser user;
+  final bool isDarkMode;
+  final VoidCallback onToggleTheme;
   final VoidCallback? onManageUsers;
 
   /// Null when this role shouldn't see the store's full prices and supplier
@@ -36,9 +40,10 @@ class AccountMenu extends StatelessWidget {
     final initials = iniciales(user.nombre);
 
     return PopupMenuButton<_AccountAction>(
-      tooltip: 'Cuenta',
+      tooltip: 'Tu cuenta y opciones',
       offset: const Offset(0, 52),
       onSelected: (action) => switch (action) {
+        _AccountAction.theme => onToggleTheme(),
         _AccountAction.users => onManageUsers?.call(),
         _AccountAction.adjustments => onViewAdjustments?.call(),
         _AccountAction.export => onExport?.call(),
@@ -62,6 +67,16 @@ class AccountMenu extends StatelessWidget {
           ),
         ),
         const PopupMenuDivider(),
+        PopupMenuItem(
+          value: _AccountAction.theme,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+            ),
+            title: Text(isDarkMode ? 'Usar tema claro' : 'Usar tema oscuro'),
+          ),
+        ),
         if (onManageUsers != null)
           const PopupMenuItem(
             value: _AccountAction.users,
@@ -69,6 +84,7 @@ class AccountMenu extends StatelessWidget {
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.group_outlined),
               title: Text('Usuarios'),
+              subtitle: Text('Cuentas del personal'),
             ),
           ),
         if (onViewAdjustments != null)
@@ -78,6 +94,7 @@ class AccountMenu extends StatelessWidget {
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.history_rounded),
               title: Text('Historial de ajustes'),
+              subtitle: Text('Quién cambió existencias y cuándo'),
             ),
           ),
         if (onExport != null)
@@ -87,6 +104,7 @@ class AccountMenu extends StatelessWidget {
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.ios_share_rounded),
               title: Text('Exportar catálogo'),
+              subtitle: Text('Hoja de cálculo (CSV)'),
             ),
           ),
         if (onSignOut != null)

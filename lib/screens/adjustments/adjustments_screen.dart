@@ -3,6 +3,8 @@ import 'package:flutter/scheduler.dart';
 
 import '../../data/adjustments_repository.dart';
 import '../../models/stock_adjustment.dart';
+import '../../utils/formato.dart';
+import '../../widgets/empty_state.dart';
 
 /// Who changed stock, how much, and when — most recent first. Useful with
 /// several employees sharing the same catalog.
@@ -47,19 +49,17 @@ class _AdjustmentsScreenState extends State<AdjustmentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
       appBar: AppBar(title: const Text('Historial de ajustes')),
       body: _ajustes.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Aún no se ha registrado ningún ajuste de existencia.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: colorScheme.outline),
-                ),
+          ? const Center(
+              child: EmptyState(
+                icon: Icons.history_rounded,
+                title: 'Sin ajustes todavía',
+                message:
+                    'Cada vez que alguien sume o reste piezas (con '
+                    '"Existencia" o desde la ficha de una prenda) quedará '
+                    'anotado aquí: quién, qué y cuándo.',
               ),
             )
           : ListView.separated(
@@ -111,30 +111,48 @@ class _AdjustmentTile extends StatelessWidget {
                       ),
                     ),
                   Text(
-                    '${ajuste.usuarioNombre.isEmpty ? 'Alguien' : ajuste.usuarioNombre} · '
-                    '${_formatFecha(ajuste.fecha)}',
+                    '${ajuste.usuarioNombre.isEmpty ? 'Alguien' : ajuste.usuarioNombre}'
+                    ' · ${formatoFecha(ajuste.fecha)}',
                     style: TextStyle(fontSize: 12, color: colorScheme.outline),
                   ),
                 ],
               ),
             ),
-            Text(
-              '${positivo ? '+' : ''}${ajuste.delta}',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-                color: positivo ? colorScheme.primary : colorScheme.error,
-              ),
+            // Direction in an arrow and a word too, not only by color.
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      positivo
+                          ? Icons.arrow_upward_rounded
+                          : Icons.arrow_downward_rounded,
+                      size: 16,
+                      color: positivo ? colorScheme.primary : colorScheme.error,
+                    ),
+                    Text(
+                      '${positivo ? '+' : '−'}${ajuste.delta.abs()}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: positivo
+                            ? colorScheme.primary
+                            : colorScheme.error,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  positivo ? 'entraron' : 'salieron',
+                  style: TextStyle(fontSize: 12, color: colorScheme.outline),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
-  }
-
-  static String _formatFecha(DateTime fecha) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(fecha.day)}/${two(fecha.month)}/${fecha.year} '
-        '${two(fecha.hour)}:${two(fecha.minute)}';
   }
 }

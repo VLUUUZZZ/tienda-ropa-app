@@ -207,20 +207,48 @@ class _LoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 24),
-            // Escape hatch if the profile can't load (e.g. offline with an
-            // empty cache).
-            TextButton(
-              onPressed: onSignOut,
-              child: const Text('Cerrar sesión'),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 24),
+                Text(
+                  'Abriendo tu tienda…',
+                  style: textTheme.titleMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'La primera vez en este teléfono necesita internet para '
+                  'descargar el catálogo.',
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                // Escape hatch if the profile can't load (e.g. offline with
+                // an empty cache).
+                Text(
+                  '¿Tarda demasiado?',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                TextButton(
+                  onPressed: onSignOut,
+                  child: const Text('Salir y entrar con otra cuenta'),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -242,7 +270,8 @@ class _OpenFailedScreen extends StatelessWidget {
         children: [
           const Text(
             'Hubo un problema al cargar el catálogo en este teléfono. '
-            'Revisa que tenga espacio libre e inténtalo de nuevo.',
+            'Revisa que tenga espacio libre y toca "Reintentar". Tus datos '
+            'siguen guardados en la tienda.',
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),

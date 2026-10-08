@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../app_theme.dart';
 import '../auth/app_user.dart';
 import '../data/adjustments_repository.dart';
 import '../data/clothing_repository.dart';
@@ -10,6 +11,7 @@ import '../models/clothing_item.dart';
 import '../models/stock_adjustment.dart';
 import '../utils/formato.dart';
 import '../widgets/color_dot.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/item_avatar.dart';
 import '../widgets/feedback/app_snackbar.dart';
 import '../widgets/unsaved_changes_guard.dart';
@@ -179,14 +181,18 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
         appBar: AppBar(title: const Text('Ajustar existencia')),
         body: _variantes.isEmpty
             ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Text(
-                    'Esta prenda todavía no tiene colores ni tallas.\n'
-                    'Agrégalos desde la ficha completa.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: colorScheme.onSurfaceVariant),
-                  ),
+                child: EmptyState(
+                  icon: Icons.layers_outlined,
+                  title: 'Sin tallas ni colores',
+                  message: widget.user.canEditCatalog
+                      ? 'Esta prenda todavía no tiene colores ni tallas. '
+                            'Agrégalos desde su ficha (toca la prenda en el '
+                            'catálogo).'
+                      : 'Esta prenda todavía no tiene colores ni tallas. '
+                            'Pide a un administrador que los agregue.',
+                  actionLabel: 'Volver al catálogo',
+                  actionIcon: Icons.arrow_back_rounded,
+                  onAction: () => Navigator.of(context).pop(),
                 ),
               )
             : ListView(
@@ -194,10 +200,19 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
                 children: [
                   _ItemHeader(
                     item: widget.item,
+                    photoPath: widget.repo.photoPathFor(widget.item.id),
                     total: total,
                     totalDelta: totalDelta,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Toca + cuando llegan piezas y − cuando salen. Nada '
+                    'cambia hasta que toques "Guardar".',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   for (final color in colores) ...[
                     _ColorHeader(
                       color: color,
@@ -215,6 +230,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
                             if (n > 0) const Divider(indent: 20, endIndent: 20),
                             _VariantRow(
                               variant: _variantes[i],
+                              color: color,
                               delta: _delta(i),
                               onDecrement: () => _adjust(i, -1),
                               onIncrement: () => _adjust(i, 1),
@@ -232,6 +248,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
             : _SaveBar(
                 enabled: _hasChanges && !_saving,
                 saving: _saving,
+                totalDelta: totalDelta,
                 onSave: _save,
               ),
       ),
@@ -244,11 +261,13 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
 class _ItemHeader extends StatelessWidget {
   const _ItemHeader({
     required this.item,
+    this.photoPath,
     required this.total,
     required this.totalDelta,
   });
 
   final ClothingItem item;
+  final String? photoPath;
   final int total;
   final int totalDelta;
 
@@ -258,7 +277,7 @@ class _ItemHeader extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Row(
       children: [
-        ItemAvatar(nombre: item.nombre, size: 60),
+        ItemAvatar(nombre: item.nombre, size: 60, photoPath: photoPath),
         const SizedBox(width: 16),
         Expanded(
           child: Column(
@@ -298,7 +317,7 @@ class _ItemHeader extends StatelessWidget {
             ),
             Text(
               totalDelta == 0
-                  ? (total == 1 ? 'pieza' : 'piezas')
+                  ? (total == 1 ? 'pieza en total' : 'piezas en total')
                   : '${totalDelta > 0 ? '+' : ''}$totalDelta sin guardar',
               style: textTheme.labelMedium?.copyWith(
                 color: totalDelta == 0
@@ -346,14 +365,19 @@ class _ColorHeader extends StatelessWidget {
 class _VariantRow extends StatelessWidget {
   final ClothingVariant variant;
 
-  /// How far this screen has moved the count; shown so the person can see
-  /// what they're about to save.
+  /// The color group this talla is in, so every label names both (the
+  /// person must never wonder which color's M they're changing).
+  final String color;
+
+  /// How far this screen has moved the count; shown as "before → now" so
+  /// the person can see what they're about to save.
   final int delta;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
 
   const _VariantRow({
     required this.variant,
+    required this.color,
     required this.delta,
     required this.onDecrement,
     required this.onIncrement,
@@ -363,8 +387,28 @@ class _VariantRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final agotado = variant.existencia <= 0;
+    final stock = StockColors.of(context);
+    final existencia = variant.existencia;
     final talla = variant.talla.isEmpty ? '(sin talla)' : variant.talla;
+
+    // Status in words and icon, never by color alone.
+    final (
+      IconData? icon,
+      String? estado,
+      Color estadoColor,
+    ) = switch (existencia) {
+      <= 0 => (
+        Icons.remove_shopping_cart_outlined,
+        'Agotado',
+        colorScheme.error,
+      ),
+      <= ClothingVariant.umbralStockBajo => (
+        Icons.warning_amber_rounded,
+        'Quedan pocas',
+        stock.low,
+      ),
+      _ => (null, null, colorScheme.onSurfaceVariant),
+    };
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
@@ -374,27 +418,37 @@ class _VariantRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(talla, style: textTheme.titleMedium),
-                if (agotado || delta != 0)
+                Text('Talla $talla', style: textTheme.titleMedium),
+                if (delta != 0)
                   Text(
-                    [
-                      if (agotado) 'Agotado',
-                      if (delta != 0)
-                        '${delta > 0 ? '+' : ''}$delta sin guardar',
-                    ].join(' · '),
+                    'Había ${existencia - delta} → ahora $existencia',
                     style: textTheme.labelMedium?.copyWith(
-                      color: agotado ? colorScheme.error : colorScheme.primary,
+                      color: colorScheme.primary,
                       fontWeight: FontWeight.w700,
                     ),
+                  ),
+                if (estado != null)
+                  Row(
+                    children: [
+                      Icon(icon, size: 14, color: estadoColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        estado,
+                        style: textTheme.labelMedium?.copyWith(
+                          color: estadoColor,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
               ],
             ),
           ),
           _Stepper(
-            value: variant.existencia,
-            talla: talla,
-            onDecrement: variant.existencia > 0 ? onDecrement : null,
-            onIncrement: variant.existencia < Limites.existenciaMax
+            value: existencia,
+            descripcion: 'talla $talla, color $color',
+            onDecrement: existencia > 0 ? onDecrement : null,
+            onIncrement: existencia < Limites.existenciaMax
                 ? onIncrement
                 : null,
           ),
@@ -409,13 +463,15 @@ class _VariantRow extends StatelessWidget {
 class _Stepper extends StatelessWidget {
   const _Stepper({
     required this.value,
-    required this.talla,
+    required this.descripcion,
     required this.onDecrement,
     required this.onIncrement,
   });
 
   final int value;
-  final String talla;
+
+  /// Which variant this is, for screen readers ("talla M, color Negro").
+  final String descripcion;
   final VoidCallback? onDecrement;
   final VoidCallback? onIncrement;
 
@@ -441,14 +497,14 @@ class _Stepper extends StatelessWidget {
         children: [
           IconButton(
             icon: const Icon(Icons.remove_rounded),
-            tooltip: 'Restar una pieza de talla $talla',
+            tooltip: 'Restar una pieza de $descripcion',
             onPressed: _withHaptics(onDecrement),
           ),
           SizedBox(
             width: 44,
             child: Semantics(
               liveRegion: true,
-              label: '${formatoPiezas(value)} en talla $talla',
+              label: '${formatoPiezas(value)} en $descripcion',
               excludeSemantics: true,
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 150),
@@ -469,7 +525,7 @@ class _Stepper extends StatelessWidget {
           ),
           IconButton.filled(
             icon: const Icon(Icons.add_rounded),
-            tooltip: 'Sumar una pieza a talla $talla',
+            tooltip: 'Sumar una pieza a $descripcion',
             onPressed: _withHaptics(onIncrement),
           ),
         ],
@@ -478,20 +534,36 @@ class _Stepper extends StatelessWidget {
   }
 }
 
-/// Save action pinned to the bottom, above the system navigation.
+/// Save action pinned to the bottom, above the system navigation. Says
+/// what it will save, or how to start when there's nothing yet.
 class _SaveBar extends StatelessWidget {
   const _SaveBar({
     required this.enabled,
     required this.saving,
+    required this.totalDelta,
     required this.onSave,
   });
 
   final bool enabled;
   final bool saving;
+  final int totalDelta;
   final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
+    final String label;
+    if (saving) {
+      label = 'Guardando…';
+    } else if (!enabled) {
+      label = 'Usa − o + para cambiar las piezas';
+    } else if (totalDelta == 0) {
+      label = 'Guardar cambios';
+    } else {
+      final n = totalDelta.abs();
+      label = totalDelta > 0
+          ? 'Guardar: entran ${formatoPiezas(n)}'
+          : 'Guardar: salen ${formatoPiezas(n)}';
+    }
     return SafeArea(
       minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
       child: FilledButton.icon(
@@ -503,7 +575,7 @@ class _SaveBar extends StatelessWidget {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : const Icon(Icons.check_rounded),
-        label: const Text('Guardar cambios'),
+        label: Text(label),
       ),
     );
   }

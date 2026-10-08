@@ -45,6 +45,39 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-10-08 — auditoría de usabilidad de todas las pantallas
+
+Meta: que un empleado nuevo pueda usar la app sin que nadie le explique. Sin funciones nuevas
+grandes; solo se hicieron más claras las que ya existían.
+- **Catálogo:** cada tarjeta muestra botones con texto, *Vender* y *Existencia*, en lugar de
+  iconos sueltos. El botón *Ventas* lleva texto. *Agregar* es un botón con nombre. El tema
+  claro/oscuro se movió al menú de la cuenta, y cada opción del menú dice para qué sirve. Si no
+  hay resultados o un filtro deja la lista vacía, aparece un botón para quitar la búsqueda o
+  el filtro.
+- **Sin conexión:** un aviso dice cuántos cambios están guardados solo en este teléfono y que
+  se enviarán solos al volver internet. Cuando se envían, aparece "Todo sincronizado".
+- **Escanear:** el teléfono vibra al leer. Si la etiqueta no se lee, se puede escribir el código.
+  Al encontrar la prenda se ofrece *Vender*, *Ajustar existencia*, *Editar ficha* (solo
+  administradores) o *Escanear otra*; esto aplica también a los empleados, que antes solo
+  podían ajustar. Un código desconocido se explica, y un administrador puede agregar la prenda
+  con el código del proveedor ya puesto.
+- **Ajustar existencia y vender:** cada fila dice "Talla M", muestra "Había 6 → ahora 7" y
+  avisa con icono y texto "Quedan pocas" o "Agotado". El botón de guardar dice lo que va a
+  pasar ("Guardar: salen 2 piezas"). Para lectores de pantalla, cada botón nombra el color y
+  la talla. Vender se ve igual que ajustar, con foto, precio por pieza y total.
+- **Formularios:** los campos obligatorios llevan *. Cada error dice cómo corregirlo (por
+  ejemplo, "El precio debe ser mayor a $0" o "Falta la talla"). Si falta algo, un aviso pide
+  revisar los campos en rojo. En una prenda sin cambios, el botón dice "Sin cambios por
+  guardar". Hay una explicación de tallas y colores y un botón para agregar otra fila al
+  final. La foto aclara que se guarda solo en este teléfono.
+- **Inicio de sesión:** aclara que un empleado no crea tienda, sino que pide su cuenta al
+  administrador. La pantalla de carga dice qué está pasando. Los errores de conexión explican
+  qué hacer.
+- **Ventas, historial y usuarios:** se usan los mismos estados vacíos, precios con formato
+  ($1,250.00) y fechas tipo "Hoy, 14:05". El historial indica con flecha y palabra si las
+  piezas entraron o salieron. Los empleados ya no ven el valor del inventario en Ventas, igual
+  que en el catálogo. En Usuarios, tu propia cuenta explica por qué no se puede editar.
+
 ### 2026-10-08 — todo junto en `develop`; solo quedan `develop` y `master`
 
 A pedido del dueño, se juntó todo el trabajo en una sola rama de preproducción, `develop`:

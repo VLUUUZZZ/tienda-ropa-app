@@ -43,7 +43,11 @@ class _LoginScreenState extends State<LoginScreen> with AsyncSubmit {
 
   Future<void> _resetPassword() async {
     if (_correoCtrl.text.trim().isEmpty) {
-      setState(() => error = 'Escribe tu correo para recuperar la contraseña.');
+      setState(
+        () => error =
+            'Escribe tu correo arriba y vuelve a tocar "¿Olvidaste tu '
+            'contraseña?" para recibir un enlace.',
+      );
       return;
     }
     final correoError = CredentialValidators.email(_correoCtrl.text);
@@ -55,10 +59,10 @@ class _LoginScreenState extends State<LoginScreen> with AsyncSubmit {
       () => widget.auth.sendPasswordReset(_correoCtrl.text),
     );
     if (sent && mounted) {
-      AppSnackBar.info(
+      AppSnackBar.success(
         context,
         'Te enviamos un correo a ${_correoCtrl.text.trim()} para crear una '
-        'contraseña nueva.',
+        'contraseña nueva. Revisa también la carpeta de spam.',
       );
     }
   }
@@ -95,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> with AsyncSubmit {
               const SizedBox(height: 14),
               PasswordField(
                 controller: _passwordCtrl,
-                validator: CredentialValidators.required,
+                validator: CredentialValidators.currentPassword,
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _signIn(),
               ),
@@ -110,10 +114,22 @@ class _LoginScreenState extends State<LoginScreen> with AsyncSubmit {
                 child: const Text('¿Olvidaste tu contraseña?'),
               ),
               const Divider(height: 24),
+              // Employees don't open stores: their account comes from the
+              // store's admin. Said here so nobody creates a second, empty
+              // store by mistake.
+              Text(
+                '¿Eres empleado? Pide tu cuenta al administrador de tu '
+                'tienda. Si eres dueño y aún no tienes tienda, créala aquí:',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: busy ? null : _openNewStore,
                 icon: const Icon(Icons.add_business_outlined),
-                label: const Text('Iniciar nueva tienda'),
+                label: const Text('Crear mi tienda'),
               ),
             ],
           ),

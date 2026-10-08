@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../data/clothing_repository.dart';
 import '../../data/sales_repository.dart';
 import '../../models/clothing_item.dart';
 import '../../models/sale.dart';
+import '../../utils/formato.dart';
+import '../../widgets/color_dot.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/feedback/app_snackbar.dart';
+import '../../widgets/item_avatar.dart';
 import '../../widgets/unsaved_changes_guard.dart';
 
 /// Registers a sale of one or more variants of [item] in one visit: how many
@@ -52,6 +57,7 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
   }
 
   void _adjust(int index, int delta) {
+    HapticFeedback.selectionClick();
     setState(() {
       final max = widget.item.variantes[index].existencia;
       final next = _cantidades[index] + delta;
@@ -80,7 +86,8 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
         if (mounted) {
           AppSnackBar.error(
             context,
-            'Esta prenda ya no existe en el catálogo.',
+            'Esta prenda se eliminó del catálogo (quizá en otro teléfono); '
+            'no se registró la venta.',
           );
         }
         return;
@@ -121,7 +128,8 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
         setState(() => _saving = false);
         AppSnackBar.error(
           context,
-          'Ya no queda existencia suficiente para registrar esta venta.',
+          'Esas piezas ya se vendieron o ajustaron en otro teléfono: no '
+          'queda existencia para esta venta.',
         );
         return;
       }
@@ -131,7 +139,11 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
       } catch (e) {
         if (mounted) {
           setState(() => _saving = false);
-          AppSnackBar.error(context, 'No se pudo registrar la venta.');
+          AppSnackBar.error(
+            context,
+            'No se pudo registrar la venta. Toca "Registrar venta" otra vez '
+            'para reintentar.',
+          );
         }
         return;
       }
@@ -153,7 +165,12 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        AppSnackBar.error(context, 'No se pudo registrar la venta.');
+        // The stock is already taken out: a retry only records what's left.
+        AppSnackBar.error(
+          context,
+          'La existencia ya se descontó, pero falta anotar la venta. Toca '
+          '"Registrar venta" otra vez para terminar.',
+        );
       }
       return;
     }
@@ -171,7 +188,9 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final variantes = widget.item.variantes;
+    final item = widget.item;
 
     // Group variant indices by color, preserving first-seen order — same as
     // QuickStockScreen.
@@ -195,57 +214,103 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
       busy: _saving,
       busyMessage: 'Espera a que termine de registrar la venta.',
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            widget.item.nombre.isEmpty ? 'Registrar venta' : widget.item.nombre,
-          ),
-        ),
+        appBar: AppBar(title: const Text('Registrar venta')),
         body: variantes.isEmpty
             ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    'Esta prenda no tiene colores ni tallas registradas.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: colorScheme.outline),
-                  ),
+                child: EmptyState(
+                  icon: Icons.layers_outlined,
+                  title: 'Sin tallas ni colores',
+                  message:
+                      'Esta prenda no tiene colores ni tallas registradas, '
+                      'así que no hay piezas que vender.',
+                  actionLabel: 'Volver al catálogo',
+                  actionIcon: Icons.arrow_back_rounded,
+                  onAction: () => Navigator.of(context).pop(),
                 ),
               )
             : ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
                 children: [
-                  for (final color in colores) ...[
-                    Text(
-                      color,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                  Row(
+                    children: [
+                      ItemAvatar(
+                        nombre: item.nombre,
+                        size: 60,
+                        photoPath: widget.repo.photoPathFor(item.id),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
+                      const SizedBox(width: 16),
+                      Expanded(
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            for (final i in indicesPorColor[color]!)
-                              _SaleVariantRow(
-                                variant: variantes[i],
-                                cantidad: _cantidades[i],
-                                onDecrement: () => _adjust(i, -1),
-                                onIncrement: () => _adjust(i, 1),
+                            Text(
+                              item.nombre.isEmpty
+                                  ? '(sin nombre)'
+                                  : item.nombre,
+                              style: textTheme.titleLarge,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${formatoPrecio(item.precio)} por pieza',
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
                               ),
+                            ),
                           ],
                         ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Toca + en el color y la talla que se llevan. La '
+                    'existencia se descuenta al tocar "Registrar venta".',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
                     ),
-                    const SizedBox(height: 16),
+                  ),
+                  const SizedBox(height: 20),
+                  for (final color in colores) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Row(
+                        children: [
+                          ColorDot(nombre: color, size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(color, style: textTheme.titleMedium),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Card(
+                      child: Column(
+                        children: [
+                          for (final (n, i)
+                              in indicesPorColor[color]!.indexed) ...[
+                            if (n > 0) const Divider(indent: 20, endIndent: 20),
+                            _SaleVariantRow(
+                              variant: variantes[i],
+                              color: color,
+                              cantidad: _cantidades[i],
+                              onDecrement: () => _adjust(i, -1),
+                              onIncrement: () => _adjust(i, 1),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                   ],
                 ],
               ),
         bottomNavigationBar: variantes.isEmpty
             ? null
             : SafeArea(
-                minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -254,15 +319,14 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '$_totalPiezas pieza${_totalPiezas == 1 ? '' : 's'}',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                            'Total · ${formatoPiezas(_totalPiezas)}',
+                            style: textTheme.titleSmall,
                           ),
                           Text(
-                            '\$${_totalPrecio.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 18,
+                            formatoPrecio(_totalPrecio),
+                            style: textTheme.titleLarge?.copyWith(
                               color: colorScheme.primary,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ],
@@ -280,7 +344,13 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
                               ),
                             )
                           : const Icon(Icons.point_of_sale_rounded),
-                      label: const Text('Registrar venta'),
+                      label: Text(
+                        _saving
+                            ? 'Registrando…'
+                            : _hasChanges
+                            ? 'Registrar venta'
+                            : 'Elige con + cuántas piezas se venden',
+                      ),
                     ),
                   ],
                 ),
@@ -292,12 +362,14 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
 
 class _SaleVariantRow extends StatelessWidget {
   final ClothingVariant variant;
+  final String color;
   final int cantidad;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
 
   const _SaleVariantRow({
     required this.variant,
+    required this.color,
     required this.cantidad,
     required this.onDecrement,
     required this.onIncrement,
@@ -306,48 +378,83 @@ class _SaleVariantRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final agotado = variant.existencia <= 0;
+    final talla = variant.talla.isEmpty ? '(sin talla)' : variant.talla;
+    final descripcion = 'talla $talla, color $color';
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              variant.talla.isEmpty ? '(sin talla)' : variant.talla,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Talla $talla', style: textTheme.titleMedium),
+                Row(
+                  children: [
+                    if (agotado) ...[
+                      Icon(
+                        Icons.remove_shopping_cart_outlined,
+                        size: 14,
+                        color: colorScheme.error,
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    Text(
+                      agotado
+                          ? 'Agotado'
+                          : 'Hay ${formatoPiezas(variant.existencia)}',
+                      style: textTheme.labelMedium?.copyWith(
+                        color: agotado
+                            ? colorScheme.error
+                            : colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Text(
-              agotado ? 'AGOTADO' : '${variant.existencia} en stock',
-              style: TextStyle(
-                color: agotado ? colorScheme.error : colorScheme.outline,
-                fontWeight: agotado ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 12,
-              ),
+          Container(
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(100),
             ),
-          ),
-          IconButton.filledTonal(
-            icon: const Icon(Icons.remove_rounded),
-            tooltip: 'Quitar una de esta venta',
-            onPressed: cantidad > 0 ? onDecrement : null,
-            visualDensity: VisualDensity.compact,
-          ),
-          ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 32),
-            child: Text(
-              '$cantidad',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            padding: const EdgeInsets.all(4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.remove_rounded),
+                  tooltip: 'Vender una pieza menos de $descripcion',
+                  onPressed: cantidad > 0 ? onDecrement : null,
+                ),
+                SizedBox(
+                  width: 40,
+                  child: Semantics(
+                    liveRegion: true,
+                    label:
+                        'Vendiendo ${formatoPiezas(cantidad)} de $descripcion',
+                    excludeSemantics: true,
+                    child: Text(
+                      '$cantidad',
+                      textAlign: TextAlign.center,
+                      style: textTheme.titleLarge?.copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton.filled(
+                  icon: const Icon(Icons.add_rounded),
+                  tooltip: 'Vender una pieza más de $descripcion',
+                  onPressed: cantidad < variant.existencia ? onIncrement : null,
+                ),
+              ],
             ),
-          ),
-          IconButton.filledTonal(
-            icon: const Icon(Icons.add_rounded),
-            tooltip: 'Agregar una a esta venta',
-            onPressed: cantidad < variant.existencia ? onIncrement : null,
-            visualDensity: VisualDensity.compact,
           ),
         ],
       ),

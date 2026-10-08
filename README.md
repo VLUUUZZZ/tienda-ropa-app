@@ -23,7 +23,7 @@ cambio que el rol no permita.
 
 ## Cómo se usa
 
-1. **Abrir la tienda.** El dueño toca *Iniciar nueva tienda*, escribe su nombre, correo y
+1. **Abrir la tienda.** El dueño toca *Crear mi tienda*, escribe su nombre, correo y
    contraseña, y queda como administrador de su tienda. Cada tienda está aislada: su
    catálogo y su personal solo los ven sus miembros.
 2. **Registrar prendas.** Con el botón **+** se crea una prenda: nombre, precio y sus
