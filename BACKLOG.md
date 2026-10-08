@@ -40,6 +40,20 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-10-08 (1) — sesión de pulido diaria
+
+No había tareas pendientes, así que la sesión revisó a fondo el código ya existente
+(incluyendo con ayuda de una revisión automática enfocada en la capa de sincronización) en
+busca de errores reales, no de funciones nuevas.
+
+1. Al resolver dos prendas creadas con el mismo código por dos teléfonos sin internet (caso
+   descrito en el punto 3 de "Pendiente"), la prenda que pasaba a un código nuevo perdía su
+   foto: quedaba guardada bajo el código viejo, que ya no existía en el catálogo, y la
+   limpieza automática de fotos huérfanas la borraba la próxima vez que se abría la app.
+   Ahora la foto se mueve junto con la prenda a su nuevo código.
+
+Verificado con flutter analyze (0 avisos).
+
 ### 2026-10-07 (4), a pedido del dueño — "Robustece el código" (continuación)
 
 Cuarta ronda de la misma tarea, revisando el arranque de la app, el guardado local y las

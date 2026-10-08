@@ -112,6 +112,7 @@ class ClothingRepository {
       state: _syncState,
       remote: remote,
       backoff: Backoff(initial: _initialRetryDelay, max: _maxRetryDelay),
+      photos: _photos,
     )..start();
   }
 
