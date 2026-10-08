@@ -1,16 +1,19 @@
-# tienda_ropa_app
+# Tienda de Ropa
 
-A new Flutter project.
+App de catálogo para una tienda de ropa: control de existencia por color y
+talla, código QR para identificar cada prenda, registro de ventas y ajustes
+de existencia, con roles de Administrador y Empleado.
 
-## Getting Started
+- Almacenamiento local con [Hive](https://pub.dev/packages/hive); con
+  Firebase configurado (`lib/firebase_options.dart`), cada tienda sincroniza
+  su catálogo, ventas y ajustes entre varios teléfonos.
+- Sin Firebase configurado, la app funciona solo en este teléfono, sin inicio
+  de sesión.
+- Ver `BACKLOG.md` para el historial de cambios y las tareas pendientes.
 
-This project is a starting point for a Flutter application.
+## Para desarrollar
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```
+flutter pub get
+flutter analyze
+```
