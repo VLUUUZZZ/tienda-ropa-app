@@ -19,6 +19,31 @@ Agrega aquí las tareas que quieres que se trabajen en la sesión automática di
 
 ## Completado
 
+### 2026-10-08 — interfaz modernizada (rama `claude/como-ves-la-app-g73nn7`)
+
+Pedido del usuario: modernizar la UI. Verificado con `flutter analyze`, `flutter build web`,
+41 pruebas (lógica, sincronización, formulario y capturas en claro/oscuro, en copia aparte).
+
+- Tipografía **Plus Jakarta Sans** incluida en la app (`assets/fonts/`, licencia SIL OFL 1.1
+  en `assets/fonts/OFL.txt`, registrada en la página de licencias); no depende de internet.
+- Tema: esquinas más amplias (`Radii`), botones en píldora, campos con borde fino, barra de
+  búsqueda M3, avisos y menús redondeados, transiciones de pantalla modernas (Android:
+  fade-forwards; iOS: deslizamiento nativo).
+- Pantalla principal: saludo + nombre de la tienda + avatar con iniciales (menú de
+  cuenta); buscador en píldora; tarjeta destacada con el valor del inventario y una fila
+  de prendas/piezas/agotadas; filtros en píldora con conteo; tarjetas con avatar de
+  iniciales, precio destacado, código, insignia de existencia y colores superpuestos;
+  estado vacío con explicación y botón "Agregar prenda".
+- Ajuste rápido: encabezado con la prenda y el total (marca lo que está sin guardar),
+  control "− número +" en píldora con vibración al tocar y número animado, botón
+  "Guardar cambios" fijo abajo.
+- Ficha de prenda: código como chip (abre el QR), secciones "Información" y "Tallas y
+  colores", muestra del color dentro del campo, "Agotado" por fila, opciones de
+  ajustar/eliminar en el menú ⋮, botón de guardar fijo abajo.
+- Escáner: marco de enfoque con esquinas y la indicación "Apunta al código QR de la
+  etiqueta" (la detección sigue usando toda la imagen, que es más confiable).
+- Inicio de sesión y tienda nueva: marca de la app en mosaico terracota y títulos grandes.
+
 ### 2026-10-08 — integración de `master` (Rondas 2–8)
 
 Las Rondas 2–8 se subieron a `master` mientras el PR #1 seguía abierto, así que ambos lados

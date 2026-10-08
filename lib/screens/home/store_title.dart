@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../auth/app_user.dart';
 import '../../widgets/role_badge.dart';
 
-/// The store's name, and who is in with their role next to it.
+/// The store's name, with a greeting to whoever is in and their role.
 class StoreTitle extends StatelessWidget {
   const StoreTitle({super.key, required this.user});
 
@@ -11,31 +11,38 @@ class StoreTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tienda = user.tienda;
-    if (tienda == null) return const Text('Tienda de Ropa');
-
+    final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
+    final tienda = user.tienda;
+    final nombre = user.nombre.trim().split(RegExp(r'\s+')).first;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(tienda.nombre, maxLines: 1, overflow: TextOverflow.ellipsis),
-        Row(
-          children: [
-            Flexible(
-              child: Text(
-                user.nombre,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: colorScheme.onSurfaceVariant,
+        if (tienda != null)
+          Row(
+            children: [
+              Flexible(
+                child: Text(
+                  nombre.isEmpty ? 'Hola' : 'Hola, $nombre',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 6),
-            RoleBadge(role: user.role),
-          ],
+              const SizedBox(width: 8),
+              RoleBadge(role: user.role),
+            ],
+          ),
+        Text(
+          tienda?.nombre ?? 'Tienda de Ropa',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: textTheme.headlineSmall,
         ),
       ],
     );

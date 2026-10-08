@@ -13,12 +13,12 @@ class RoleBadge extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final isAdmin = role == UserRole.admin;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
         color: isAdmin
             ? colorScheme.primaryContainer
             : colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(100),
       ),
       child: Text(
         role.label,

@@ -34,8 +34,15 @@ class _ScannerScreenState extends State<ScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
         title: const Text('Escanear prenda'),
+        titleTextStyle: Theme.of(
+          context,
+        ).textTheme.titleLarge?.copyWith(color: Colors.white),
         actions: [
           ValueListenableBuilder(
             valueListenable: _controller,
@@ -52,16 +59,137 @@ class _ScannerScreenState extends State<ScannerScreen> {
               );
             },
           ),
+          const SizedBox(width: 8),
         ],
       ),
-      body: MobileScanner(
-        controller: _controller,
-        onDetect: _onDetect,
-        errorBuilder: (context, error, child) =>
-            _ScannerError(error: error, onRetry: () => _controller.start()),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          MobileScanner(
+            controller: _controller,
+            onDetect: _onDetect,
+            errorBuilder: (context, error, child) =>
+                _ScannerError(error: error, onRetry: () => _controller.start()),
+          ),
+          // The frame only guides aiming: detection still uses the whole
+          // picture, which reads codes more reliably on more phones.
+          ValueListenableBuilder(
+            valueListenable: _controller,
+            builder: (context, state, _) => state.error != null
+                ? const SizedBox.shrink()
+                : const IgnorePointer(child: _ScanFrame()),
+          ),
+        ],
       ),
     );
   }
+}
+
+/// Darkens everything but a rounded square in the middle, outlines its
+/// corners, and says what to do.
+class _ScanFrame extends StatelessWidget {
+  const _ScanFrame();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final side = (constraints.biggest.shortestSide * 0.7).clamp(
+          180.0,
+          320.0,
+        );
+        final window = Rect.fromCenter(
+          center: constraints.biggest.center(Offset.zero),
+          width: side,
+          height: side,
+        );
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: CustomPaint(painter: _ScanFramePainter(window)),
+            ),
+            Positioned(
+              left: 24,
+              right: 24,
+              top: window.bottom + 28,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Text(
+                    'Apunta al código QR de la etiqueta',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelLarge?.copyWith(color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ScanFramePainter extends CustomPainter {
+  _ScanFramePainter(this.window);
+
+  final Rect window;
+
+  static const double _radius = 28;
+  static const double _corner = 36;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final hole = RRect.fromRectAndRadius(
+      window,
+      const Radius.circular(_radius),
+    );
+    canvas.drawPath(
+      Path.combine(
+        PathOperation.difference,
+        Path()..addRect(Offset.zero & size),
+        Path()..addRRect(hole),
+      ),
+      Paint()..color = Colors.black.withValues(alpha: 0.55),
+    );
+
+    final stroke = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+    final r = window;
+    // One rounded corner bracket per corner of the window.
+    for (final (corner, dx, dy) in [
+      (r.topLeft, 1.0, 1.0),
+      (r.topRight, -1.0, 1.0),
+      (r.bottomLeft, 1.0, -1.0),
+      (r.bottomRight, -1.0, -1.0),
+    ]) {
+      final path = Path()
+        ..moveTo(corner.dx, corner.dy + dy * _corner)
+        ..lineTo(corner.dx, corner.dy + dy * _radius)
+        ..arcToPoint(
+          Offset(corner.dx + dx * _radius, corner.dy),
+          radius: const Radius.circular(_radius),
+          clockwise: dx * dy > 0,
+        )
+        ..lineTo(corner.dx + dx * _corner, corner.dy);
+      canvas.drawPath(path, stroke);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ScanFramePainter old) => old.window != window;
 }
 
 class _ScannerError extends StatelessWidget {

@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 import '../auth/app_user.dart';
 import '../auth/user_directory.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
-import '../utils/formato.dart';
 import '../widgets/snackbars.dart';
-import '../widgets/stock_badge.dart';
 import 'home/account_menu.dart';
+import 'home/catalog_filters.dart';
+import 'home/catalog_hero.dart';
 import 'home/clothing_card.dart';
+import 'home/empty_catalog.dart';
+import 'home/scanned_item_sheet.dart';
 import 'home/store_title.dart';
 import 'item_form_screen.dart';
 import 'quick_stock_screen.dart';
@@ -53,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// What the list shows: [_all] narrowed by the search box and [_filtro].
   List<ClothingItem> _items = [];
-  _Filtro _filtro = _Filtro.todas;
+  CatalogFilter _filtro = CatalogFilter.todas;
 
   @override
   void initState() {
@@ -108,35 +111,28 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _setFiltro(_Filtro filtro) {
+  void _setFiltro(CatalogFilter filtro) {
     _filtro = filtro;
     _reload();
   }
 
   void _showSavedSnackBar() {
-    // Explicit colors instead of the default SnackBar look: the default
-    // background flips between dark (light theme) and light (dark theme),
-    // so a hardcoded white icon would turn invisible in dark mode.
+    HapticFeedback.lightImpact();
     final colorScheme = Theme.of(context).colorScheme;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
             Icon(
-              Icons.check_circle_outline,
-              color: colorScheme.onInverseSurface,
+              Icons.check_circle_rounded,
+              color: colorScheme.inversePrimary,
               size: 20,
             ),
-            const SizedBox(width: 8),
-            Text(
-              'Cambios guardados',
-              style: TextStyle(color: colorScheme.onInverseSurface),
-            ),
+            const SizedBox(width: 10),
+            const Text('Cambios guardados'),
           ],
         ),
-        backgroundColor: colorScheme.inverseSurface,
         duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -227,15 +223,15 @@ class _HomeScreenState extends State<HomeScreen> {
     // Employees can only adjust stock, so there's nothing to choose.
     if (!widget.user.canEditCatalog) return _quickEditStock(existing);
 
-    final action = await showModalBottomSheet<_ScanAction>(
+    final action = await showModalBottomSheet<ScanAction>(
       context: context,
-      builder: (_) => _ScannedItemSheet(item: existing),
+      builder: (_) => ScannedItemSheet(item: existing),
     );
     if (!mounted) return;
     switch (action) {
-      case _ScanAction.stock:
+      case ScanAction.stock:
         await _quickEditStock(existing);
-      case _ScanAction.details:
+      case ScanAction.details:
         await _openItem(existing);
       case null:
         break;
@@ -270,344 +266,160 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool get _canOpenUsers => widget.users != null && widget.user.canManageUsers;
 
-  String get _emptyMessage {
+  Widget _emptyState() {
     if (_searchCtrl.text.trim().isNotEmpty) {
-      return 'No hay prendas que coincidan.';
+      return EmptyCatalog(
+        icon: Icons.search_off_rounded,
+        title: 'Sin resultados',
+        message:
+            'Ninguna prenda coincide con "${_searchCtrl.text.trim()}". '
+            'Prueba con el código, un color o una talla.',
+      );
     }
-    if (_filtro != _Filtro.todas && _all.isNotEmpty) {
-      return _filtro.emptyMessage;
+    if (_filtro != CatalogFilter.todas && _all.isNotEmpty) {
+      return EmptyCatalog(
+        icon: Icons.check_circle_outline_rounded,
+        title: 'Todo en orden',
+        message: _filtro.emptyMessage,
+      );
     }
-    return widget.user.canEditCatalog
-        ? 'Aún no hay prendas registradas.\nAgrega la primera con el botón +.'
-        : 'Aún no hay prendas registradas.';
+    final canAdd = widget.user.canEditCatalog;
+    return EmptyCatalog(
+      icon: Icons.checkroom_rounded,
+      title: 'Tu catálogo está vacío',
+      message: canAdd
+          ? 'Agrega tu primera prenda; después imprime su código QR y '
+                'pégalo en la etiqueta.'
+          : 'Cuando un administrador agregue prendas aparecerán aquí.',
+      actionLabel: canAdd ? 'Agregar prenda' : null,
+      onAction: canAdd ? () => _once(_addManually) : null,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasCatalog = _all.isNotEmpty;
+
     return Scaffold(
-      appBar: AppBar(
-        title: StoreTitle(user: widget.user),
-        actions: [
-          IconButton(
-            icon: Icon(
-              widget.isDarkMode
-                  ? Icons.light_mode_outlined
-                  : Icons.dark_mode_outlined,
-            ),
-            tooltip: widget.isDarkMode ? 'Tema claro' : 'Tema oscuro',
-            onPressed: widget.onToggleTheme,
-          ),
-          if (widget.onSignOut case final onSignOut?)
-            AccountMenu(
-              user: widget.user,
-              onManageUsers: _canOpenUsers
-                  ? () => _openUsers(widget.users!)
-                  : null,
-              onSignOut: onSignOut,
-            ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: TextField(
-              controller: _searchCtrl,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: 'Buscar por nombre, código, color o talla',
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: _searchCtrl.text.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear_rounded),
-                        tooltip: 'Limpiar búsqueda',
-                        onPressed: () => _searchCtrl.clear(),
-                      ),
-              ),
-            ),
-          ),
-          if (_all.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _CatalogSummary(
-                items: _all,
-                showValue: widget.user.canEditCatalog,
-              ),
-            ),
-            _FilterBar(selected: _filtro, all: _all, onSelected: _setFiltro),
-          ],
-          Expanded(
-            child: _items.isEmpty
-                ? _EmptyState(message: _emptyMessage)
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 104),
-                    itemCount: _items.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) => ClothingCard(
-                      item: _items[index],
-                      onTap: () => _once(() => _openItem(_items[index])),
-                      onQuickEdit: () =>
-                          _once(() => _quickEditStock(_items[index])),
-                    ),
+      body: SafeArea(
+        bottom: false,
+        child: CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              pinned: true,
+              toolbarHeight: 76,
+              titleSpacing: 20,
+              title: StoreTitle(user: widget.user),
+              actions: [
+                IconButton(
+                  icon: Icon(
+                    widget.isDarkMode
+                        ? Icons.light_mode_outlined
+                        : Icons.dark_mode_outlined,
                   ),
-          ),
-        ],
+                  tooltip: widget.isDarkMode ? 'Tema claro' : 'Tema oscuro',
+                  onPressed: widget.onToggleTheme,
+                ),
+                if (widget.onSignOut case final onSignOut?)
+                  AccountMenu(
+                    user: widget.user,
+                    onManageUsers: _canOpenUsers
+                        ? () => _openUsers(widget.users!)
+                        : null,
+                    onSignOut: onSignOut,
+                  ),
+                const SizedBox(width: 12),
+              ],
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                child: SearchBar(
+                  controller: _searchCtrl,
+                  hintText: 'Buscar por nombre, código, color o talla',
+                  leading: const Icon(Icons.search_rounded),
+                  textInputAction: TextInputAction.search,
+                  onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                  trailing: [
+                    if (_searchCtrl.text.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded),
+                        tooltip: 'Limpiar búsqueda',
+                        onPressed: _searchCtrl.clear,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            if (hasCatalog) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: CatalogHero(
+                    items: _all,
+                    showValue: widget.user.canEditCatalog,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16, bottom: 4),
+                  child: CatalogFilterBar(
+                    selected: _filtro,
+                    all: _all,
+                    onSelected: _setFiltro,
+                  ),
+                ),
+              ),
+            ],
+            if (_items.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: _emptyState()),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+                sliver: SliverList.separated(
+                  itemCount: _items.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final item = _items[index];
+                    return ClothingCard(
+                      key: ValueKey(item.id),
+                      item: item,
+                      onTap: () => _once(() => _openItem(item)),
+                      onQuickEdit: () => _once(() => _quickEditStock(item)),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
       ),
       floatingActionButton: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (widget.user.canEditCatalog) ...[
+            FloatingActionButton(
+              heroTag: 'add',
+              onPressed: () => _once(_addManually),
+              tooltip: 'Agregar prenda',
+              backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+              foregroundColor: Theme.of(
+                context,
+              ).colorScheme.onSecondaryContainer,
+              child: const Icon(Icons.add_rounded),
+            ),
+            const SizedBox(width: 12),
+          ],
           FloatingActionButton.extended(
             heroTag: 'scan',
             onPressed: () => _once(_scan),
             icon: const Icon(Icons.qr_code_scanner_rounded),
             label: const Text('Escanear'),
           ),
-          if (widget.user.canEditCatalog) ...[
-            const SizedBox(width: 12),
-            FloatingActionButton(
-              heroTag: 'add',
-              onPressed: () => _once(_addManually),
-              tooltip: 'Agregar prenda',
-              child: const Icon(Icons.add_rounded),
-            ),
-          ],
         ],
-      ),
-    );
-  }
-}
-
-enum _ScanAction { stock, details }
-
-/// What to do with a garment just scanned: at the counter it's usually a
-/// stock change, so that comes first.
-class _ScannedItemSheet extends StatelessWidget {
-  const _ScannedItemSheet({required this.item});
-
-  final ClothingItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              item.nombre.isEmpty ? '(sin nombre)' : item.nombre,
-              style: textTheme.titleLarge,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${item.id} · ${formatoPrecio(item.precio)}',
-              style: textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: StockBadge(existencia: item.existenciaTotal),
-            ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: item.variantes.isEmpty
-                  ? null
-                  : () => Navigator.pop(context, _ScanAction.stock),
-              icon: const Icon(Icons.tune_rounded),
-              label: const Text('Ajustar existencia'),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.pop(context, _ScanAction.details),
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('Ver ficha completa'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-enum _Filtro {
-  todas('Todas', ''),
-  poca('Poca existencia', 'No hay prendas con poca existencia.'),
-  agotadas('Agotadas', 'No hay prendas agotadas.');
-
-  const _Filtro(this.label, this.emptyMessage);
-
-  final String label;
-  final String emptyMessage;
-
-  bool includes(ClothingItem item) => switch (this) {
-    _Filtro.todas => true,
-    _Filtro.poca => item.nivelExistencia == StockLevel.poca,
-    _Filtro.agotadas => item.nivelExistencia == StockLevel.agotado,
-  };
-}
-
-/// Todas / Poca existencia / Agotadas, each with how many garments it holds.
-class _FilterBar extends StatelessWidget {
-  const _FilterBar({
-    required this.selected,
-    required this.all,
-    required this.onSelected,
-  });
-
-  final _Filtro selected;
-  final List<ClothingItem> all;
-  final ValueChanged<_Filtro> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-      child: Row(
-        children: [
-          for (final filtro in _Filtro.values) ...[
-            ChoiceChip(
-              label: Text(
-                '${filtro.label} (${all.where(filtro.includes).length})',
-              ),
-              selected: filtro == selected,
-              showCheckmark: false,
-              onSelected: (_) => onSelected(filtro),
-            ),
-            const SizedBox(width: 8),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// At-a-glance totals for the whole catalog. The money figure is only for
-/// roles that manage the catalog.
-class _CatalogSummary extends StatelessWidget {
-  const _CatalogSummary({required this.items, required this.showValue});
-
-  final List<ClothingItem> items;
-  final bool showValue;
-
-  @override
-  Widget build(BuildContext context) {
-    final piezas = items.fold(0, (sum, i) => sum + i.existenciaTotal);
-    final agotadas = items
-        .where((i) => i.nivelExistencia == StockLevel.agotado)
-        .length;
-    final valor = items.fold(0.0, (sum, i) => sum + i.valorInventario);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: SizedBox(
-          height: 52,
-          child: Row(
-            children: [
-              _Stat(label: 'Prendas', value: '${items.length}'),
-              const VerticalDivider(),
-              _Stat(label: 'Piezas', value: '$piezas'),
-              const VerticalDivider(),
-              showValue
-                  ? _Stat(label: 'Valor', value: formatoPrecio(valor))
-                  : _Stat(label: 'Agotadas', value: '$agotadas'),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Expanded(
-      child: Semantics(
-        label: '$label: $value',
-        excludeSemantics: true,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  value,
-                  style: textTheme.titleLarge?.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: textTheme.labelMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withValues(alpha: 0.5),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.checkroom_rounded,
-                size: 44,
-                color: colorScheme.onPrimaryContainer,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

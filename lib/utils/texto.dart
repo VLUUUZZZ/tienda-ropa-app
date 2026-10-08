@@ -11,3 +11,13 @@ String normalizar(String input) {
   }
   return buffer.toString();
 }
+
+/// Up to two capital letters from a name, e.g. "Playera Básica" → "PB",
+/// for avatars. Empty when the name has no letters to take.
+String iniciales(String nombre) => nombre
+    .trim()
+    .split(RegExp(r'\s+'))
+    .where((w) => w.isNotEmpty)
+    .take(2)
+    .map((w) => String.fromCharCode(w.runes.first).toUpperCase())
+    .join();

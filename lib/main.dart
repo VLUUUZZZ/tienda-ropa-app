@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app_theme.dart';
@@ -15,7 +16,18 @@ import 'screens/home_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   _installErrorHandlers();
+  _registerFontLicense();
   await _start();
+}
+
+/// The bundled typeface's license (SIL OFL 1.1), listed with the others in
+/// the app's license page as the license requires.
+void _registerFontLicense() {
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'Plus Jakarta Sans',
+    ], await rootBundle.loadString('assets/fonts/OFL.txt'));
+  });
 }
 
 /// Opens storage and the backend, then shows the app. If any of that fails
