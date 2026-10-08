@@ -51,6 +51,10 @@ busca de errores reales, no de funciones nuevas.
    foto: quedaba guardada bajo el código viejo, que ya no existía en el catálogo, y la
    limpieza automática de fotos huérfanas la borraba la próxima vez que se abría la app.
    Ahora la foto se mueve junto con la prenda a su nuevo código.
+2. Si la lista de "Usuarios" fallaba al cargar (por ejemplo, justo después de iniciar
+   sesión, antes de que el servidor reconociera el permiso), se quedaba mostrando "No se
+   pudo cargar la lista." para siempre, sin forma de reintentar salvo salir y volver a
+   entrar a la pantalla. Ahora tiene un botón "Reintentar".
 
 Verificado con flutter analyze (0 avisos).
 
