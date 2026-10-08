@@ -55,6 +55,11 @@ busca de errores reales, no de funciones nuevas.
    sesión, antes de que el servidor reconociera el permiso), se quedaba mostrando "No se
    pudo cargar la lista." para siempre, sin forma de reintentar salvo salir y volver a
    entrar a la pantalla. Ahora tiene un botón "Reintentar".
+3. Ajuste rápido de existencia: si otra persona vendía o ajustaba la misma combinación
+   color/talla justo antes de guardar, el servidor nunca deja bajar la existencia de cero,
+   pero el historial de ajustes seguía registrando el número que se había tocado en pantalla,
+   no el que realmente se aplicó. Ahora el historial registra el cambio real, y se avisa en
+   pantalla cuando el número aplicado terminó siendo menor al pedido.
 
 Verificado con flutter analyze (0 avisos).
 
