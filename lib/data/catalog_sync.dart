@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../models/clothing_item.dart';
 import 'backoff.dart';
 import 'local_catalog.dart';
+import 'local_photos.dart';
 import 'remote_catalog.dart';
 import 'sync_state.dart';
 
@@ -23,15 +24,18 @@ class CatalogSync {
     required SyncState state,
     required RemoteCatalog remote,
     required Backoff backoff,
+    required LocalPhotos photos,
   }) : _local = local,
        _state = state,
        _remote = remote,
-       _backoff = backoff;
+       _backoff = backoff,
+       _photos = photos;
 
   final LocalCatalog _local;
   final SyncState _state;
   final RemoteCatalog _remote;
   final Backoff _backoff;
+  final LocalPhotos _photos;
 
   StreamSubscription<void>? _subscription;
   Timer? _retryTimer;
@@ -153,6 +157,15 @@ class CatalogSync {
     );
     await _local.write(renamed);
     await _local.remove(id);
+    // This device's photo for the garment is keyed by its old id (never
+    // synced, see LocalPhotos): without moving it here, it would look
+    // orphaned (no such id in the catalog any more) and get deleted by
+    // ClothingRepository's startup cleanup the next time the app opens.
+    final photoPath = _photos.pathFor(id);
+    if (photoPath != null) {
+      await _photos.setPath(newId, photoPath);
+      await _photos.remove(id);
+    }
     await _state.markLocallyMinted(newId);
     await _state.markPending(newId);
     debugPrint(
