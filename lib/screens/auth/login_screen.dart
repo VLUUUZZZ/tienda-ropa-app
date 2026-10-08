@@ -108,7 +108,12 @@ class _LoginScreenState extends State<LoginScreen> with AsyncSubmit {
                 ErrorText(error!),
               ],
               const SizedBox(height: 20),
-              BusyButton(label: 'Entrar', busy: busy, onPressed: _signIn),
+              BusyButton(
+                label: 'Entrar',
+                busyLabel: 'Entrando…',
+                busy: busy,
+                onPressed: _signIn,
+              ),
               TextButton(
                 onPressed: busy ? null : _resetPassword,
                 child: const Text('¿Olvidaste tu contraseña?'),

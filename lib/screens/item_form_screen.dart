@@ -12,6 +12,7 @@ import '../models/stock_adjustment.dart';
 import '../utils/formato.dart';
 import '../widgets/feedback/app_snackbar.dart';
 import '../widgets/feedback/confirm_dialog.dart';
+import '../widgets/progress_button.dart';
 import '../widgets/unsaved_changes_guard.dart';
 import 'item_form/photo_picker.dart';
 import 'item_form/variant_row.dart';
@@ -59,6 +60,10 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   bool _dirty = false;
   bool _saving = false;
   bool _deleting = false;
+
+  /// Saved: the button shows its check for a moment before the screen
+  /// closes.
+  bool _saved = false;
   late final TextEditingController _codigoProveedorCtrl;
 
   /// A save or a delete is already running: every other action that could
@@ -143,10 +148,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         context,
         icon: Icons.layers_clear_outlined,
         destructive: true,
-        title: '¿Quitar $color / $talla?',
+        title: 'Quitar $color / $talla',
         message:
-            'Todavía tiene ${formatoPiezas(row.existenciaValue)}. Al guardar, '
-            'esta combinación y sus piezas dejarán de estar en el catálogo.',
+            '¿Seguro que quieres quitar $color / $talla? Todavía tiene '
+            '${formatoPiezas(row.existenciaValue)}; al guardar, esta '
+            'combinación y sus piezas dejarán de estar en el catálogo.',
         confirmLabel: 'Quitar',
       );
       if (!confirmed || !mounted || !_variantes.contains(row)) return;
@@ -300,7 +306,12 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
     if (!widget.isNew) _logStockChanges(before, updated);
     if (!mounted) return;
-    _dirty = false;
+    setState(() {
+      _dirty = false;
+      _saved = true;
+    });
+    await Future<void>.delayed(ProgressButton.doneHold);
+    if (!mounted) return;
     Navigator.of(
       context,
     ).pop<ItemFormResult>((outcome: ItemFormOutcome.saved, item: updated));
@@ -360,10 +371,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         context,
         icon: Icons.edit_off_outlined,
         destructive: true,
-        title: '¿Descartar los cambios de la ficha?',
+        title: 'Descartar cambios de la ficha',
         message:
-            'Para ajustar la existencia se usa lo último guardado. Los cambios '
-            'que hiciste aquí y aún no guardas se perderán.',
+            '¿Seguro que quieres continuar? Para ajustar la existencia se usa '
+            'lo último guardado: los cambios que hiciste aquí y aún no '
+            'guardas se perderán.',
         confirmLabel: 'Descartar y ajustar',
       );
       if (!discard || !mounted) return;
@@ -398,15 +410,19 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     if (_busy) return;
     final nombre = _nombreCtrl.text.trim().isEmpty
         ? 'esta prenda'
-        : '"${_nombreCtrl.text.trim()}"';
+        : '«${_nombreCtrl.text.trim()}»';
+    final stored = widget.repo.getById(widget.item.id) ?? widget.item;
+    final combinaciones = stored.variantes.length;
     final confirm = await confirmAction(
       context,
       icon: Icons.delete_outline_rounded,
       destructive: true,
-      title: '¿Eliminar la prenda?',
+      title: 'Eliminar prenda',
       message:
-          'Se quitará $nombre del catálogo en todos los teléfonos de la '
-          'tienda. Podrás deshacerlo durante unos segundos.',
+          '¿Seguro que quieres eliminar $nombre? '
+          '${combinaciones == 0 ? '' : 'Esta acción eliminará también sus ${combinaciones == 1 ? 'tallas y colores' : '$combinaciones combinaciones de talla y color'} (${formatoPiezas(stored.existenciaTotal)}). '}'
+          'Desaparecerá de todos los teléfonos de la tienda; podrás '
+          'deshacerlo durante unos segundos.',
       confirmLabel: 'Eliminar',
     );
     if (!confirm || !mounted) return;
@@ -630,26 +646,22 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         ),
         bottomNavigationBar: SafeArea(
           minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-          child: FilledButton.icon(
+          child: ProgressButton(
+            state: _saved
+                ? ProgressState.done
+                : _saving
+                ? ProgressState.busy
+                : ProgressState.idle,
+            icon: Icons.check_rounded,
             // An existing garment with nothing changed has nothing to save:
             // the disabled button itself says so.
             onPressed: _busy || (isExisting && !_dirty) ? null : _save,
-            icon: _saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.check_rounded),
-            label: Text(
-              widget.isNew
-                  ? 'Guardar prenda'
-                  : _saving
-                  ? 'Guardando…'
-                  : _dirty
-                  ? 'Guardar cambios'
-                  : 'Sin cambios por guardar',
-            ),
+            label: widget.isNew
+                ? 'Guardar prenda'
+                : _dirty
+                ? 'Guardar cambios'
+                : 'Sin cambios por guardar',
+            doneLabel: widget.isNew ? 'Prenda guardada' : 'Cambios guardados',
           ),
         ),
       ),

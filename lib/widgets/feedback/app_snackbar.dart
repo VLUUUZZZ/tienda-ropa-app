@@ -17,6 +17,10 @@ abstract final class AppSnackBar {
   /// The undo message on screen, if any.
   static ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _undo;
 
+  /// The message on screen, so the same one isn't shown again on top of
+  /// itself (a repeated tap, or two paths reporting the same result).
+  static String? _showing;
+
   /// Something the person did worked ("Cambios guardados").
   static void success(
     BuildContext context,
@@ -70,6 +74,8 @@ abstract final class AppSnackBar {
     final messenger =
         ScaffoldMessenger.maybeOf(context) ?? appMessengerKey.currentState;
     if (messenger == null) return;
+    final key = '${kind.name}|$message';
+    if (key == _showing) return;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
@@ -141,6 +147,10 @@ abstract final class AppSnackBar {
               ),
       ),
     );
+    _showing = key;
+    controller.closed.then((_) {
+      if (_showing == key) _showing = null;
+    });
     if (isUndo) {
       _undo = controller;
       controller.closed.then((_) {

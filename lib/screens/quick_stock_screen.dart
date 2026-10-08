@@ -14,6 +14,7 @@ import '../widgets/color_dot.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/item_avatar.dart';
 import '../widgets/feedback/app_snackbar.dart';
+import '../widgets/progress_button.dart';
 import '../widgets/unsaved_changes_guard.dart';
 
 /// Fast +/- adjustment of existing colors and sizes, grouped by color — no
@@ -49,6 +50,10 @@ class QuickStockScreen extends StatefulWidget {
 class _QuickStockScreenState extends State<QuickStockScreen> {
   late List<ClothingVariant> _variantes;
   bool _saving = false;
+
+  /// Saved: the button shows its check for a moment before the screen
+  /// closes.
+  bool _saved = false;
 
   @override
   void initState() {
@@ -142,6 +147,9 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
         ),
       );
     }
+    if (!mounted) return;
+    setState(() => _saved = true);
+    await Future<void>.delayed(ProgressButton.doneHold);
     if (!mounted) return;
     // Reported by the screen this returns to, so the message isn't cut
     // short by the transition (or replaced by "Cambios guardados").
@@ -248,6 +256,7 @@ class _QuickStockScreenState extends State<QuickStockScreen> {
             : _SaveBar(
                 enabled: _hasChanges && !_saving,
                 saving: _saving,
+                saved: _saved,
                 totalDelta: totalDelta,
                 onSave: _save,
               ),
@@ -540,21 +549,21 @@ class _SaveBar extends StatelessWidget {
   const _SaveBar({
     required this.enabled,
     required this.saving,
+    required this.saved,
     required this.totalDelta,
     required this.onSave,
   });
 
   final bool enabled;
   final bool saving;
+  final bool saved;
   final int totalDelta;
   final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
     final String label;
-    if (saving) {
-      label = 'Guardando…';
-    } else if (!enabled) {
+    if (!enabled) {
       label = 'Usa − o + para cambiar las piezas';
     } else if (totalDelta == 0) {
       label = 'Guardar cambios';
@@ -566,16 +575,16 @@ class _SaveBar extends StatelessWidget {
     }
     return SafeArea(
       minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-      child: FilledButton.icon(
+      child: ProgressButton(
+        state: saved
+            ? ProgressState.done
+            : saving
+            ? ProgressState.busy
+            : ProgressState.idle,
+        icon: Icons.check_rounded,
+        label: label,
+        doneLabel: 'Existencia guardada',
         onPressed: enabled ? onSave : null,
-        icon: saving
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.check_rounded),
-        label: Text(label),
       ),
     );
   }

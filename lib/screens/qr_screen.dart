@@ -33,7 +33,7 @@ class _QrScreenState extends State<QrScreen> {
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       final bytes = byteData!.buffer.asUint8List();
 
-      await SharePlus.instance.share(
+      final result = await SharePlus.instance.share(
         ShareParams(
           files: [
             XFile.fromData(
@@ -45,6 +45,14 @@ class _QrScreenState extends State<QrScreen> {
           fileNameOverrides: ['${widget.item.id}.png'],
         ),
       );
+      // Only when the person actually picked where to send or save it;
+      // closing the share menu needs no message.
+      if (mounted && result.status == ShareResultStatus.success) {
+        AppSnackBar.success(
+          context,
+          'Etiqueta QR lista: compartida o guardada',
+        );
+      }
     } catch (_) {
       if (mounted) {
         AppSnackBar.error(
@@ -106,7 +114,11 @@ class _QrScreenState extends State<QrScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.share_rounded),
-                label: const Text('Guardar / compartir imagen'),
+                label: Text(
+                  _sharing
+                      ? 'Preparando imagen…'
+                      : 'Guardar o compartir etiqueta',
+                ),
               ),
             ],
           ),

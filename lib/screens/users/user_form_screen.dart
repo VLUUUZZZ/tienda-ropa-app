@@ -133,7 +133,12 @@ class _UserFormScreenState extends State<UserFormScreen> with AsyncSubmit {
                 ErrorText(error!),
               ],
               const SizedBox(height: 24),
-              BusyButton(label: 'Crear cuenta', busy: busy, onPressed: _create),
+              BusyButton(
+                label: 'Crear cuenta',
+                busyLabel: 'Creando cuenta…',
+                busy: busy,
+                onPressed: _create,
+              ),
             ],
           ),
         ),

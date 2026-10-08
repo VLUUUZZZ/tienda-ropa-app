@@ -82,7 +82,7 @@ ThemeData buildAppTheme(Brightness brightness) {
     extensions: [isDark ? StockColors.dark : StockColors.light],
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
-        TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.android: _QuickFadeForwardsTransitions(),
         TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
         TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
       },
@@ -332,4 +332,14 @@ class StockColors extends ThemeExtension<StockColors> {
       onLowContainer: Color.lerp(onLowContainer, other.onLowContainer, t)!,
     );
   }
+}
+
+/// Android's fade-forward page transition, a bit quicker than Flutter's
+/// default (450 ms): moving between catalog, form and scanner should feel
+/// immediate on a shop floor, while still showing where the person went.
+class _QuickFadeForwardsTransitions extends FadeForwardsPageTransitionsBuilder {
+  const _QuickFadeForwardsTransitions();
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: 320);
 }

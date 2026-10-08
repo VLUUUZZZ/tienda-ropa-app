@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Asks before an important action. True only if the person confirmed;
 /// cancelling, tapping outside or going back all count as "no".
@@ -47,6 +48,14 @@ Future<bool> confirmAction(
       );
     },
   );
+  if (result == true) {
+    // Felt as "done": firmer for what removes or discards something.
+    if (destructive) {
+      HapticFeedback.mediumImpact();
+    } else {
+      HapticFeedback.selectionClick();
+    }
+  }
   return result ?? false;
 }
 
