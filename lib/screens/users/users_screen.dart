@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../../auth/app_user.dart';
 import '../../auth/auth_service.dart';
 import '../../auth/user_directory.dart';
-import '../../utils/texto.dart';
 import '../../widgets/role_badge.dart';
-import '../../widgets/snackbars.dart';
+import '../../widgets/user_avatar.dart';
+import '../../widgets/feedback/app_snackbar.dart';
+import '../../widgets/feedback/confirm_dialog.dart';
+import '../../widgets/feedback/success_screen.dart';
 import 'role_selector.dart';
 import 'user_form_screen.dart';
 
@@ -37,38 +39,94 @@ class _UsersScreenState extends State<UsersScreen> {
   AppUser get currentUser => widget.currentUser;
 
   Future<void> _create(BuildContext context) async {
-    final created = await Navigator.of(context).push<bool>(
+    final account = await Navigator.of(context).push<NewAccount>(
       MaterialPageRoute(
         builder: (_) =>
             UserFormScreen(users: users, tienda: currentUser.tienda!),
       ),
     );
-    if (created == true && context.mounted) {
-      _showMessage(context, 'Cuenta creada');
-    }
+    if (account == null || !context.mounted) return;
+
+    final another = await showSuccess<bool>(
+      context,
+      title: 'Cuenta creada',
+      message:
+          'Comparte con ${account.nombre} su correo y la contraseña que '
+          'escribiste para que entre. Si la olvida, puede recuperarla desde '
+          '"¿Olvidaste tu contraseña?".',
+      detail: _AccountSummary(account: account),
+      primary: const SuccessAction(
+        label: 'Listo',
+        icon: Icons.check_rounded,
+        value: false,
+      ),
+      secondary: const SuccessAction(
+        label: 'Crear otra cuenta',
+        icon: Icons.person_add_alt_rounded,
+        value: true,
+      ),
+    );
+    if (another == true && context.mounted) await _create(context);
   }
 
-  Future<void> _edit(BuildContext context, AppUser user) async {
+  /// The sheet opens from a list row, but everything after it uses this
+  /// screen's context: the row may be rebuilt away while the sheet is open
+  /// (the list updates live), and a confirmed change must still be saved.
+  Future<void> _edit(AppUser user) async {
     final updated = await showModalBottomSheet<AppUser>(
       context: context,
       showDragHandle: true,
       builder: (_) => _EditUserSheet(user: user),
     );
-    if (updated == null) return;
+    if (updated == null || !mounted) return;
+    if (!await _confirmChange(context, user, updated) || !mounted) return;
     try {
       await users.update(updated);
+      if (mounted) AppSnackBar.success(context, 'Cambios guardados');
     } on AuthException catch (e) {
-      if (context.mounted) showErrorSnackBar(context, e.message);
+      if (mounted) AppSnackBar.error(context, e.message);
     } catch (e) {
-      if (context.mounted) {
-        showErrorSnackBar(context, 'No se pudo guardar el usuario.');
-      }
+      if (mounted) AppSnackBar.error(context, 'No se pudo guardar el usuario.');
     }
   }
 
-  static void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+  /// Changes that grant or remove access are confirmed first, listing what
+  /// each one means for that person (a single save can change both role
+  /// and access).
+  static Future<bool> _confirmChange(
+    BuildContext context,
+    AppUser before,
+    AppUser after,
+  ) {
+    final consequences = <String>[
+      if (before.activo && !after.activo)
+        'Ya no podrá entrar a la app ni ver el catálogo. Puedes reactivar su '
+            'cuenta cuando quieras.',
+      if (!before.activo && after.activo) 'Podrá volver a entrar a la app.',
+      if (before.role != UserRole.admin && after.role == UserRole.admin)
+        'Como administrador podrá crear, editar y eliminar prendas, y '
+            'gestionar las cuentas del personal.',
+      if (before.role == UserRole.admin && after.role != UserRole.admin)
+        'Como empleado solo podrá consultar el catálogo, escanear y ajustar '
+            'existencias.',
+    ];
+    if (consequences.isEmpty) return Future.value(true);
+
+    final pierdeAcceso = before.activo && !after.activo;
+    final title = pierdeAcceso
+        ? '¿Desactivar a ${before.nombre}?'
+        : after.role != before.role
+        ? '¿Cambiar a ${before.nombre} a ${after.role.label.toLowerCase()}?'
+        : '¿Reactivar a ${before.nombre}?';
+    return confirmAction(
+      context,
+      icon: pierdeAcceso
+          ? Icons.person_off_outlined
+          : Icons.admin_panel_settings_outlined,
+      destructive: pierdeAcceso,
+      title: title,
+      message: consequences.join('\n\n'),
+      confirmLabel: pierdeAcceso ? 'Desactivar' : 'Confirmar',
     );
   }
 
@@ -101,7 +159,7 @@ class _UsersScreenState extends State<UsersScreen> {
               return _UserTile(
                 user: user,
                 isSelf: isSelf,
-                onTap: isSelf ? null : () => _edit(context, user),
+                onTap: isSelf ? null : () => _edit(user),
               );
             },
           );
@@ -125,19 +183,7 @@ class _UserTile extends StatelessWidget {
       child: ListTile(
         onTap: onTap,
         contentPadding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
-        leading: CircleAvatar(
-          radius: 22,
-          backgroundColor: user.activo
-              ? colorScheme.primaryContainer
-              : colorScheme.surfaceContainerHighest,
-          foregroundColor: user.activo
-              ? colorScheme.onPrimaryContainer
-              : colorScheme.onSurfaceVariant,
-          child: Text(
-            iniciales(user.nombre).isEmpty ? '?' : iniciales(user.nombre),
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
-        ),
+        leading: UserAvatar(nombre: user.nombre, activo: user.activo),
         title: Text(
           isSelf ? '${user.nombre} (tú)' : user.nombre,
           maxLines: 1,
@@ -233,6 +279,39 @@ class _EditUserSheetState extends State<_EditUserSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AccountSummary extends StatelessWidget {
+  const _AccountSummary({required this.account});
+
+  final NewAccount account;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        UserAvatar(nombre: account.nombre, radius: 24),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(account.nombre, style: textTheme.titleMedium),
+              Text(
+                account.correo,
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        RoleBadge(role: account.role),
+      ],
     );
   }
 }

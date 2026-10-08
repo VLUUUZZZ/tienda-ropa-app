@@ -6,7 +6,8 @@ import 'package:flutter/services.dart';
 import '../data/clothing_repository.dart';
 import '../models/clothing_item.dart';
 import '../utils/formato.dart';
-import '../widgets/snackbars.dart';
+import '../widgets/feedback/app_snackbar.dart';
+import '../widgets/feedback/confirm_dialog.dart';
 import '../widgets/unsaved_changes_guard.dart';
 import 'item_form/variant_row.dart';
 import 'qr_screen.dart';
@@ -58,11 +59,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   void initState() {
     super.initState();
     _nombreCtrl = TextEditingController(text: widget.item.nombre);
-    _precioCtrl = TextEditingController(
-      text: widget.item.precio == 0
-          ? ''
-          : widget.item.precio.toStringAsFixed(2).replaceAll('.00', ''),
-    );
+    _precioCtrl = TextEditingController(text: _precioTexto(widget.item.precio));
     _nombreCtrl.addListener(_markDirty);
     _precioCtrl.addListener(_markDirty);
     _setVariantRows(widget.item.variantes);
@@ -108,7 +105,32 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     });
   }
 
-  void _removeVariantRow(int index) {
+  /// How a price shows in its field: "199", "649.50", empty for none.
+  static String _precioTexto(double precio) =>
+      precio == 0 ? '' : precio.toStringAsFixed(2).replaceAll('.00', '');
+
+  /// Removing a saved row that still has pieces takes that stock out of the
+  /// catalog, so it's confirmed first. Rows typed in this session (never
+  /// saved) and empty ones just go.
+  Future<void> _removeVariantRow(int index) async {
+    final row = _variantes[index];
+    final saved = _loadedStock.containsKey(row.toVariant().key);
+    if (saved && row.existenciaValue > 0) {
+      final talla = row.talla.text.trim();
+      final color = row.color.text.trim();
+      final confirmed = await confirmAction(
+        context,
+        icon: Icons.layers_clear_outlined,
+        destructive: true,
+        title: '¿Quitar $color / $talla?',
+        message:
+            'Todavía tiene ${formatoPiezas(row.existenciaValue)}. Al guardar, '
+            'esta combinación y sus piezas dejarán de estar en el catálogo.',
+        confirmLabel: 'Quitar',
+      );
+      if (!confirmed || !mounted || !_variantes.contains(row)) return;
+      index = _variantes.indexOf(row);
+    }
     setState(() {
       _variantes[index].dispose();
       _variantes.removeAt(index);
@@ -139,6 +161,14 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       return 'Máximo ${formatoPrecio(Limites.precioMax)}';
     }
     return null;
+  }
+
+  /// Puts [item]'s stored values back in every field, as if just opened.
+  void _fillFrom(ClothingItem item) {
+    _nombreCtrl.text = item.nombre;
+    _precioCtrl.text = _precioTexto(item.precio);
+    _setVariantRows(item.variantes);
+    _dirty = false;
   }
 
   /// Turns the counts in [variantes] (absolute, as typed) into "latest
@@ -177,7 +207,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
     final duplicate = ClothingItem.firstDuplicateVariant(variantes);
     if (duplicate != null) {
-      showErrorSnackBar(
+      AppSnackBar.error(
         context,
         'La combinación ${duplicate.color} / ${duplicate.talla} ya está registrada.',
       );
@@ -192,7 +222,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     if (!widget.isNew) {
       final latest = widget.repo.getById(id);
       if (latest == null) {
-        showErrorSnackBar(
+        AppSnackBar.error(
           context,
           'Esta prenda se eliminó en otro teléfono; no se guardaron los cambios.',
         );
@@ -214,7 +244,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        showErrorSnackBar(context, 'No se pudo guardar. Inténtalo de nuevo.');
+        AppSnackBar.error(context, 'No se pudo guardar. Inténtalo de nuevo.');
       }
       return;
     }
@@ -228,14 +258,25 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
   Future<void> _quickEditStock() async {
     if (_dirty) {
-      showErrorSnackBar(
+      final discard = await confirmAction(
         context,
-        'Guarda o descarta los cambios del formulario antes de ajustar la existencia.',
+        icon: Icons.edit_off_outlined,
+        destructive: true,
+        title: '¿Descartar los cambios de la ficha?',
+        message:
+            'Para ajustar la existencia se usa lo último guardado. Los cambios '
+            'que hiciste aquí y aún no guardas se perderán.',
+        confirmLabel: 'Descartar y ajustar',
       );
+      if (!discard || !mounted) return;
+    }
+    // Read after the dialog: another phone may have saved meanwhile.
+    final current = widget.repo.getById(widget.item.id);
+    if (current == null) {
+      AppSnackBar.error(context, 'Esta prenda ya no existe en el catálogo.');
       return;
     }
-    final current = widget.repo.getById(widget.item.id);
-    if (current == null) return;
+    if (_dirty) setState(() => _fillFrom(current));
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => QuickStockScreen(repo: widget.repo, item: current),
@@ -250,29 +291,20 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
   }
 
   Future<void> _delete() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar prenda'),
-        content: const Text('¿Eliminar esta prenda del catálogo?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-              foregroundColor: Theme.of(ctx).colorScheme.onError,
-              minimumSize: const Size(64, 44),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
+    final nombre = _nombreCtrl.text.trim().isEmpty
+        ? 'esta prenda'
+        : '"${_nombreCtrl.text.trim()}"';
+    final confirm = await confirmAction(
+      context,
+      icon: Icons.delete_outline_rounded,
+      destructive: true,
+      title: '¿Eliminar la prenda?',
+      message:
+          'Se quitará $nombre del catálogo en todos los teléfonos de la '
+          'tienda. Podrás deshacerlo durante unos segundos.',
+      confirmLabel: 'Eliminar',
     );
-    if (confirm != true) return;
+    if (!confirm) return;
     // What "undo" will bring back: the stored version, which may be newer
     // than the one this form opened with.
     final deleted = widget.repo.getById(widget.item.id) ?? widget.item;
@@ -280,7 +312,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       await widget.repo.delete(widget.item.id);
     } catch (e) {
       if (mounted) {
-        showErrorSnackBar(context, 'No se pudo eliminar. Inténtalo de nuevo.');
+        AppSnackBar.error(context, 'No se pudo eliminar. Inténtalo de nuevo.');
       }
       return;
     }
@@ -313,7 +345,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
 
     return UnsavedChangesGuard(
       hasChanges: _dirty,
-      message: 'Tienes cambios sin guardar. ¿Deseas salir sin guardarlos?',
+      message:
+          'Los cambios que hiciste en esta prenda todavía no se han guardado.',
       child: Scaffold(
         appBar: AppBar(
           title: Text(widget.isNew ? 'Nueva prenda' : 'Editar prenda'),

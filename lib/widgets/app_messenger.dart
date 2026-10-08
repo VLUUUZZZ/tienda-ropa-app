@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// The app-wide snackbar host (set on MaterialApp), for messages whose
-/// screen may already be gone by the time they're ready.
+/// The app's root navigator (set on MaterialApp). Its context sits below
+/// the app's theme and snackbar host, so it can show a message correctly
+/// styled when the screen that wanted to show it is already gone.
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
+/// The app-wide snackbar host (set on MaterialApp).
 final GlobalKey<ScaffoldMessengerState> appMessengerKey =
     GlobalKey<ScaffoldMessengerState>();

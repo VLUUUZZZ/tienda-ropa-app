@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'feedback/confirm_dialog.dart';
+
 /// Wraps a screen that edits something: while [hasChanges], leaving it (back
 /// button or gesture) first asks whether to discard the changes.
 class UnsavedChangesGuard extends StatelessWidget {
@@ -17,25 +19,17 @@ class UnsavedChangesGuard extends StatelessWidget {
   final Widget child;
 
   Future<void> _confirmLeave(BuildContext context) async {
-    final discard = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Descartar cambios'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Seguir editando'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Descartar'),
-          ),
-        ],
-      ),
+    final discard = await confirmAction(
+      context,
+      icon: Icons.edit_off_outlined,
+      destructive: true,
+      title: '¿Descartar cambios?',
+      message: message,
+      confirmLabel: 'Descartar',
+      cancelLabel: 'Seguir editando',
     );
     // pop() leaves unconditionally; only back gestures consult canPop.
-    if (discard == true && context.mounted) Navigator.of(context).pop();
+    if (discard && context.mounted) Navigator.of(context).pop();
   }
 
   @override
