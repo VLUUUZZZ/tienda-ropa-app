@@ -1,24 +1,18 @@
 // Copyright (c) 2026 Victor Uzziel Gonzalez. Todos los derechos reservados.
 // Software propietario: prohibida su copia o distribución sin autorización.
 
-import 'dart:convert';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../auth/app_user.dart';
 import '../auth/user_directory.dart';
-import '../auth/license.dart';
 import '../data/clothing_repository.dart';
 import '../data/license_admin.dart';
 import '../data/adjustments_repository.dart';
-import '../data/catalog_export.dart';
 import '../data/sales_repository.dart';
-import 'adjustments/adjustments_screen.dart';
 import 'sales/register_sale_screen.dart';
-import 'sales/sales_screen.dart';
 import '../models/clothing_item.dart';
 import '../utils/formato.dart';
 import '../widgets/feedback/app_snackbar.dart';
@@ -28,18 +22,16 @@ import '../widgets/animated_presence.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/item_summary.dart';
 import '../widgets/sync_status_indicator.dart';
-import 'home/account_menu.dart';
 import 'home/catalog_filters.dart';
 import 'home/catalog_hero.dart';
 import 'home/clothing_card.dart';
 import 'home/scanned_item_sheet.dart';
+import 'home/store_account_menu.dart';
 import 'home/store_title.dart';
 import 'item_form_screen.dart';
 import 'qr_screen.dart';
 import 'quick_stock_screen.dart';
 import 'scanner_screen.dart';
-import 'admin/license_admin_screen.dart';
-import 'users/users_screen.dart';
 
 /// The catalog. What it offers depends on [user]'s role: admins get the full
 /// edit form, adding and deleting; employees only adjust stock.
@@ -62,6 +54,13 @@ class HomeScreen extends StatefulWidget {
   final SalesRepository salesRepo;
   final AdjustmentsRepository adjustmentsRepo;
 
+  /// Cada cambio pide abrir la cámara (lo dispara la barra inferior).
+  final ValueListenable<int>? scanTrigger;
+
+  /// Una prenda que otra pestaña (el Inicio) pide abrir aquí. Se vacía al
+  /// consumirla, por eso es un [ValueNotifier] y no solo un listenable.
+  final ValueNotifier<ClothingItem?>? abrirPrenda;
+
   const HomeScreen({
     super.key,
     required this.repo,
@@ -73,6 +72,8 @@ class HomeScreen extends StatefulWidget {
     this.licenseAdmin,
     required this.salesRepo,
     required this.adjustmentsRepo,
+    this.scanTrigger,
+    this.abrirPrenda,
   });
 
   @override
@@ -108,13 +109,30 @@ class _HomeScreenState extends State<HomeScreen> {
     _searchCtrl.addListener(() => _reload());
     // Picks up changes synced from other devices.
     _repoChanges.addListener(_onRepoChanged);
+    // Órdenes que llegan desde la barra inferior o el Inicio.
+    widget.scanTrigger?.addListener(_onScanTrigger);
+    widget.abrirPrenda?.addListener(_onAbrirPrenda);
   }
 
   @override
   void dispose() {
     _repoChanges.removeListener(_onRepoChanged);
+    widget.scanTrigger?.removeListener(_onScanTrigger);
+    widget.abrirPrenda?.removeListener(_onAbrirPrenda);
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _onScanTrigger() => _once(_scan);
+
+  void _onAbrirPrenda() {
+    final item = widget.abrirPrenda?.value;
+    if (item == null) return;
+    // Consumir la orden para que no se repita al reconstruir.
+    widget.abrirPrenda?.value = null;
+    // La prenda pudo cambiar o borrarse: abrir la versión vigente.
+    final actual = widget.repo.getById(item.id);
+    if (actual != null) _once(() => _openItem(actual));
   }
 
   bool _reloadScheduled = false;
@@ -310,55 +328,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _openSales() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SalesScreen(
-          salesRepo: widget.salesRepo,
-          repo: widget.repo,
-          showInventoryValue: widget.user.canEditCatalog,
-        ),
-      ),
-    );
-  }
-
-  void _openAdjustments() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            AdjustmentsScreen(adjustmentsRepo: widget.adjustmentsRepo),
-      ),
-    );
-  }
-
-  /// A CSV of the whole catalog, for a backup outside the app or to hand to
-  /// someone (a spreadsheet, the accountant, a paper inventory).
-  Future<void> _exportCatalog() async {
-    final csv = catalogToCsv(widget.repo.getAll());
-    try {
-      final result = await SharePlus.instance.share(
-        ShareParams(
-          files: [
-            XFile.fromData(
-              // BOM so Excel opens the accented names correctly.
-              const Utf8Encoder().convert('\uFEFF$csv'),
-              mimeType: 'text/csv',
-              name: 'catalogo.csv',
-            ),
-          ],
-          fileNameOverrides: ['catalogo.csv'],
-        ),
-      );
-      if (mounted && result.status == ShareResultStatus.success) {
-        AppSnackBar.success(context, 'Catálogo exportado');
-      }
-    } catch (e) {
-      if (mounted) {
-        AppSnackBar.error(context, 'No se pudo exportar el catálogo.');
-      }
-    }
-  }
-
   /// [codigoProveedor] comes filled in when the garment is being added
   /// right after scanning a supplier barcode the catalog didn't know.
   Future<void> _addManually({String codigoProveedor = ''}) async {
@@ -503,44 +472,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _openUsers(UserDirectory users) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => UsersScreen(users: users, currentUser: widget.user),
-      ),
-    );
-  }
-
-  /// Solo el dueño de la app ve esta opción; además, el servidor rechaza a
-  /// cualquier otra cuenta.
-  bool get _canManageLicenses =>
-      widget.licenseAdmin != null &&
-      widget.user.uid == LicenseConfig.duenoUid;
-
-  void _openLicenses() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => LicenseAdminScreen(admin: widget.licenseAdmin!),
-      ),
-    );
-  }
-
-  Future<void> _confirmSignOut(VoidCallback signOut) async {
-    final confirmed = await confirmAction(
-      context,
-      icon: Icons.logout_rounded,
-      title: 'Cerrar sesión',
-      message:
-          '¿Seguro que quieres cerrar sesión? Para volver a entrar '
-          'necesitarás tu correo y contraseña. Lo que ya guardaste se '
-          'conserva y se sincroniza al entrar de nuevo.',
-      confirmLabel: 'Cerrar sesión',
-    );
-    if (confirmed) signOut();
-  }
-
-  bool get _canOpenUsers => widget.users != null && widget.user.canManageUsers;
-
   Widget _emptyState() {
     final busqueda = _searchCtrl.text.trim();
     final filtrando = _filtro != CatalogFilter.todas;
@@ -599,30 +530,15 @@ class _HomeScreenState extends State<HomeScreen> {
               titleSpacing: 20,
               title: StoreTitle(user: widget.user),
               actions: [
-                // Labeled, not just an icon: a receipt alone doesn't say
-                // "sales" to someone new.
-                TextButton.icon(
-                  icon: const Icon(Icons.receipt_long_rounded),
-                  label: const Text('Ventas'),
-                  onPressed: () => _once(() async => _openSales()),
-                ),
-                const SizedBox(width: 4),
-                AccountMenu(
+                StoreAccountMenu(
                   user: widget.user,
+                  repo: widget.repo,
+                  adjustmentsRepo: widget.adjustmentsRepo,
                   isDarkMode: widget.isDarkMode,
                   onToggleTheme: widget.onToggleTheme,
-                  onManageLicenses: _canManageLicenses ? _openLicenses : null,
-                  onManageUsers: _canOpenUsers
-                      ? () => _openUsers(widget.users!)
-                      : null,
-                  onExport: widget.user.canEditCatalog ? _exportCatalog : null,
-                  onViewAdjustments: widget.user.canManageUsers
-                      ? _openAdjustments
-                      : null,
-                  onSignOut: switch (widget.onSignOut) {
-                    final signOut? => () => _confirmSignOut(signOut),
-                    null => null,
-                  },
+                  users: widget.users,
+                  licenseAdmin: widget.licenseAdmin,
+                  onSignOut: widget.onSignOut,
                 ),
                 const SizedBox(width: 12),
               ],
@@ -717,32 +633,17 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      floatingActionButton: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (widget.user.canEditCatalog) ...[
-            FloatingActionButton.extended(
+      // Escanear ahora vive en la barra inferior; aquí solo queda el botón de
+      // agregar, para quien puede editar el catálogo.
+      floatingActionButton: widget.user.canEditCatalog
+          ? FloatingActionButton.extended(
               heroTag: 'add',
               onPressed: () => _once(_addManually),
               tooltip: 'Agregar una prenda nueva al catálogo',
-              backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-              foregroundColor: Theme.of(
-                context,
-              ).colorScheme.onSecondaryContainer,
               icon: const Icon(Icons.add_rounded),
               label: const Text('Agregar'),
-            ),
-            const SizedBox(width: 12),
-          ],
-          FloatingActionButton.extended(
-            heroTag: 'scan',
-            onPressed: () => _once(_scan),
-            tooltip: 'Escanear el código QR o de barras de una prenda',
-            icon: const Icon(Icons.qr_code_scanner_rounded),
-            label: const Text('Escanear'),
-          ),
-        ],
-      ),
+            )
+          : null,
     );
   }
 }

@@ -47,7 +47,12 @@ class ClothingCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ItemAvatar(nombre: item.nombre, photoPath: photoPath),
+                  // Foto más grande: la prenda se reconoce de un vistazo.
+                  ItemAvatar(
+                    nombre: item.nombre,
+                    photoPath: photoPath,
+                    size: 88,
+                  ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(

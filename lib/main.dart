@@ -18,7 +18,7 @@ import 'data/sales_repository.dart';
 import 'data/settings_repository.dart';
 import 'firebase_backend.dart';
 import 'screens/auth/auth_gate.dart';
-import 'screens/home_screen.dart';
+import 'screens/main_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -237,7 +237,7 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
     UserDirectory? users,
     LicenseAdminService? licenseAdmin,
   }) {
-    return HomeScreen(
+    return MainShell(
       repo: repo,
       salesRepo: salesRepo,
       adjustmentsRepo: adjustmentsRepo,
