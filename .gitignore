@@ -44,6 +44,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Herramientas y notas de trabajo locales (NO subir)
+/.claude/
+
 # Claves y configuración local de Firebase (NO subir)
 /dart_define.json
 /android/app/google-services.json
