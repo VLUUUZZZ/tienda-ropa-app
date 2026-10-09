@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Victor Uzziel Gonzalez. Todos los derechos reservados.
+// Software propietario: prohibida su copia o distribución sin autorización.
+
 import '../models/stock_adjustment.dart';
 
 // Reused instead of duplicated: a rules rejection means the same thing for an

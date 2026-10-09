@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Victor Uzziel Gonzalez. Todos los derechos reservados.
+// Software propietario: prohibida su copia o distribución sin autorización.
+
 /// Exponential backoff: each [next] delay doubles the previous one, up to
 /// [max], until [reset] is called after a success.
 class Backoff {

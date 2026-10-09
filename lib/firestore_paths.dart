@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Victor Uzziel Gonzalez. Todos los derechos reservados.
+// Software propietario: prohibida su copia o distribución sin autorización.
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Where everything lives in Firestore, in one place (mirrors

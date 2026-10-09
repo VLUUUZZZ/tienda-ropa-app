@@ -42,3 +42,9 @@ firebase deploy --only firestore:rules
 | `lib/screens/` | Pantallas. |
 | `lib/widgets/` | Componentes compartidos. |
 | `lib/utils/` | Formatos de precio, fecha y texto. |
+
+## Licencia
+
+© 2026 Victor Uzziel Gonzalez. Todos los derechos reservados. Software propietario:
+prohibida su copia, modificación o distribución sin autorización escrita del autor.
+Ver [`LICENSE`](LICENSE).

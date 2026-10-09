@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Victor Uzziel Gonzalez. Todos los derechos reservados.
+// Software propietario: prohibida su copia o distribución sin autorización.
+
 import '../models/clothing_item.dart';
 
 /// The catalog as a CSV table, one row per color/talla variant (or one bare

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Victor Uzziel Gonzalez. Todos los derechos reservados.
+// Software propietario: prohibida su copia o distribución sin autorización.
+
 /// Form validators shared by the login and account screens. Each message
 /// says what to do, not just what's wrong.
 abstract final class CredentialValidators {

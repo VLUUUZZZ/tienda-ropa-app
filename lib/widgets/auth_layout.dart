@@ -1,6 +1,10 @@
+// Copyright (c) 2026 Victor Uzziel Gonzalez. Todos los derechos reservados.
+// Software propietario: prohibida su copia o distribución sin autorización.
+
 import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
+import '../legal.dart';
 
 /// Shared frame for the screens shown before entering the store: the app's
 /// mark, a title, and the content on a card, centered and scrollable so the
@@ -56,6 +60,14 @@ class AuthLayout extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: child,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    Legal.derechos,
+                    textAlign: TextAlign.center,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],

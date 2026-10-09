@@ -1,9 +1,13 @@
+// Copyright (c) 2026 Victor Uzziel Gonzalez. Todos los derechos reservados.
+// Software propietario: prohibida su copia o distribución sin autorización.
+
 import 'package:flutter/material.dart';
 
 import '../../auth/app_user.dart';
+import '../../legal.dart';
 import '../../utils/texto.dart';
 
-enum _AccountAction { theme, users, adjustments, export, signOut }
+enum _AccountAction { theme, users, adjustments, export, about, signOut }
 
 /// Who is signed in, as an avatar with their initials, plus the app and
 /// account options their role allows.
@@ -47,6 +51,13 @@ class AccountMenu extends StatelessWidget {
         _AccountAction.users => onManageUsers?.call(),
         _AccountAction.adjustments => onViewAdjustments?.call(),
         _AccountAction.export => onExport?.call(),
+        _AccountAction.about => showAboutDialog(
+          context: context,
+          applicationName: 'Tienda de Ropa',
+          applicationVersion: Legal.version,
+          applicationIcon: const Icon(Icons.checkroom_rounded, size: 40),
+          applicationLegalese: '${Legal.derechos}\n\n${Legal.aviso}',
+        ),
         _AccountAction.signOut => onSignOut?.call(),
       },
       itemBuilder: (context) => [
@@ -107,6 +118,15 @@ class AccountMenu extends StatelessWidget {
               subtitle: Text('Hoja de cálculo (CSV)'),
             ),
           ),
+        const PopupMenuItem(
+          value: _AccountAction.about,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.info_outline_rounded),
+            title: Text('Acerca de'),
+            subtitle: Text(Legal.derechos),
+          ),
+        ),
         if (onSignOut != null)
           const PopupMenuItem(
             value: _AccountAction.signOut,
