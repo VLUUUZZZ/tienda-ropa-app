@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Victor Uzziel Gonzalez. Todos los derechos reservados.
+// Software propietario: prohibida su copia o distribución sin autorización.
+
 /// Lowercases and strips common Spanish accents so "pantalon" also finds
 /// "Pantalón" — the tolerant matching searches and color names need.
 String normalizar(String input) {

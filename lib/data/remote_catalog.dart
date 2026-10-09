@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Victor Uzziel Gonzalez. Todos los derechos reservados.
+// Software propietario: prohibida su copia o distribución sin autorización.
+
 import '../models/clothing_item.dart';
 
 /// One full view of the remote catalog, as pushed by the backend.

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Victor Uzziel Gonzalez. Todos los derechos reservados.
+// Software propietario: prohibida su copia o distribución sin autorización.
+
 import 'package:flutter/material.dart';
 
 /// Inline error message for forms (e.g. a failed sign-in).

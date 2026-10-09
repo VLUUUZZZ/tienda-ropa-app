@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Victor Uzziel Gonzalez. Todos los derechos reservados.
+// Software propietario: prohibida su copia o distribución sin autorización.
+
 import 'package:flutter/material.dart';
 
 /// Placeholder shapes in the layout of what's loading, gently pulsing, so a
