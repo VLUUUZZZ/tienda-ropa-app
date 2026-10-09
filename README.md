@@ -19,11 +19,36 @@ escanearla. Varias personas pueden usarla a la vez desde su teléfono y funciona
 - Flutter (Android e iOS) con Material 3.
 - Hive para los datos en el teléfono y Firebase (Auth y Firestore) para sincronizar.
 
+## Configuración de Firebase
+
+Por seguridad, la clave de API de Firebase **no se guarda en el repositorio**: se
+inyecta al compilar y los archivos con datos de Firebase están en `.gitignore`.
+
+1. Copia la plantilla y pon tu clave:
+
+   ```bash
+   cp dart_define.example.json dart_define.json
+   # edita dart_define.json y coloca tu FIREBASE_API_KEY
+   ```
+
+2. Para Android, coloca tu `google-services.json` (descargado de la consola de
+   Firebase) en `android/app/`. Hay una plantilla en
+   `android/app/google-services.json.example`.
+
+3. Compila o ejecuta pasando el archivo de claves:
+
+   ```bash
+   flutter run        --dart-define-from-file=dart_define.json
+   flutter build apk  --dart-define-from-file=dart_define.json
+   ```
+
+`dart_define.json` y `google-services.json` nunca se suben al repositorio.
+
 ## Instalación
 
 ```bash
 flutter pub get
-flutter run
+flutter run --dart-define-from-file=dart_define.json
 ```
 
 Las reglas de seguridad de Firestore están en `firestore.rules` y se publican con:

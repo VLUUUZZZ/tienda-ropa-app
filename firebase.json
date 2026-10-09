@@ -1,23 +1,4 @@
 {
-  "flutter": {
-    "platforms": {
-      "android": {
-        "default": {
-          "projectId": "TU_PROJECT_ID",
-          "appId": "1:TU_SENDER_ID:android:TU_APP_SUFFIX",
-          "fileOutput": "android/app/google-services.json"
-        }
-      },
-      "dart": {
-        "lib/firebase_options.dart": {
-          "projectId": "TU_PROJECT_ID",
-          "configurations": {
-            "android": "1:TU_SENDER_ID:android:TU_APP_SUFFIX"
-          }
-        }
-      }
-    }
-  },
   "firestore": {
     "rules": "firestore.rules"
   }

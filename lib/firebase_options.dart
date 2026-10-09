@@ -55,11 +55,13 @@ class DefaultFirebaseOptions {
     }
   }
 
+  // Todos los datos de Firebase se inyectan al compilar desde
+  // `dart_define.json` (que no se sube). El código no contiene ningún valor.
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'TU_FIREBASE_API_KEY',
-    appId: '1:TU_SENDER_ID:android:TU_APP_SUFFIX',
-    messagingSenderId: 'TU_SENDER_ID',
-    projectId: 'TU_PROJECT_ID',
-    storageBucket: 'TU_PROJECT_ID.firebasestorage.app',
+    apiKey: String.fromEnvironment('FIREBASE_API_KEY'),
+    appId: String.fromEnvironment('FIREBASE_APP_ID'),
+    messagingSenderId: String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID'),
+    projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
+    storageBucket: String.fromEnvironment('FIREBASE_STORAGE_BUCKET'),
   );
 }

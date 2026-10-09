@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "TU_SENDER_ID",
+    "project_number": "TU_PROJECT_NUMBER",
     "project_id": "TU_PROJECT_ID",
-    "storage_bucket": "TU_PROJECT_ID.firebasestorage.app"
+    "storage_bucket": "TU_STORAGE_BUCKET"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:TU_SENDER_ID:android:TU_APP_SUFFIX",
+        "mobilesdk_app_id": "TU_APP_ID",
         "android_client_info": {
           "package_name": "com.tiendaropa.tienda_ropa_app"
         }
