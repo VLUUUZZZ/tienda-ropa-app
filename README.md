@@ -1,147 +1,44 @@
 # Tienda de Ropa
 
-App móvil para llevar el **catálogo, el inventario y las ventas de una tienda de ropa**
-desde el teléfono: qué prendas hay, en qué tallas y colores, cuántas piezas quedan de cada
-una, cuánto vale lo que hay en tienda y qué se ha vendido. Cada prenda lleva una **etiqueta con código QR**: al
-escanearla, la app abre esa prenda para consultarla o ajustar su existencia en segundos.
+App móvil para llevar el catálogo, el inventario y las ventas de una tienda de ropa.
+Cada prenda tiene una etiqueta con código QR para consultarla o ajustar su existencia al
+escanearla. Varias personas pueden usarla a la vez desde su teléfono y funciona sin internet.
 
-Está pensada para tiendas pequeñas o medianas donde varias personas atienden con su
-propio teléfono: todos ven el mismo catálogo, los cambios de uno aparecen en los demás, y
-la app **sigue funcionando sin internet**.
+## Funciones
 
----
+- Catálogo con búsqueda por nombre, código, color o talla, y filtros por existencia.
+- Prendas con tallas, colores y piezas por combinación; foto y código de barras del proveedor.
+- Etiquetas QR para imprimir o compartir; escáner de QR y código de barras.
+- Ajuste de existencias, registro de ventas e historial de ajustes.
+- Exportar el catálogo a CSV.
+- Roles: **Administrador** (todo) y **Empleado** (consultar, escanear, vender y ajustar existencias).
+- Varias tiendas, cada una aislada; tema claro y oscuro.
 
-## Para quién es
+## Tecnología
 
-| Rol | Qué puede hacer |
-|---|---|
-| **Administrador** (dueño o encargado) | Todo: crear, editar y eliminar prendas, fijar precios, fotos y códigos de proveedor, imprimir etiquetas QR, ajustar existencias, registrar ventas, exportar el catálogo, ver el historial de ajustes y dar de alta, cambiar de rol o desactivar al personal. |
-| **Empleado** (vendedor) | Consultar el catálogo, escanear etiquetas, registrar ventas y ajustar existencias (sumar o restar piezas). No ve el valor del inventario ni puede cambiar nombres, precios o tallas. |
+- Flutter (Android e iOS) con Material 3.
+- Hive para los datos en el teléfono y Firebase (Auth y Firestore) para sincronizar.
 
-Los permisos no son solo visuales: el servidor (reglas de Firestore) rechaza cualquier
-cambio que el rol no permita.
-
-## Cómo se usa
-
-1. **Abrir la tienda.** El dueño toca *Crear mi tienda*, escribe su nombre, correo y
-   contraseña, y queda como administrador de su tienda. Cada tienda está aislada: su
-   catálogo y su personal solo los ven sus miembros.
-2. **Registrar prendas.** Con el botón **+** se crea una prenda: nombre, precio y sus
-   combinaciones de talla y color con las piezas de cada una. Al guardar, la app asigna un
-   código legible (`PRENDA-000012`) y muestra una pantalla de éxito para **imprimir su
-   etiqueta QR** o agregar la siguiente.
-3. **Etiquetar.** La etiqueta (nombre, QR y código, siempre en negro sobre blanco) se
-   guarda o comparte como imagen para imprimirla y pegarla en la prenda.
-4. **Vender y reabastecer.** Se escanea la etiqueta QR (o el código de barras que trae
-   la prenda del proveedor) o se busca la prenda. Para una venta se usa **Registrar
-   venta**: descuenta las piezas y queda en el historial de ventas con su precio. Al
-   recibir mercancía se ajusta la existencia con **− / +**; cada ajuste queda en el
-   historial con quién lo hizo y cuándo.
-5. **Dar de alta al personal.** Desde *Cuenta → Usuarios* el administrador crea las
-   cuentas de sus empleados y puede cambiar su rol o desactivarlos.
-
-## Pantallas
-
-- **Inicio (catálogo).** Saludo y tienda; buscador por nombre, código, color o talla (sin
-  importar mayúsculas ni acentos); tarjeta resumen con el **valor del inventario** (solo
-  administradores), número de prendas, piezas y agotadas; filtros *Todas / Poca existencia
-  / Agotadas*; y la lista de prendas con precio, código, colores y estado de existencia.
-- **Ventas.** Registrar una venta (talla, color y piezas) desde la tarjeta de la prenda, y
-  la pantalla de ventas con el total del día y reportes (más vendidos).
-- **Historial de ajustes** (administradores): quién sumó o restó piezas, de qué prenda y
-  cuándo.
-- **Ajuste rápido de existencia.** Las tallas agrupadas por color con un control
-  **− número +**, el total y lo que falta por guardar.
-- **Ficha de prenda.** Foto (guardada solo en ese teléfono), nombre, precio, código de
-  barras del proveedor (se puede escanear) y la lista de tallas y colores; desde el menú se
-  ajusta la existencia o se elimina la prenda.
-- **Exportar catálogo** (administradores): un CSV con todas las prendas para respaldo o
-  para abrirlo en una hoja de cálculo.
-- **Escáner.** Cámara con marco de enfoque y linterna; reconoce el QR de la app y el
-  código de barras del proveedor. Si el código no es de una prenda de la tienda, lo dice y
-  explica qué hacer.
-- **Código QR.** Etiqueta lista para imprimir o compartir.
-- **Usuarios.** Personal de la tienda con su rol y estado; alta de cuentas nuevas.
-- **Inicio de sesión / tienda nueva**, con recuperación de contraseña por correo.
-
-## Mensajes y confirmaciones
-
-La app siempre dice qué pasó, con el mismo lenguaje en todas las pantallas
-(`lib/widgets/feedback/`):
-
-- **Avisos rápidos (Snackbars)** para resultados de acciones cortas: *éxito* (verde,
-  "Cambios guardados"), *error* (rojo, qué falló y qué hacer), *información* y *deshacer*
-  (por ejemplo, al eliminar una prenda se puede deshacer durante unos segundos). Cada aviso
-  lleva ícono, no solo color, y una vibración suave; uno nuevo reemplaza al anterior.
-- **Diálogos de confirmación (AlertDialog)** antes de acciones importantes, explicando la
-  consecuencia: eliminar una prenda, quitar una talla que aún tiene piezas, descartar
-  cambios sin guardar, cerrar sesión, desactivar a alguien o cambiar su rol. Las acciones
-  irreversibles se marcan en rojo y cancelar es siempre la opción segura.
-- **Pantallas de éxito** al completar un proceso completo, con el siguiente paso a la
-  mano: prenda creada (*Imprimir etiqueta QR* / *Agregar otra*), tienda creada
-  (*Empezar*) y cuenta de empleado creada (*Listo* / *Crear otra cuenta*).
-
-## Cómo funciona por dentro
-
-- **Flutter** (Android e iOS; también compila para web), Material 3 con tema propio
-  terracota en modo claro y oscuro, y la tipografía **Plus Jakarta Sans** incluida en la
-  app (licencia SIL OFL, `assets/fonts/OFL.txt`).
-- **Primero en el teléfono:** el catálogo vive en el dispositivo (**Hive**), así que la app
-  abre al instante y funciona sin conexión. Cada cambio queda marcado como pendiente y se
-  sube a **Firebase (Firestore)** cuando hay red; los cambios de otros teléfonos llegan en
-  vivo.
-- **Ventas y ajustes atómicos:** se aplican con una transacción en el servidor, así dos
-  personas vendiendo la última pieza a la vez nunca dejan la existencia en negativo; si se
-  pudo restar menos de lo pedido, la app lo avisa.
-- **Códigos sin choques:** si dos teléfonos sin internet crean prendas con el mismo código,
-  al sincronizar la segunda recibe un código nuevo en vez de pisar a la primera.
-- **Sin pisar el trabajo de otros:** los ajustes de existencia se guardan como "+2 / −1"
-  sobre la versión más reciente, no como cantidades fijas, así dos personas vendiendo al
-  mismo tiempo no se borran entre sí. Lo mismo al guardar la ficha completa.
-- **Tolerante a datos malos:** un registro dañado o editado a mano en la consola no tumba
-  la pantalla ni detiene la sincronización, y nunca se interpreta como "borrado".
-- **Inicio de sesión** con Firebase Auth (correo y contraseña). El perfil de cada persona
-  (`usuarios/{uid}`) dice su tienda, rol y si está activa; un cambio de rol o una
-  desactivación se aplican al momento.
-
-### Datos en Firestore
-
-| Ruta | Contenido |
-|---|---|
-| `usuarios/{uid}` | Nombre, correo, rol (`admin` / `empleado`), activo, tienda. |
-| `tiendas/{tiendaId}` | Nombre de la tienda y su dueño. |
-| `tiendas/{tiendaId}/prendas/{PRENDA-000001}` | Nombre, precio, código de proveedor y variantes (talla, color, existencia). El id del documento es el del QR. |
-| `tiendas/{tiendaId}/ventas/{id}` | Cada venta: prenda, talla, color, piezas, precio y fecha. Solo se agregan, nunca se editan. |
-| `tiendas/{tiendaId}/ajustes/{id}` | Cada ajuste de existencia: prenda, talla, color, cambio, quién y cuándo. Solo se agregan. |
-
-Los permisos y la forma válida de cada prenda están en `firestore.rules`. **Hay que
-publicarlas** para que apliquen: `firebase deploy --only firestore:rules`.
-
-## Estructura del código
-
-| Carpeta | Contenido |
-|---|---|
-| `lib/models/` | Prenda y variantes, niveles de existencia y límites de datos. |
-| `lib/data/` | Catálogo local (Hive), sincronización con Firestore, estado pendiente, preferencias. |
-| `lib/auth/` | Usuarios, roles, sesión (Firebase Auth) y alta de personal. |
-| `lib/screens/` | Pantallas: inicio (`home/`), ficha (`item_form/`), ajuste rápido, QR, escáner, sesión y usuarios. |
-| `lib/widgets/` | Piezas compartidas; `feedback/` reúne avisos, confirmaciones y pantallas de éxito. |
-| `lib/utils/` | Formato de precios y textos. |
-| `lib/app_theme.dart` | Paleta, tipografía, radios y estilos de toda la app. |
-
-## Ramas
-
-| Rama | Para qué |
-|---|---|
-| `develop` | **Preproducción**: aquí se trabaja y se prueba (incluida la sesión automática diaria). |
-| `master` | **Producción**: lo que se despliega. Solo recibe `develop` por pull request, después de probarlo. |
-
-## Desarrollo
+## Instalación
 
 ```bash
 flutter pub get
-flutter analyze
 flutter run
 ```
 
-Las tareas pendientes y el historial de cambios están en [`BACKLOG.md`](BACKLOG.md).
+Las reglas de seguridad de Firestore están en `firestore.rules` y se publican con:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+## Estructura
+
+| Carpeta | Contenido |
+|---|---|
+| `lib/models/` | Modelos de datos. |
+| `lib/data/` | Almacenamiento local y sincronización. |
+| `lib/auth/` | Sesión, usuarios y roles. |
+| `lib/screens/` | Pantallas. |
+| `lib/widgets/` | Componentes compartidos. |
+| `lib/utils/` | Formatos de precio, fecha y texto. |
