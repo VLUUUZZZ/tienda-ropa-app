@@ -7,7 +7,7 @@ import '../../auth/app_user.dart';
 import '../../legal.dart';
 import '../../utils/texto.dart';
 
-enum _AccountAction { theme, users, adjustments, export, about, signOut }
+enum _AccountAction { theme, licenses, users, adjustments, export, about, signOut }
 
 /// Who is signed in, as an avatar with their initials, plus the app and
 /// account options their role allows.
@@ -18,6 +18,7 @@ class AccountMenu extends StatelessWidget {
     required this.isDarkMode,
     required this.onToggleTheme,
     required this.onManageUsers,
+    this.onManageLicenses,
     this.onExport,
     this.onViewAdjustments,
     this.onSignOut,
@@ -26,6 +27,9 @@ class AccountMenu extends StatelessWidget {
   final AppUser user;
   final bool isDarkMode;
   final VoidCallback onToggleTheme;
+
+  /// Solo para el dueño de la app: administrar licencias de las tiendas.
+  final VoidCallback? onManageLicenses;
   final VoidCallback? onManageUsers;
 
   /// Null when this role shouldn't see the store's full prices and supplier
@@ -48,6 +52,7 @@ class AccountMenu extends StatelessWidget {
       offset: const Offset(0, 52),
       onSelected: (action) => switch (action) {
         _AccountAction.theme => onToggleTheme(),
+        _AccountAction.licenses => onManageLicenses?.call(),
         _AccountAction.users => onManageUsers?.call(),
         _AccountAction.adjustments => onViewAdjustments?.call(),
         _AccountAction.export => onExport?.call(),
@@ -88,6 +93,16 @@ class AccountMenu extends StatelessWidget {
             title: Text(isDarkMode ? 'Usar tema claro' : 'Usar tema oscuro'),
           ),
         ),
+        if (onManageLicenses != null)
+          const PopupMenuItem(
+            value: _AccountAction.licenses,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.workspace_premium_outlined),
+              title: Text('Licencias de tiendas'),
+              subtitle: Text('Panel del dueño de la app'),
+            ),
+          ),
         if (onManageUsers != null)
           const PopupMenuItem(
             value: _AccountAction.users,

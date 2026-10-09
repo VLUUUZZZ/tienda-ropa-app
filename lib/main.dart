@@ -10,6 +10,7 @@ import 'app_theme.dart';
 import 'widgets/app_messenger.dart';
 import 'auth/app_user.dart';
 import 'auth/user_directory.dart';
+import 'data/license_admin.dart';
 import 'backend.dart';
 import 'data/adjustments_repository.dart';
 import 'data/clothing_repository.dart';
@@ -220,6 +221,7 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
                 adjustmentsRepo,
                 onSignOut: backend.auth.signOut,
                 users: backend.users,
+                licenseAdmin: backend.licenseAdmin,
               ),
         ),
       },
@@ -233,6 +235,7 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
     AdjustmentsRepository adjustmentsRepo, {
     VoidCallback? onSignOut,
     UserDirectory? users,
+    LicenseAdminService? licenseAdmin,
   }) {
     return HomeScreen(
       repo: repo,
@@ -243,6 +246,7 @@ class _TiendaRopaAppState extends State<TiendaRopaApp> {
       onToggleTheme: _toggleTheme,
       onSignOut: onSignOut,
       users: users,
+      licenseAdmin: licenseAdmin,
     );
   }
 }

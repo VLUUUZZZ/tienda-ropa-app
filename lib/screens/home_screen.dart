@@ -10,7 +10,9 @@ import 'package:share_plus/share_plus.dart';
 
 import '../auth/app_user.dart';
 import '../auth/user_directory.dart';
+import '../auth/license.dart';
 import '../data/clothing_repository.dart';
+import '../data/license_admin.dart';
 import '../data/adjustments_repository.dart';
 import '../data/catalog_export.dart';
 import '../data/sales_repository.dart';
@@ -36,6 +38,7 @@ import 'item_form_screen.dart';
 import 'qr_screen.dart';
 import 'quick_stock_screen.dart';
 import 'scanner_screen.dart';
+import 'admin/license_admin_screen.dart';
 import 'users/users_screen.dart';
 
 /// The catalog. What it offers depends on [user]'s role: admins get the full
@@ -52,6 +55,10 @@ class HomeScreen extends StatefulWidget {
   /// Null when there are no accounts to manage (local-only mode).
   final UserDirectory? users;
 
+  /// Solo presente (y con valor) para el dueño de la app: administrar las
+  /// licencias de todas las tiendas.
+  final LicenseAdminService? licenseAdmin;
+
   final SalesRepository salesRepo;
   final AdjustmentsRepository adjustmentsRepo;
 
@@ -63,6 +70,7 @@ class HomeScreen extends StatefulWidget {
     required this.onToggleTheme,
     this.onSignOut,
     this.users,
+    this.licenseAdmin,
     required this.salesRepo,
     required this.adjustmentsRepo,
   });
@@ -503,6 +511,20 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Solo el dueño de la app ve esta opción; además, el servidor rechaza a
+  /// cualquier otra cuenta.
+  bool get _canManageLicenses =>
+      widget.licenseAdmin != null &&
+      widget.user.uid == LicenseConfig.duenoUid;
+
+  void _openLicenses() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LicenseAdminScreen(admin: widget.licenseAdmin!),
+      ),
+    );
+  }
+
   Future<void> _confirmSignOut(VoidCallback signOut) async {
     final confirmed = await confirmAction(
       context,
@@ -589,6 +611,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   user: widget.user,
                   isDarkMode: widget.isDarkMode,
                   onToggleTheme: widget.onToggleTheme,
+                  onManageLicenses: _canManageLicenses ? _openLicenses : null,
                   onManageUsers: _canOpenUsers
                       ? () => _openUsers(widget.users!)
                       : null,
