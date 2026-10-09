@@ -46,7 +46,7 @@ Future<void> _start() async {
     final settings = await SettingsRepository.open();
 
     // Local config only, so this never waits on the network.
-    final backend = await connectFirebase();
+    final backend = await connectFirebase(licenseCache: settings);
 
     // Without a backend there's no login: a single local catalog. With one,
     // each store's catalog is opened by the auth gate on sign-in.

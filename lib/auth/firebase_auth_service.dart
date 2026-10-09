@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'app_user.dart';
 import 'auth_service.dart';
+import 'license.dart';
 import 'firebase_auth_errors.dart';
 import 'session_watcher.dart';
 import '../firestore_paths.dart';
@@ -15,10 +16,12 @@ import '../firestore_paths.dart';
 /// [AuthService] on Firebase Auth (email and password), with each user's
 /// store and role kept in Firestore under `usuarios/{uid}`.
 class FirebaseAuthService implements AuthService {
-  FirebaseAuthService(this._auth, this._firestore);
+  FirebaseAuthService(this._auth, this._firestore, {LicenseCache? licenseCache})
+    : _licenseCache = licenseCache;
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
+  final LicenseCache? _licenseCache;
 
   /// True while [createStore] is writing this device's own profile: read by
   /// [SessionWatcher] so it doesn't flash "sin acceso" while that write is
@@ -31,6 +34,7 @@ class FirebaseAuthService implements AuthService {
     _auth,
     _firestore,
     isProvisioning: () => _provisioningStore,
+    licenseCache: _licenseCache,
   ).states;
 
   @override
@@ -85,6 +89,12 @@ class FirebaseAuthService implements AuthService {
           'nombre': nombreTienda.trim(),
           'duenoUid': user.uid,
           'creada': FieldValue.serverTimestamp(),
+          // Prueba inicial: la tienda funciona unos días hasta que el dueño
+          // de la app le fije su licencia. Las reglas no permiten al creador
+          // ponerse una fecha mayor que esta.
+          'licenciaHasta': Timestamp.fromDate(
+            DateTime.now().add(const Duration(days: LicenseConfig.diasPrueba)),
+          ),
         })
         ..set(FirestorePaths.user(_firestore, user.uid), {
           ...admin.toMap(),

@@ -12,6 +12,7 @@ import '../../data/adjustments_repository.dart';
 import '../../data/clothing_repository.dart';
 import '../../data/sales_repository.dart';
 import '../../widgets/auth_layout.dart';
+import 'license_screen.dart';
 import 'login_screen.dart';
 
 typedef SignedInBuilder =
@@ -41,7 +42,7 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
-  late final StreamSubscription<AuthState> _subscription;
+  late StreamSubscription<AuthState> _subscription;
   AuthState _state = const AuthLoading();
 
   /// The open catalog, sales log and adjustment history, and whose store
@@ -57,6 +58,15 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void initState() {
     super.initState();
+    _subscription = widget.backend.auth.watch().listen(_onAuthState);
+  }
+
+  /// Starts a fresh session listener, which re-reads the profile and the
+  /// store's license right away (e.g. after the user renews their license).
+  Future<void> _resubscribe() async {
+    await _subscription.cancel();
+    if (!mounted) return;
+    setState(() => _state = const AuthLoading());
     _subscription = widget.backend.auth.watch().listen(_onAuthState);
   }
 
@@ -80,7 +90,7 @@ class _AuthGateState extends State<AuthGate> {
     switch (next) {
       case SignedIn(:final user):
         await _openStore(user.tienda!);
-      case SignedOut() || AccessDenied():
+      case SignedOut() || AccessDenied() || LicenseInactive():
         await _closeStore();
       case AuthLoading():
         break;
@@ -182,6 +192,15 @@ class _AuthGateState extends State<AuthGate> {
       SignedOut() => LoginScreen(auth: auth),
       AccessDenied(:final correo) => _AccessDeniedScreen(
         correo: correo,
+        onSignOut: auth.signOut,
+      ),
+      LicenseInactive(:final tiendaNombre, :final license) => LicenseScreen(
+        tiendaNombre: tiendaNombre,
+        license: license,
+        // The session listener is live; renewing on the server flips the
+        // state on its own. "Retry" just reassures the user — re-reading is
+        // automatic, so this only needs to not error.
+        onRetry: _resubscribe,
         onSignOut: auth.signOut,
       ),
       SignedIn(:final user) when _openFailed => _OpenFailedScreen(

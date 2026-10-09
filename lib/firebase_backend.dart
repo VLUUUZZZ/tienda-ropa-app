@@ -7,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 import 'auth/firebase_auth_service.dart';
+import 'auth/license.dart';
 import 'auth/firestore_user_directory.dart';
 import 'backend.dart';
 import 'data/firestore_adjustments.dart';
@@ -20,7 +21,7 @@ import 'firebase_options.dart';
 ///
 /// Works offline: initializing reads local config only, and a previous
 /// session is restored from the device.
-Future<Backend?> connectFirebase() async {
+Future<Backend?> connectFirebase({LicenseCache? licenseCache}) async {
   final FirebaseOptions options;
   try {
     options = DefaultFirebaseOptions.currentPlatform;
@@ -34,7 +35,11 @@ Future<Backend?> connectFirebase() async {
   }
   final firestore = FirebaseFirestore.instance;
   return Backend(
-    auth: FirebaseAuthService(FirebaseAuth.instance, firestore),
+    auth: FirebaseAuthService(
+      FirebaseAuth.instance,
+      firestore,
+      licenseCache: licenseCache,
+    ),
     users: FirestoreUserDirectory(firestore, options),
     catalogFor: (tienda) => FirestoreCatalog(firestore, tienda.id),
     salesFor: (tienda) => FirestoreSales(firestore, tienda.id),

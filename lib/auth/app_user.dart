@@ -27,10 +27,17 @@ enum UserRole {
 /// A store: its own catalog and its own staff, isolated from every other
 /// store that uses the app.
 class Tienda {
-  const Tienda({required this.id, required this.nombre});
+  const Tienda({required this.id, required this.nombre, this.licenciaHasta});
 
   final String id;
   final String nombre;
+
+  /// Hasta cuándo la licencia de esta tienda es válida (del documento de la
+  /// tienda; null si no se ha leído o no tiene). Ver [License].
+  final DateTime? licenciaHasta;
+
+  Tienda conLicencia(DateTime? hasta) =>
+      Tienda(id: id, nombre: nombre, licenciaHasta: hasta);
 }
 
 /// Someone who can use the app: the store they belong to and the role that
@@ -110,5 +117,15 @@ class AppUser {
     role: role ?? this.role,
     tienda: tienda,
     activo: activo ?? this.activo,
+  );
+
+  /// The same user with [tienda] replaced (e.g. once its license is known).
+  AppUser conTienda(Tienda tienda) => AppUser(
+    uid: uid,
+    nombre: nombre,
+    correo: correo,
+    role: role,
+    tienda: tienda,
+    activo: activo,
   );
 }
