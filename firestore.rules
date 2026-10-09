@@ -70,15 +70,38 @@ service cloud.firestore {
         && getAfter(storePath(tiendaId)).data.duenoUid == request.auth.uid;
     }
 
+    // The owner of the app: the only account that may set or change a
+    // store's license. REEMPLAZA este UID por el tuyo de Firebase Auth
+    // (Authentication -> tu usuario -> User UID). Sin esto, nadie puede
+    // renovar licencias y las tiendas se bloquearán al terminar su prueba.
+    function esDuenoLicencias() {
+      return signedIn()
+        && request.auth.uid == 'REEMPLAZA_CON_TU_UID_DE_FIREBASE';
+    }
+
     match /tiendas/{tiendaId} {
-      allow read: if isMemberOf(tiendaId);
+      allow read: if isMemberOf(tiendaId) || esDuenoLicencias();
+      // Al crear la tienda, el dueño de la tienda solo puede darse una
+      // licencia de prueba corta (14 días); extenderla es exclusivo del
+      // dueño de la app.
       allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['nombre', 'duenoUid', 'creada'])
+        && request.resource.data.keys().hasOnly(
+            ['nombre', 'duenoUid', 'creada', 'licenciaHasta'])
         && request.resource.data.nombre is string
         && request.resource.data.nombre.size() <= 120
         && request.resource.data.duenoUid == request.auth.uid
+        && request.resource.data.licenciaHasta is timestamp
+        && request.resource.data.licenciaHasta
+             <= request.time + duration.value(15, 'd')
         && getAfter(ownProfilePath()).data.tiendaId == tiendaId
         && getAfter(ownProfilePath()).data.rol == 'admin';
+      // Solo el dueño de la app cambia la tienda (su licencia o su nombre).
+      allow update: if esDuenoLicencias()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['licenciaHasta', 'nombre'])
+        && (!('licenciaHasta' in request.resource.data)
+            || request.resource.data.licenciaHasta is timestamp);
+      allow delete: if false;
 
       match /prendas/{prendaId} {
         allow read: if isMemberOf(tiendaId);

@@ -2,6 +2,7 @@
 // Software propietario: prohibida su copia o distribución sin autorización.
 
 import 'app_user.dart';
+import 'license.dart';
 
 /// Where the session stands, as the app needs to route it.
 sealed class AuthState {
@@ -29,6 +30,16 @@ class AccessDenied extends AuthState {
   const AccessDenied(this.correo);
 
   final String correo;
+}
+
+/// Signed in to an active account, but the store's license isn't valid
+/// (expired, or never set). The data is untouched; access is just paused
+/// until the license is renewed by the app's owner.
+class LicenseInactive extends AuthState {
+  const LicenseInactive({required this.tiendaNombre, required this.license});
+
+  final String tiendaNombre;
+  final License license;
 }
 
 /// A failure the user can act on, with a message ready to show.
