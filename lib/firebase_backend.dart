@@ -11,6 +11,7 @@ import 'auth/license.dart';
 import 'auth/firestore_user_directory.dart';
 import 'backend.dart';
 import 'data/firestore_adjustments.dart';
+import 'data/license_admin.dart';
 import 'data/firestore_catalog.dart';
 import 'data/firestore_sales.dart';
 import 'firebase_options.dart';
@@ -44,5 +45,6 @@ Future<Backend?> connectFirebase({LicenseCache? licenseCache}) async {
     catalogFor: (tienda) => FirestoreCatalog(firestore, tienda.id),
     salesFor: (tienda) => FirestoreSales(firestore, tienda.id),
     adjustmentsFor: (tienda) => FirestoreAdjustments(firestore, tienda.id),
+    licenseAdmin: FirestoreLicenseAdmin(firestore),
   );
 }
